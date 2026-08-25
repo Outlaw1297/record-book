@@ -29,6 +29,7 @@ export function CowCalfPage() {
       </p>
       {editing && (
         <CowCalfForm
+          key={editing.id}
           record={editing}
           onCancel={() => setEditing(null)}
           onSave={(record) => {

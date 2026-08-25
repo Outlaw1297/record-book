@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { AnimalChip } from '../components/AnimalChip.tsx'
 import { formatDisplayDate } from '../lib/dates.ts'
-import { animalFromToken, findAnimal, newId, upsertAnimal } from '../lib/ids.ts'
+import { animalFromToken, animalShortLabel, findAnimal, newId, upsertAnimal } from '../lib/ids.ts'
 import { useBook } from '../store.tsx'
-import type { ListingKind, PastureExposure, RecordBook } from '../types.ts'
+import type { ListingKind, PastureExposure, PastureMember, RecordBook } from '../types.ts'
 
 export function PasturePage() {
   const { book, replaceBook, removePasture } = useBook()
@@ -35,6 +35,7 @@ export function PasturePage() {
       </p>
       {editing && (
         <PastureForm
+          key={editing.id}
           record={editing}
           onCancel={() => setEditing(null)}
           onSave={(record) => {
@@ -110,7 +111,7 @@ function toFormPasture(pasture: PastureExposure, book: RecordBook): PastureExpos
     ...pasture,
     members: pasture.members.map((member) => {
       const animal = findAnimal(book.animals, member.animalId)
-      return { ...member, animalId: animal ? `${animal.number}` : member.animalId }
+      return { ...member, animalId: animal ? animalShortLabel(animal) : member.animalId }
     }),
   }
 }
@@ -126,7 +127,7 @@ function PastureForm({
 }) {
   const [draft, setDraft] = useState(record)
   const [memberLine, setMemberLine] = useState(
-    draft.members.map((m) => [m.animalId, m.notes, m.epd].filter(Boolean).join(' ')).join('\n'),
+    draft.members.map((member) => formatMemberLine(member)).join('\n'),
   )
   return (
     <form
@@ -137,20 +138,7 @@ function PastureForm({
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean)
-          .map((line) => {
-            const circled = line.includes('(')
-            const epdMatch = line.match(/\+(\d+(?:\.\d+)?)/)
-            const token = line.replace(/[()]/g, '').replace(/\+\d+(?:\.\d+)?/, '').trim()
-            const parts = token.split(/\s+/)
-            const idToken = parts[0] ?? token
-            const notes = parts.slice(1).join(' ')
-            return {
-              animalId: idToken,
-              notes: notes || undefined,
-              epd: epdMatch ? Number(epdMatch[1]) : undefined,
-              circled,
-            }
-          })
+          .map(parseMemberLine)
         onSave({ ...draft, members })
       }}
     >
@@ -216,6 +204,45 @@ function PastureForm({
       </div>
     </form>
   )
+}
+
+const COLOR_WORD =
+  /^(yellow|white|green|pink|teal|purple|purp|pur|orange|org|blue|pk|by|[ywg])$/i
+const BREED_WORD = /^(BLK|BWF|BBF|RWF|Red|BHFD)$/i
+
+function formatMemberLine(member: PastureMember): string {
+  const id = member.circled ? `(${member.animalId})` : member.animalId
+  const epd = member.epd != null ? `+${member.epd}` : undefined
+  return [id, member.notes, epd].filter(Boolean).join(' ')
+}
+
+function parseMemberLine(line: string): PastureMember {
+  const circled = line.includes('(')
+  const epdMatch = line.match(/\+(\d+(?:\.\d+)?)/)
+  const token = line.replace(/[()]/g, '').replace(/\+\d+(?:\.\d+)?/, '').trim()
+  const parts = token.split(/\s+/).filter(Boolean)
+
+  let take = 1
+  if (parts[0] && BREED_WORD.test(parts[0])) take += 1
+  const core = parts[take - 1]
+  if (parts[take] && COLOR_WORD.test(parts[take])) {
+    take += 1
+  } else if (core && /^\d+$/.test(core) && parts[take] && /^[A-Za-z][A-Za-z'-]*$/.test(parts[take])) {
+    take += 1
+  } else if (parts[0] && /^[A-Za-z]{1,3}$/.test(parts[0]) && !BREED_WORD.test(parts[0])) {
+    for (let i = take; i <= parts.length; i++) {
+      if (animalFromToken(parts.slice(0, i).join(' ')).tagColor) take = i
+    }
+  }
+
+  const idToken = parts.slice(0, take).join(' ') || token
+  const notes = parts.slice(take).join(' ')
+  return {
+    animalId: idToken,
+    notes: notes || undefined,
+    epd: epdMatch ? Number(epdMatch[1]) : undefined,
+    circled,
+  }
 }
 
 function upsertById<T extends { id: string }>(list: T[], record: T): T[] {

@@ -30,6 +30,7 @@ export function BreedingPage() {
       </p>
       {editing && (
         <BreedingForm
+          key={editing.id}
           record={toFormRecord(editing, book)}
           onCancel={() => setEditing(null)}
           onSave={(form) => {

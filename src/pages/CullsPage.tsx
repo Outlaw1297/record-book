@@ -39,6 +39,7 @@ export function CullsPage() {
       </p>
       {editing && (
         <CullForm
+          key={editing.id}
           record={toFormCull(editing, book)}
           onCancel={() => setEditing(null)}
           onSave={(form) => {

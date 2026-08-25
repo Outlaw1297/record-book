@@ -29,6 +29,7 @@ export function SalesPage() {
       </p>
       {editing && (
         <SaleForm
+          key={editing.id}
           record={toFormSale(editing, book)}
           onCancel={() => setEditing(null)}
           onSave={(form) => {

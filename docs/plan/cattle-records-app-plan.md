@@ -1,10 +1,12 @@
 # Cattle Record Book — Product & Architecture Plan
 
-**Product:** Offline-first cattle record book for phone (field) and desktop (office), with optional sync through Google Drive or Dropbox when cellular/Wi‑Fi is available.
+**Product:** Offline-first digital version of your **American Hereford Association / myHERD.org pocket calving book**, for phone (field) and desktop (office), syncing through Google Drive or Dropbox when cell service or Wi‑Fi is available.
 
-**Status:** Planning draft. Reference photos of the paper book were not available in this agent session; the data model below uses standard ranch record-keeping fields and should be adjusted to match your pages once photos are shared.
+**Status:** Plan updated from your notebook photos (cow–calf, pasture exposure, sale, breeding, cover). A few pages did not upload (size limit) — send compressed copies when you can and we will fold those sections in.
 
-**UI skill:** [ui-design-brain](../../.cursor/skills/ui-design-brain/SKILL.md) installed for production-grade UI generation.
+**UI skill:** [ui-design-brain](../../.cursor/skills/ui-design-brain/SKILL.md)
+
+**Reference photos:** [`docs/plan/reference-photos/`](reference-photos/)
 
 ---
 
@@ -12,257 +14,192 @@
 
 | Goal | Detail |
 |------|--------|
-| Work without internet | Full create / edit / search of animals and events on device |
-| Work with intermittent cell service | Sync when online; queue changes when offline |
-| Phone + desktop | Same data, ranch-friendly UX on each form factor |
-| No custom server required | Google Drive or Dropbox is the shared “backend” |
-| Feel like the paper book | Screens and fields mirror how you already keep records |
-
-Non-goals for v1: multi-ranch SaaS, public APIs, real-time collaborative editing, AI vision of ear tags (nice later).
+| Mirror the paper book | Same section names and columns you already write |
+| Work without internet | Full entry/search on device in the pasture |
+| Work with spotty cell | Queue changes; sync when service returns |
+| Phone + desktop | Field quick-entry + office tables/exports |
+| No custom server | Google Drive or Dropbox is the shared backend |
 
 ---
 
-## 2. Recommended product shape
+## 2. What your book actually records (from photos)
 
-### Mobile (phone / tablet)
+Source: spiral **myHERD.org / American Hereford Association** pocket book.
 
-Primary use: standing in a pen or pasture with spotty service.
+### 2.1 Cow – Calf Record
 
-- Large touch targets, glove-friendly
-- Fast animal lookup by tag / tattoo / name
-- Quick-add: calf, treatment, weight, breeding, move, note + photo
-- Offline banner + last-synced time
-- Camera for animal photos and paper-page capture (optional import later)
+Printed title: **LIST ALL COWS BY HERD I.D. NUMBER** / footer **COW – CALF RECORD**.
 
-### Desktop (Windows / macOS)
+| Column | How you use it | App field |
+|--------|----------------|-----------|
+| CALF I.D. NO. | Alphanumeric + tag color letter (`67y`, `247w`, `919g`) | `calfId` (text) |
+| COW I.D. NO. | Tag, name, or both (`Helen`, `90bk`, `654 Heal`) | `cowId` (text, link to animal) |
+| BRED BY SIRE I.D. NO. | Bull ID, date-like codes (`5/5`), name (`Diablo`), or **`open`** | `sireId` / status `open` |
+| SEX | `F` / `M` | `sex` enum |
+| CALVING DATE MTH/DAY/YEAR | Split date (`7 / 1 / 26`) | single `calvingDate` |
+| BIRTH WEIGHT | Weight and/or phenotype codes (`BB`, `RN`, `BEF`, `40`) | `birthWeight` + `birthCodes` |
+| CALV EZ | Ease score (`1`, `1/1`) | `calvingEase` |
+| REMARKS | Grades, poll, notes (`GAGM`, `FAGM`, `poll`, `preme pull`) | `remarks` + quick tags |
 
-Primary use: office batch entry, reports, breeding lists, inventory.
+**Open cows:** row can be cow-only with sire/calf marked `open` — app must allow calving rows without a calf.
 
-- Dense tables, keyboard shortcuts, multi-column filters
-- Print / CSV export for bank, vet, or sale sheets
-- Same sync folder as the phone
-- Optional dual-pane: animal list + detail history
+### 2.2 Breeding Record — Year ____
 
-### Shared design direction (ui-design-brain)
+| Column group | Fields | App model |
+|--------------|--------|-----------|
+| COW I.D. | Color/type + tag (`BLK 455org`, `BWF 40pk`, `BBF 419w`) | cow + phenotype + tag color |
+| A.I. 1st Service | Sire + Date | `services[]` type=`ai`, sequence=1 |
+| A.I. 2nd Service | Sire + Date | `services[]` type=`ai`, sequence=2 |
+| Pasture Service | Sire + Date | `services[]` type=`pasture` |
 
-- **Enterprise / information-dense** for desktop tables
-- **Modern SaaS + large touch** for mobile field flows
-- Neutral ranch palette (earth / fence-post tones), one accent — not purple SaaS defaults
-- Empty states that say “no cattle yet” with a clear Add animal CTA
+Circled rows in ink → **flag / highlight** on the record.
+
+### 2.3 Pasture Exposure
+
+Header: **PASTURE**, **BULL IN**, **BULL OUT** dates.
+
+| Piece | Example | App field |
+|-------|---------|-----------|
+| Pasture name | `OLD COWS` | `pastureName` |
+| Bull in / out | `7-19-26`, blank out | `bullInDate`, `bullOutDate` |
+| Animal lists | Columns retitled (e.g. COWS → **BULLS**) | flexible columns: role + animal refs |
+| Per-animal notes | `241w +3.3`, `652g BLK`, `20 Jenkins`, `BHFD`, `Red` | ID + free note / EPD-like `+n.n` |
+| Counts | circled `13 BULLS` | derived count |
+| Flagged animal | circled `500 Jensen +2.4` | `flagged` |
+
+### 2.4 Sale Record
+
+| Column | App field |
+|--------|-----------|
+| CALF I.D. | `animalId` |
+| SEX | `sex` |
+| SOLD TO | `buyer` |
+| DATE | `saleDate` |
+| PRICE | `price` |
+
+Companion list usage (same year): calf ID + status notes (`old`, `gimp`, `udder`, `big bag`), `x`-prefix and circles as **status / sold / flagged** markers. Tag color embedded in ID (`y`, `w`, `pk`, `g`, `teal`, `purple`, `org`).
+
+### 2.5 Book identity
+
+- Brand: **myHERD.org** + **American Hereford Association**
+- Optional later: export/import alignment with myHERD — **not required for v1**
 
 ---
 
-## 3. Architecture (offline-first)
+## 3. Apps & UX (match paper workflows)
+
+### Mobile (field)
+
+- Home sections matching book tabs: **Cow–Calf · Breeding · Pasture · Sales**
+- One-row-at-a-time entry with defaults (year, calving ease `1`)
+- Fast animal picker by herd ID / tag color
+- Quick remark chips: `poll`, `GAGM`, `FAGM`, `open`, `gimp`, etc.
+- Offline banner + last synced time
+- Large touch targets (glove-friendly)
+
+### Desktop (office)
+
+- Spreadsheet-like grids per section (same columns as the book pages)
+- Filters by year, pasture, sex, open/bred, flagged
+- CSV / print for sale sheets and inventory
+- Conflict review after multi-device sync
+
+Design direction via ui-design-brain: information-dense tables on desktop; large-touch field forms on mobile; earth/neutral ranch palette (not purple SaaS defaults).
+
+---
+
+## 4. Architecture (offline-first + Drive/Dropbox)
 
 ```
-┌─────────────────────┐     ┌─────────────────────┐
-│  Mobile app         │     │  Desktop app        │
-│  local SQLite       │     │  local SQLite       │
-│  outbox of changes  │     │  outbox of changes  │
-└─────────┬───────────┘     └─────────┬───────────┘
-          │  sync when online         │
-          └────────────┬──────────────┘
-                       ▼
-          ┌────────────────────────────┐
-          │  Google Drive  OR  Dropbox │
-          │  /RecordBook/              │
-          │    herd.sqlite.snapshot    │
-          │    changes/*.jsonl         │
-          │    media/<animalId>/…      │
-          └────────────────────────────┘
+Phone (SQLite + outbox) ──┐
+                          ├──► Google Drive OR Dropbox /RecordBook/
+Desktop (SQLite + outbox)─┘         changes/  snapshots/  media/
 ```
 
-**Important:** Drive/Dropbox are **file sync backends**, not a live SQL server. Each device always reads/writes **local SQLite**. When online, a sync engine pushes/pulls change files and media into a shared folder.
+- **Local SQLite** is always the working database (works with no signal).
+- Cloud folder stores **append-only change files**, periodic **snapshots**, and **photos**.
+- Sync when cellular/Wi‑Fi is up; resume after drops.
+- Conflict policy v1: last-write-wins + conflict log for same record edited on two devices offline.
 
-### Why this works on ranch cell service
-
-1. All UI and queries hit local SQLite — zero latency, works in airplane mode.
-2. Every write also appends to a local **outbox**.
-3. When connectivity appears, the app uploads outbox files and downloads peers’ files.
-4. Sync can resume after drops; uploads are small JSON change records, not the whole DB every time.
-5. Periodic full snapshots provide recovery if change logs get messy.
-
-### Sync protocol (v1)
-
-| Piece | Purpose |
-|-------|---------|
-| Device ID | Stable UUID per install |
-| Change record | `{ id, deviceId, entity, entityId, op, payload, updatedAt, vectorClock }` |
-| Outbox upload | Append-only JSONL files under `changes/<deviceId>/<seq>.jsonl` |
-| Apply remote | Merge into local SQLite by `entityId` + last-write-wins on `updatedAt` (with conflict log) |
-| Snapshot | Weekly (or manual) upload of compacted SQLite for new-device bootstrap |
-| Media | Photos stored as files; DB holds paths + checksums; upload separately |
-
-**Conflict policy (v1):** last-write-wins on the same animal field, with a visible “Conflict” note if two devices edited the same record while both offline. Ranch ops rarely need CRDTs; keep it simple and reviewable.
-
-**Auth:** OAuth for Google Drive or Dropbox on each device; tokens stored in OS secure storage. User picks one provider at setup (“Use Google Drive” / “Use Dropbox”).
-
----
-
-## 4. Suggested tech stack
-
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Cross-platform UI | **Flutter** | One codebase → iOS, Android, Windows, macOS; strong offline story |
-| Local DB | **SQLite** via Drift | Reliable, queryable, shippable offline |
-| Sync | Custom sync service + Drive/Dropbox SDKs | Fits “cloud folder as backend” without running a server |
-| Auth | Google / Dropbox OAuth | Native to the chosen store |
-| Photos | Local filesystem + cloud media folder | Survives offline; syncs when service returns |
-
-Alternatives if you prefer web tech: **React Native (mobile) + Tauri (desktop)** sharing a TypeScript sync + SQLite (sql.js / better-sqlite3) core. Flutter remains the simpler single-team path for ranch phone + PC.
-
----
-
-## 5. Domain model (match to your paper book)
-
-Adjust field names/sections after reviewing your photos.
-
-### Core entities
-
-**Animal**
-
-- Visual / ear tag ID, secondary ID (tattoo, brand, EID/RFID)
-- Name (optional)
-- Sex, breed, color / markings
-- Birth date, birth weight, birth type (single/twin)
-- Status: active, sold, dead, culled, missing
-- Current pasture / pen
-- Dam / sire links (other animals)
-- Notes, photo(s)
-
-**Breeding / calving**
-
-- Breeding date, bull / AI straw, method
-- Expected calving date
-- Actual calving: date, calf ID, ease score, complications
-- Weaning date / weight
-
-**Health & treatments**
-
-- Date, product, dose, route, withdrawal date
-- Condition / diagnosis
-- Vet visit flag
-- Cost (optional)
-
-**Weights & performance**
-
-- Date, weight, method (scale / tape)
-- Gain calculations derived in UI
-
-**Moves / inventory**
-
-- From / to location, date, reason
-- Purchase / sale: counterparty, price, weight, date
-
-**Herd / ranch settings**
-
-- Ranch name, default pastures, tag formats, units (lb/kg)
-
-### Screen map
-
-| Mobile | Desktop |
-|--------|---------|
-| Home: search + quick actions | Dashboard: herd counts, due calvings, withdrawals |
-| Animal detail + timeline | Animal table + filters + detail drawer |
-| Add/edit forms (wizard-style) | Same forms, denser |
-| Sync status | Sync status + conflict review |
-| Settings (provider, ranch) | Settings + export/print |
-
----
-
-## 6. Sync folder layout (provider-agnostic)
+Folder layout:
 
 ```
 /RecordBook/
-  config.json                 # schema version, ranch id
-  snapshots/
-    herd-2026-08-25.sqlite
-  changes/
-    <deviceId>/
-      000001.jsonl
-      000002.jsonl
-  media/
-    <animalId>/
-      photo-….jpg
-  locks/                      # soft advisory only; never block offline use
+  config.json
+  snapshots/herd-YYYY-MM-DD.sqlite
+  changes/<deviceId>/<seq>.jsonl
+  media/<animalId>/…
 ```
 
-Both Google Drive and Dropbox expose “app folder” or user-picked folder APIs. Abstract behind:
+---
+
+## 5. Suggested data schema (v1)
 
 ```text
-CloudStore { list, upload, download, delete, watch? }
-GoogleDriveStore | DropboxStore
+Animal
+  id, herdId, tagColor, phenotype (BLK/BWF/BBF/RWF/…),
+  name, sex, status (active|open|sold|dead|flagged),
+  notes, yearBorn
+
+CowCalfRecord          # one row ≈ paper book row
+  year, calfId → Animal?, cowId → Animal, sireId,
+  sex, calvingDate, birthWeight, birthCodes, calvingEase,
+  remarks, flagged, openWithoutCalf
+
+BreedingService
+  year, cowId → Animal, kind (ai1|ai2|pasture),
+  sireId, serviceDate, flagged
+
+PastureExposure
+  pastureName, bullInDate, bullOutDate, year, notes
+
+PastureExposureAnimal
+  exposureId, animalId, role (bull|cow), note, metric (+3.3), flagged
+
+SaleRecord
+  animalId, sex, buyer, saleDate, price, year, notes
 ```
 
----
-
-## 7. Connectivity behavior
-
-| State | App behavior |
-|-------|----------------|
-| Offline | Full CRUD; queue outbox; show “Offline — changes saved on device” |
-| Online weak | Prefer small change uploads; defer large photo sync; retry with backoff |
-| Online | Upload outbox → download peers → apply → optional snapshot |
-| First install | Sign in → pick/create folder → download latest snapshot → catch up changes |
-
-Manual **Sync now** button always available. Auto-sync on app resume when network is reachable.
+Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and phenotype are first-class so search works (`w`, `org`, `BWF`).
 
 ---
 
-## 8. Security & privacy
+## 6. Tech stack
 
-- Data stays in the user’s Drive/Dropbox account (no third-party cattle SaaS required for v1)
-- OAuth scopes limited to app folder when possible
-- Optional at-rest encryption of change payloads with a ranch passphrase (v1.1)
-- Local DB protected by device lock / OS app sandbox
-- Soft-delete animals; hard-delete only after sync tombstones propagate
-
----
-
-## 9. Delivery phases
-
-### Phase 0 — Align with paper book
-
-- Review photos/scans of current pages
-- Finalize field list and naming to match your book
-- Wireframe mobile animal card + desktop table
-
-### Phase 1 — Offline MVP (single device)
-
-- Flutter shell: animal list, detail, add/edit
-- Local SQLite schema + seed empty ranch
-- No cloud yet — proves field usability
-
-### Phase 2 — Cloud sync
-
-- Google Drive adapter (primary) + Dropbox adapter
-- Outbox / inbox change sync + snapshot bootstrap
-- Sync status UI + conflict list
-
-### Phase 3 — Desktop polish & exports
-
-- Desktop layouts, keyboard nav, CSV/PDF sale & inventory sheets
-- Breeding calendar / due list
-- Photo gallery per animal
-
-### Phase 4 — Nice-to-haves
-
-- RFID/BLE wand if you use EIDs
-- Paper-page photo OCR assist
-- Multi-user roles (owner / hand) with same sync folder
+| Layer | Choice |
+|-------|--------|
+| App | **Flutter** (iOS, Android, Windows, macOS) |
+| Local DB | SQLite via Drift |
+| Sync | Custom outbox + Google Drive / Dropbox APIs |
+| Auth | OAuth; tokens in OS secure storage |
 
 ---
 
-## 10. Open decisions (need your input)
+## 7. Delivery phases
 
-1. **Provider preference:** Google Drive, Dropbox, or let user choose at setup?
-2. **Platforms first:** Android only, iPhone only, or both? Windows and/or Mac desktop?
-3. **Paper book pages:** please re-share photos so we mirror exact columns (tags, calving, health, etc.).
-4. **Who uses it:** one person, or phone in the field + someone else on the office PC at the same time?
-5. **Must-have reports** for v1 (e.g. active inventory, calves this year, treatments with withdrawal).
+| Phase | Deliverable |
+|-------|-------------|
+| **0** | Finish ingesting any missing book pages; lock field list |
+| **1** | Offline MVP: Cow–Calf list/form + animal directory |
+| **2** | Breeding + Pasture Exposure + Sales sections |
+| **3** | Drive/Dropbox sync + conflict UI |
+| **4** | Desktop grids, CSV/print, remark chips polish |
 
 ---
 
-## 11. Immediate next build step
+## 8. Missing photos / open questions
 
-After photos are available and decisions above are answered: scaffold Flutter project in this repo, implement Phase 1 offline animal CRUD matching your book’s fields, then add Drive/Dropbox sync in Phase 2.
+**Missing uploads:** you noted some pictures failed the size limit. Please re-send remaining pages as smaller JPEGs (or a few at a time). Useful if they exist in the book: weaning weights, treatments/health, herd inventory, bull inventory, or any other tab you use every year.
+
+**Decisions still needed:**
+
+1. Google Drive, Dropbox, or choose at setup?
+2. Android / iPhone / both? Windows and/or Mac first?
+3. One user, or phone + office PC editing the same year at once?
+4. Should tag color (`y/w/pk/g/…`) be a separate picker, or stay inside the ID string as you write it today?
+
+---
+
+## 9. Next build step
+
+After any remaining pages arrive (or you say “build with what we have”): scaffold Flutter + Phase 1 **Cow–Calf Record** matching these columns, then Breeding / Pasture / Sales, then sync.

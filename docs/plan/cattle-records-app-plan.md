@@ -2,7 +2,7 @@
 
 **Product:** Offline-first digital version of your **American Hereford Association / myHERD.org pocket calving book**, for phone (field) and desktop (office), syncing through Google Drive or Dropbox when cell service or Wi‑Fi is available.
 
-**Status:** Plan updated from your notebook photos (cow–calf, pasture exposure, sale, breeding, cover). A few pages did not upload (size limit) — send compressed copies when you can and we will fold those sections in.
+**Status:** MVP built from available notebook photos (cow–calf, pasture exposure, sale, breeding, cover). Remaining pages can be uploaded later and folded into the schema.
 
 **UI skill:** [ui-design-brain](../../.cursor/skills/ui-design-brain/SKILL.md)
 

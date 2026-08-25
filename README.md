@@ -1,22 +1,46 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop, with sync through Google Drive or Dropbox when you have cell service or Wi‑Fi.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop browsers. Data stays on the device (IndexedDB); syncs later through Google Drive or Dropbox when you have cell service or Wi‑Fi.
 
-## Status
+## Run locally
 
-Plan updated from notebook photos (cow–calf, breeding, pasture exposure, sales). See:
+```bash
+cd app
+npm install
+npm run dev -- --host 0.0.0.0 --port 5173
+```
 
-- [Product & architecture plan](docs/plan/cattle-records-app-plan.md)
-- [Reference photos](docs/plan/reference-photos/)
-- Interactive canvas: `canvases/cattle-records-plan.canvas.tsx`
+Open the printed URL. Works offline in the browser after first load (data is stored locally).
 
-## Book sections (mapped)
+```bash
+cd app && npm run build   # production build
+cd app && npm run lint    # oxlint
+```
 
-1. **Cow – Calf Record** — calf/cow/sire IDs, sex, calving date, birth weight, calving ease, remarks  
-2. **Breeding Record** — AI 1st/2nd + pasture service  
-3. **Pasture Exposure** — pasture, bull in/out, animal lists  
-4. **Sale Record** — calf, sex, sold to, date, price  
+## App sections (from your notebook)
 
-## Skills
+| Section | What it captures |
+|---------|------------------|
+| **Cow–Calf** | Calf/cow/sire IDs, sex, calving date, birth weight/codes, calving ease, remarks, open cows |
+| **Breeding** | AI 1st/2nd + pasture service |
+| **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |
+| **Sales** | Calf ID, sex, sold to, date, price, notes |
+| **Settings** | Ranch name, year, Drive/Dropbox provider choice, JSON backup |
 
-- **ui-design-brain** — `.cursor/skills/ui-design-brain` for production-grade UI patterns.
+## Sync model
+
+- Local **IndexedDB** (Dexie) is the source of truth offline
+- Every write goes to an **outbox**
+- Settings: choose **Google Drive** or **Dropbox** (OAuth adapters next)
+- **Download JSON backup** works today without cloud
+
+## Plan & references
+
+- [Architecture plan](docs/plan/cattle-records-app-plan.md)
+- [Notebook photos](docs/plan/reference-photos/)
+- Canvas: `canvases/cattle-records-plan.canvas.tsx`
+- UI skill: `.cursor/skills/ui-design-brain`
+
+## Stack
+
+Vite + React + TypeScript + Dexie. Installable later as a PWA / Capacitor wrap for app-store packaging if you want native shells.

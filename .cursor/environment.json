@@ -1,0 +1,10 @@
+{
+  "name": "record-book",
+  "install": "cd app && npm install",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "cd app && npm run dev -- --host 0.0.0.0 --port 5173"
+    }
+  ]
+}

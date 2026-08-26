@@ -1,6 +1,6 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop browsers. Data stays on the device (IndexedDB); syncs later through Google Drive or Dropbox when you have cell service or Wi‑Fi.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop browsers. Data stays on the device (IndexedDB); phones share a private Google Drive or Dropbox folder. An optional **Docker / Portainer** stack keeps a Postgres copy of the same herd behind a REST API for a future project.
 
 ## Run locally
 
@@ -17,6 +17,19 @@ cd app && npm run build   # production build
 cd app && npm run lint    # oxlint
 cd app && npm test        # last-write-wins / shared-book identity
 ```
+
+## Docker / Portainer
+
+Postgres + API + PWA. The field app still works without this stack.
+
+```bash
+cp .env.example .env   # set POSTGRES_PASSWORD and API_KEY
+docker compose up --build -d
+```
+
+- PWA: `http://YOUR-HOST/`
+- API: `http://YOUR-HOST:8080` (see [API reference](docs/api.md))
+- Portainer steps: [Docker / Portainer](docs/docker-portainer.md)
 
 ## App sections (from your notebook)
 
@@ -40,11 +53,12 @@ Install as a **PWA** from the browser (Add to Home Screen). Works offline after 
 - Local **IndexedDB** (Dexie) is the source of truth offline
 - Every write goes to an **outbox**
 - When online, pending rows upload as JSONL into a private **Google Drive** or **Dropbox** `RecordBook` folder that **every device/user on that account shares**
+- Optional **ranch Postgres** (Docker / Portainer) is a second copy of the herd for other apps. It does not replace Drive
 - Your name and device label stay on this device; ranch name, year, and cattle rows are the shared database
-- Tokens stay on the device; they are never written to the outbox or cloud snapshot
+- Tokens and the ranch API key stay on the device; they are never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud
 
-Setup: [Drive / Dropbox OAuth](docs/sync-setup.md)
+Setup: [Drive / Dropbox OAuth](docs/sync-setup.md) · [Docker / Portainer](docs/docker-portainer.md) · [Ranch API](docs/api.md)
 
 ## Plan & references
 
@@ -55,4 +69,4 @@ Setup: [Drive / Dropbox OAuth](docs/sync-setup.md)
 
 ## Stack
 
-Vite + React + TypeScript + Dexie + Tailwind. Installable as a PWA.
+Vite + React + TypeScript + Dexie + Tailwind. Installable as a PWA. Optional ranch API: Hono + Postgres 16, run with Docker Compose / Portainer.

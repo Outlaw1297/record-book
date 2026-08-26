@@ -18,7 +18,7 @@
 | Work without internet | Full entry/search on device in the pasture |
 | Work with spotty cell | Queue changes; sync when service returns |
 | Phone + desktop | Field quick-entry + office tables/exports |
-| No custom server | Google Drive or Dropbox is the shared backend |
+| No custom server required | Google Drive or Dropbox is the shared backend for phones; optional Docker Postgres is a ranch copy for other apps |
 
 ---
 

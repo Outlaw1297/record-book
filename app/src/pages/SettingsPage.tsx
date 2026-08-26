@@ -26,6 +26,15 @@ import {
   saveGoogleClientId,
 } from '../sync/credentials';
 import { defaultDeviceName } from '../sync/identity';
+import {
+  getRanchApiKey,
+  getRanchApiUrl,
+  hasEnvRanchApiUrl,
+  hasRanchServer,
+  probeRanchServer,
+  saveRanchApiKey,
+  saveRanchApiUrl,
+} from '../sync/ranchServer';
 import type { CloudProvider } from '../sync/types';
 import { Field } from '../ui/Field';
 import { useToast } from '../ui/Toast';
@@ -52,9 +61,11 @@ export function SettingsPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [googleClientId, setGoogleClientId] = useState('');
   const [dropboxAppKey, setDropboxAppKey] = useState('');
+  const [ranchApiUrl, setRanchApiUrl] = useState('');
+  const [ranchApiKey, setRanchApiKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [busy, setBusy] = useState<
-    'google-drive' | 'dropbox' | 'sync' | 'off' | 'replace' | null
+    'google-drive' | 'dropbox' | 'sync' | 'off' | 'replace' | 'ranch' | null
   >(null);
 
   useEffect(() => {
@@ -68,6 +79,8 @@ export function SettingsPage() {
       setCurrentYear(settings.currentYear);
       setGoogleClientId(getGoogleClientId());
       setDropboxAppKey(getDropboxAppKey());
+      setRanchApiUrl(getRanchApiUrl());
+      setRanchApiKey(getRanchApiKey());
       setHydrated(true);
     }
   }, [settings, hydrated]);
@@ -90,6 +103,8 @@ export function SettingsPage() {
     if (!settings) return;
     saveGoogleClientId(googleClientId);
     saveDropboxAppKey(dropboxAppKey);
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
     const nextRanch = ranchName.trim() || 'Record Book';
     const nextYear = currentYear;
     const ranchChanged =
@@ -148,6 +163,34 @@ export function SettingsPage() {
     setBusy(null);
   }
 
+  async function saveRanchApi() {
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
+    toast(
+      ranchApiUrl.trim() && ranchApiKey.trim()
+        ? 'Ranch API saved on this device. It is not written to Drive or Dropbox.'
+        : 'Ranch API cleared on this device.',
+    );
+  }
+
+  async function copyToRanch() {
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
+    setBusy('sync');
+    const result = await syncNow();
+    toast(result.detail);
+    setBusy(null);
+  }
+
+  async function testRanchApi() {
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
+    setBusy('ranch');
+    const result = await probeRanchServer();
+    toast(result.detail);
+    setBusy(null);
+  }
+
   async function downloadBackup() {
     const blob = await exportHerdBackup();
     const url = URL.createObjectURL(blob);
@@ -160,6 +203,8 @@ export function SettingsPage() {
   }
 
   const connected = Boolean(auth?.accessToken);
+  const ranchReady = Boolean(ranchApiUrl.trim() && ranchApiKey.trim()) || hasRanchServer();
+  const canSync = connected || ranchReady;
   const providerName =
     auth?.provider === 'dropbox'
       ? 'Dropbox'
@@ -173,8 +218,8 @@ export function SettingsPage() {
       <header className="page-header">
         <h1>Settings</h1>
         <p className="lede">
-          One private Drive or Dropbox folder is the shared book. Every phone
-          and office PC signs into that same account, then keeps working offline.
+          One private Drive or Dropbox folder is the shared book for phones.
+          An optional ranch database in Docker holds the same herd for other apps.
         </p>
       </header>
 
@@ -226,8 +271,8 @@ export function SettingsPage() {
         <h2>Shared cloud folder</h2>
         <p className="hint">
           Sign this device and every other device into the <strong>same</strong>{' '}
-          Google or Dropbox account. Files live in <code>RecordBook</code>. No
-          ranch server, and no public link.
+          Google or Dropbox account. Files live in <code>RecordBook</code>. That
+          folder is still the phone-to-phone book. No public link.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -267,7 +312,7 @@ export function SettingsPage() {
           <button
             type="button"
             className="btn secondary"
-            disabled={busy !== null || !connected}
+            disabled={busy !== null || !canSync}
             onClick={() => void runSync()}
           >
             {busy === 'sync' ? 'Syncing…' : 'Sync now'}
@@ -331,6 +376,75 @@ export function SettingsPage() {
             This device ID: <code>{settings?.deviceId}</code>
           </p>
         </details>
+      </section>
+
+      <section className="sync-panel form">
+        <h2>Ranch database (Docker)</h2>
+        <p className="hint">
+          Optional Postgres copy of this herd for a future app. Drive and Dropbox
+          stay the offline book. The API key lives only on this device.
+        </p>
+        <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
+          {ranchReady ? 'Configured on this device' : 'Not configured'}
+        </p>
+        <Field
+          label={
+            hasEnvRanchApiUrl()
+              ? 'Ranch API URL (build already set; paste to override)'
+              : 'Ranch API URL'
+          }
+        >
+          <input
+            value={ranchApiUrl}
+            onChange={(e) => setRanchApiUrl(e.target.value)}
+            placeholder="/api or http://192.168.1.10:8080"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+        <Field label="Ranch API key">
+          <input
+            type="password"
+            value={ranchApiKey}
+            onChange={(e) => setRanchApiKey(e.target.value)}
+            placeholder="Same as API_KEY in the Docker stack"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+        <p className="hint">
+          Docker web image uses <code>/api</code> (nginx proxies to the API). A
+          phone talking to Portainer on the LAN uses{' '}
+          <code>http://YOUR-HOST:8080</code>.
+        </p>
+        <div className="provider-actions">
+          <button
+            type="button"
+            className="btn primary"
+            disabled={busy !== null || !ranchReady}
+            onClick={() => void copyToRanch()}
+          >
+            {busy === 'sync' ? 'Copying…' : 'Copy herd to ranch database'}
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy !== null}
+            onClick={() => void saveRanchApi()}
+          >
+            Save ranch API
+          </button>
+        </div>
+        <div className="provider-actions">
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={busy !== null || !ranchReady}
+            onClick={() => void testRanchApi()}
+          >
+            {busy === 'ranch' ? 'Checking…' : 'Test connection'}
+          </button>
+        </div>
       </section>
 
       <section className="sync-panel">

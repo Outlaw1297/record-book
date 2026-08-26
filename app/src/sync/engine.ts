@@ -16,6 +16,7 @@ import {
   upsertRoster,
   type DeviceRoster,
 } from './identity';
+import { hasRanchServer, pushToRanchServer } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
 import {
   buildSnapshot,
@@ -70,7 +71,8 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const online = typeof navigator !== 'undefined' ? navigator.onLine : false;
   const auth = await getSyncAuth();
   const connected = await hasUsableSession();
-  const needsAuth = isCloudProvider(settings.syncProvider) && !connected;
+  const ranchConfigured = hasRanchServer();
+  const needsAuth = isCloudProvider(settings.syncProvider) && !connected && !ranchConfigured;
   const label = providerLabel(settings.syncProvider);
   const others = Math.max(0, deviceCount - 1);
 
@@ -80,9 +82,19 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   } else if (lastError) {
     message = lastError;
   } else if (settings.syncProvider === 'none') {
-    message = 'Online — connect Google Drive or Dropbox in Settings to sync';
-  } else if (needsAuth) {
-    message = `Online — reconnect ${label} in Settings`;
+    if (ranchConfigured && pendingCount > 0) {
+      message = `${pendingCount} change(s) waiting to copy to the ranch database`;
+    } else if (ranchConfigured && settings.lastSyncedAt) {
+      message = `Online — ranch database last copied ${formatWhen(settings.lastSyncedAt)}`;
+    } else if (ranchConfigured) {
+      message = 'Online — ranch database configured';
+    } else {
+      message = 'Online — connect Drive, Dropbox, or a ranch API in Settings';
+    }
+  } else if (isCloudProvider(settings.syncProvider) && !connected) {
+    message = ranchConfigured
+      ? `Online — reconnect ${label}, or sync the ranch database`
+      : `Online — reconnect ${label} in Settings`;
   } else if (pendingCount > 0) {
     message = `${pendingCount} change(s) waiting to sync to ${label}`;
   } else if (others > 0 && settings.lastSyncedAt) {
@@ -273,10 +285,14 @@ async function maybeWriteSnapshot(
 
 async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
   const settings = await ensureSettings();
-  if (!isCloudProvider(settings.syncProvider)) {
+  const ranchConfigured = hasRanchServer();
+  const cloudProvider = isCloudProvider(settings.syncProvider)
+    ? settings.syncProvider
+    : null;
+  if (!cloudProvider && !ranchConfigured) {
     return {
       ok: false,
-      detail: 'Connect Google Drive or Dropbox in Settings first.',
+      detail: 'Connect Google Drive, Dropbox, or a ranch API in Settings first.',
       pulled: 0,
       pushed: 0,
       conflicts: 0,
@@ -292,71 +308,107 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     };
   }
 
-  const token = await getValidAccessToken();
-  if (!token) {
-    lastError = `Reconnect ${providerLabel(settings.syncProvider)} in Settings.`;
-    emitSyncEvent();
-    return {
-      ok: false,
-      detail: lastError,
-      pulled: 0,
-      pushed: 0,
-      conflicts: 0,
-    };
+  const parts: string[] = [];
+  let pulled = { pulled: 0, conflicts: 0 };
+  let pushed = { pushed: 0 };
+  let cloudOk = false;
+
+  if (cloudProvider) {
+    const token = await getValidAccessToken();
+    if (!token) {
+      if (!ranchConfigured) {
+        lastError = `Reconnect ${providerLabel(cloudProvider)} in Settings.`;
+        emitSyncEvent();
+        return {
+          ok: false,
+          detail: lastError,
+          pulled: 0,
+          pushed: 0,
+          conflicts: 0,
+        };
+      }
+      parts.push(`Reconnect ${providerLabel(cloudProvider)}`);
+    } else {
+      try {
+        const carrier = carrierFor(cloudProvider);
+        await carrier.ensureRoot();
+        const book = await ensureBook(carrier);
+        if (options.replace) await clearHerdForReplace();
+        pulled = await pullRemote(carrier);
+        pushed = options.replace
+          ? { pushed: 0 }
+          : await pushLocal(carrier, settings.deviceId);
+        await maybeWriteSnapshot(
+          carrier,
+          pulled.pulled > 0 || pushed.pushed > 0 || options.replace === true,
+        );
+        const changeFiles = await carrier.list('changes');
+        const roster = await publishRoster(
+          carrier,
+          book.bookId,
+          changeFiles.map((file) => file.key),
+        );
+        cloudOk = true;
+        if (book.joinedExisting && roster.devices.length > 1) {
+          parts.push(`${roster.devices.length} devices on this book`);
+        }
+        if (pushed.pushed) parts.push(`sent ${pushed.pushed}`);
+        if (pulled.pulled) parts.push(`received ${pulled.pulled}`);
+        if (pulled.conflicts) parts.push(`${pulled.conflicts} overlap(s) logged`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Cloud sync failed.';
+        if (!ranchConfigured) {
+          lastError = message;
+          emitSyncEvent();
+          return {
+            ok: false,
+            detail: lastError,
+            pulled: 0,
+            pushed: 0,
+            conflicts: 0,
+          };
+        }
+        parts.push(message);
+      }
+    }
   }
 
-  try {
-    const carrier = carrierFor(settings.syncProvider);
-    await carrier.ensureRoot();
-    const book = await ensureBook(carrier);
-    if (options.replace) await clearHerdForReplace();
-    const pulled = await pullRemote(carrier);
-    const pushed = options.replace
-      ? { pushed: 0 }
-      : await pushLocal(carrier, settings.deviceId);
-    await maybeWriteSnapshot(
-      carrier,
-      pulled.pulled > 0 || pushed.pushed > 0 || options.replace === true,
-    );
-    const changeFiles = await carrier.list('changes');
-    const roster = await publishRoster(
-      carrier,
-      book.bookId,
-      changeFiles.map((file) => file.key),
-    );
-    await db.settings.update(1, { lastSyncedAt: nowIso() });
-    lastError = undefined;
-    const parts: string[] = [];
-    if (book.joinedExisting && roster.devices.length > 1) {
-      parts.push(`${roster.devices.length} devices on this book`);
+  if (ranchConfigured) {
+    const ranch = await pushToRanchServer();
+    if (ranch.ok) parts.push('copied to ranch database');
+    else if (!cloudOk) {
+      lastError = ranch.detail;
+      emitSyncEvent();
+      return {
+        ok: false,
+        detail: ranch.detail,
+        pulled: pulled.pulled,
+        pushed: pushed.pushed,
+        conflicts: pulled.conflicts,
+      };
+    } else {
+      parts.push(`ranch API: ${ranch.detail}`);
     }
-    if (pushed.pushed) parts.push(`sent ${pushed.pushed}`);
-    if (pulled.pulled) parts.push(`received ${pulled.pulled}`);
-    if (pulled.conflicts) parts.push(`${pulled.conflicts} overlap(s) logged`);
-    const detail =
-      parts.length > 0
-        ? `Synced with ${providerLabel(settings.syncProvider)} — ${parts.join(', ')}.`
-        : `Herd is up to date on ${providerLabel(settings.syncProvider)}.`;
-    emitSyncEvent();
-    return {
-      ok: true,
-      detail,
-      pulled: pulled.pulled,
-      pushed: pushed.pushed,
-      conflicts: pulled.conflicts,
-    };
-  } catch (error) {
-    lastError =
-      error instanceof Error ? error.message : 'Sync failed. Try again.';
-    emitSyncEvent();
-    return {
-      ok: false,
-      detail: lastError,
-      pulled: 0,
-      pushed: 0,
-      conflicts: 0,
-    };
   }
+
+  await db.settings.update(1, { lastSyncedAt: nowIso() });
+  lastError = undefined;
+  const label = cloudProvider
+    ? providerLabel(cloudProvider)
+    : 'ranch database';
+  const detail =
+    parts.length > 0
+      ? `Synced with ${label} — ${parts.join(', ')}.`
+      : `Herd is up to date on ${label}.`;
+  emitSyncEvent();
+  return {
+    ok: true,
+    detail,
+    pulled: pulled.pulled,
+    pushed: pushed.pushed,
+    conflicts: pulled.conflicts,
+  };
 }
 
 export async function syncNow(): Promise<SyncRunResult> {

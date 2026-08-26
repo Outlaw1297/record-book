@@ -39,12 +39,20 @@ jobs:
           tags: ghcr.io/outlaw1297/record-book-web:latest
           labels: org.opencontainers.image.source=https://github.com/Outlaw1297/record-book
 
-      - name: Make packages public
+      - name: Require public packages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # GHCR is private by default and has no visibility API. Fail until each
+          # package is made public once in the GitHub UI so Portainer can pull.
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          failed=0
           for pkg in record-book-api record-book-web; do
-            gh api --method PUT \
-              "/user/packages/container/${pkg}/visibility" \
-              -f visibility=public || true
+            vis=$(gh api "/user/packages/container/${pkg}" --jq .visibility)
+            echo "${pkg}: ${vis}"
+            if [ "$vis" != "public" ]; then
+              echo "::error::${pkg} is ${vis}. Make it public once at https://github.com/users/${owner}/packages/container/${pkg}/settings (Danger Zone → Change visibility → Public)."
+              failed=1
+            fi
           done
+          exit "${failed}"

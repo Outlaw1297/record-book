@@ -6,6 +6,8 @@ No environment variables. On first boot the stack writes random keys into a Dock
 
 Portainer does **not** build from this repo (that is what caused `path "/data/compose/.../api" not found`). It pulls ready-made images from `ghcr.io`.
 
+GHCR packages default to private. GitHub has no API to flip that, so after the first **Docker images** workflow run, open each package and set visibility to **Public** (Package settings → Danger Zone → Change visibility). That is a one-time UI step; Portainer has no registry login.
+
 ## Portainer
 
 1. Stacks → Add stack → Repository

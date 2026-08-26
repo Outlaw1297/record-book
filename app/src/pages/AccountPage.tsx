@@ -13,9 +13,10 @@ function providerLabel(provider?: string) {
 export function AccountPage() {
   const settings = useLiveQuery(() => ensureSettings());
   const auth = useLiveQuery(() => getSyncAuth());
-  const devices = useLiveQuery(() =>
-    db.syncDevices.orderBy('deviceName').toArray(),
-  );
+  const devices = useLiveQuery(async () => {
+    const rows = await db.syncDevices.toArray();
+    return rows.sort((a, b) => a.deviceName.localeCompare(b.deviceName));
+  });
   const others = (devices ?? []).filter((device) => !device.isThisDevice);
   const deviceLabel =
     settings?.deviceName ||

@@ -40,9 +40,10 @@ export function SettingsPage() {
   const conflicts = useLiveQuery(() =>
     db.syncConflicts.orderBy('createdAt').reverse().limit(12).toArray(),
   );
-  const devices = useLiveQuery(() =>
-    db.syncDevices.orderBy('deviceName').toArray(),
-  );
+  const devices = useLiveQuery(async () => {
+    const rows = await db.syncDevices.toArray();
+    return rows.sort((a, b) => a.deviceName.localeCompare(b.deviceName));
+  });
   const auth = useLiveQuery(() => getSyncAuth());
 
   const [ranchName, setRanchName] = useState('');

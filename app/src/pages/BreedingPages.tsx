@@ -6,16 +6,21 @@ import {
   ensureSettings,
   newId,
   nowIso,
+  todayIsoDate,
+  upsertAnimalByHerdId,
   queueChange,
   type BreedingKind,
   type BreedingService,
 } from '../db/schema';
 import { dueDateFromService, formatDisplayDate } from '../lib/gestation';
+import { listHerdIds } from '../lib/herd';
+import { EmptyState, Field, Segmented } from '../ui/Field';
+import { useToast } from '../ui/Toast';
 
 const KIND_LABEL: Record<BreedingKind, string> = {
-  ai1: 'AI 1st service',
-  ai2: 'AI 2nd service',
-  pasture: 'Pasture service',
+  ai1: 'AI 1st',
+  ai2: 'AI 2nd',
+  pasture: 'Pasture',
 };
 
 export function BreedingListPage() {
@@ -32,9 +37,12 @@ export function BreedingListPage() {
 
   return (
     <div className="page">
-      <header className="page-header row-between">
+      <header
+        className="page-header"
+        style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}
+      >
         <div>
-          <h1>Breeding Record</h1>
+          <h1>Breeding</h1>
           <p className="lede">Year {year} · AI and pasture service</p>
         </div>
         <Link className="btn primary" to="/breeding/new">
@@ -42,44 +50,67 @@ export function BreedingListPage() {
         </Link>
       </header>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Cow I.D.</th>
-              <th>Service</th>
-              <th>Sire</th>
-              <th>Date</th>
-              <th>Due</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(rows ?? []).map((row) => {
+      {(rows?.length ?? 0) === 0 ? (
+        <div style={{ marginTop: '1rem' }}>
+          <EmptyState
+            title="No breeding rows"
+            body="Add a first or second AI service, or a pasture turnout."
+            actionTo="/breeding/new"
+            actionLabel="Add service"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="card-list card-mobile" style={{ marginTop: '1rem' }}>
+            {rows?.map((row) => {
               const due = row.serviceDate
                 ? dueDateFromService(row.serviceDate)
                 : null;
               return (
-                <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
-                  <td>
-                    <Link to={`/breeding/${row.id}`}>{row.cowId}</Link>
-                  </td>
-                  <td>{KIND_LABEL[row.kind]}</td>
-                  <td>{row.sireId || '—'}</td>
-                  <td>{row.serviceDate || '—'}</td>
-                  <td>{due ? formatDisplayDate(due) : '—'}</td>
-                </tr>
+                <Link key={row.id} className="list-card" to={`/breeding/${row.id}`}>
+                  <h2>{row.cowId}</h2>
+                  <p>
+                    {KIND_LABEL[row.kind]}
+                    {row.serviceDate ? ` · ${row.serviceDate}` : ''}
+                    {due ? ` · due ${formatDisplayDate(due)}` : ''}
+                  </p>
+                </Link>
               );
             })}
-            {(rows?.length ?? 0) === 0 && (
-              <tr>
-                <td colSpan={5} className="empty">
-                  No breeding rows for {year}.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+          <div className="table-wrap table-desktop" style={{ marginTop: '1rem' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Cow I.D.</th>
+                  <th>Service</th>
+                  <th>Sire</th>
+                  <th>Date</th>
+                  <th>Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows?.map((row) => {
+                  const due = row.serviceDate
+                    ? dueDateFromService(row.serviceDate)
+                    : null;
+                  return (
+                    <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
+                      <td>
+                        <Link to={`/breeding/${row.id}`}>{row.cowId}</Link>
+                      </td>
+                      <td>{KIND_LABEL[row.kind]}</td>
+                      <td>{row.sireId || '—'}</td>
+                      <td>{row.serviceDate || '—'}</td>
+                      <td>{due ? formatDisplayDate(due) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -87,17 +118,20 @@ export function BreedingListPage() {
 export function BreedingFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const settings = useLiveQuery(() => ensureSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.breeding.get(id) : undefined),
     [id],
   );
+  const herdIds = useLiveQuery(() => listHerdIds(), []);
 
   const [cowId, setCowId] = useState('');
   const [kind, setKind] = useState<BreedingKind>('ai1');
   const [sireId, setSireId] = useState('');
-  const [serviceDate, setServiceDate] = useState('');
+  const [serviceDate, setServiceDate] = useState(todayIsoDate());
   const [flagged, setFlagged] = useState(false);
+  const [error, setError] = useState('');
   const duePreview = serviceDate ? dueDateFromService(serviceDate) : null;
 
   useEffect(() => {
@@ -105,14 +139,14 @@ export function BreedingFormPage() {
     setCowId(existing.cowId);
     setKind(existing.kind);
     setSireId(existing.sireId ?? '');
-    setServiceDate(existing.serviceDate ?? '');
+    setServiceDate(existing.serviceDate ?? todayIsoDate());
     setFlagged(existing.flagged);
   }, [existing]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!cowId.trim()) {
-      alert('Cow I.D. is required');
+      setError('Cow I.D. is required.');
       return;
     }
 
@@ -129,57 +163,74 @@ export function BreedingFormPage() {
 
     await db.breeding.put(record);
     await queueChange('breeding', record.id, 'upsert', record);
+    await upsertAnimalByHerdId(record.cowId);
+    if (record.sireId) await upsertAnimalByHerdId(record.sireId);
+    toast('Breeding row saved');
     navigate('/breeding');
   }
 
   return (
-    <div className="page narrow">
+    <div className="page">
       <header className="page-header">
-        <h1>{existing ? 'Edit breeding' : 'Add breeding'}</h1>
-        <p className="lede">
-          Matches BREEDING RECORD — AI 1st/2nd and pasture service.
-        </p>
+        <h1>{existing ? 'Edit breeding' : 'Add service'}</h1>
+        <p className="lede">One cow, one service. Due date fills in automatically.</p>
       </header>
 
-      <form className="form" onSubmit={onSubmit}>
-        <label>
-          Cow I.D.
+      <form className="form" onSubmit={onSubmit} style={{ marginTop: '1rem' }}>
+        <Field label="Cow I.D." error={error}>
           <input
+            list="herd-ids"
             value={cowId}
-            onChange={(e) => setCowId(e.target.value)}
-            placeholder="BLK 455org / BWF 40pk"
+            onChange={(e) => {
+              setCowId(e.target.value);
+              setError('');
+            }}
+            placeholder="BLK 455org"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
             required
           />
-        </label>
-        <label>
-          Service type
-          <select
+        </Field>
+        <datalist id="herd-ids">
+          {(herdIds ?? []).map((herdId) => (
+            <option key={herdId} value={herdId} />
+          ))}
+        </datalist>
+        <Field label="Service">
+          <Segmented
+            ariaLabel="Service type"
             value={kind}
-            onChange={(e) => setKind(e.target.value as BreedingKind)}
-          >
-            <option value="ai1">A.I. 1st service</option>
-            <option value="ai2">A.I. 2nd service</option>
-            <option value="pasture">Pasture service</option>
-          </select>
-        </label>
-        <label>
-          Sire
+            onChange={setKind}
+            options={[
+              { value: 'ai1', label: 'AI 1st' },
+              { value: 'ai2', label: 'AI 2nd' },
+              { value: 'pasture', label: 'Pasture' },
+            ]}
+          />
+        </Field>
+        <Field label="Sire">
           <input
             value={sireId}
             onChange={(e) => setSireId(e.target.value)}
             placeholder="100 / 99"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
           />
-        </label>
-        <label>
-          Date
+        </Field>
+        <Field label="Date">
           <input
             type="date"
             value={serviceDate}
             onChange={(e) => setServiceDate(e.target.value)}
           />
-        </label>
+        </Field>
         {duePreview && (
-          <p className="hint">Due date: {formatDisplayDate(duePreview)}</p>
+          <div className="due-card">
+            <p className="due-kicker">Date due</p>
+            <p className="due-date">{formatDisplayDate(duePreview)}</p>
+          </div>
         )}
         <label className="check">
           <input
@@ -187,15 +238,15 @@ export function BreedingFormPage() {
             checked={flagged}
             onChange={(e) => setFlagged(e.target.checked)}
           />
-          Flagged
+          <span>Flagged</span>
         </label>
-        <div className="form-actions">
-          <button type="submit" className="btn primary">
-            Save
-          </button>
+        <div className="sticky-actions">
           <Link className="btn ghost" to="/breeding">
             Cancel
           </Link>
+          <button type="submit" className="btn primary">
+            Save service
+          </button>
         </div>
       </form>
     </div>

@@ -5,6 +5,7 @@ import {
   dueDateFromService,
   formatDisplayDate,
 } from '../lib/gestation';
+import { Field } from '../ui/Field';
 
 export function GestationPage() {
   const [serviceDate, setServiceDate] = useState('');
@@ -14,25 +15,22 @@ export function GestationPage() {
   );
 
   return (
-    <div className="page narrow">
+    <div className="page">
       <header className="page-header">
-        <h1>Gestation table</h1>
+        <h1>Due dates</h1>
         <p className="lede">
-          Same lookup as the printed GESTATION TABLE: find the date of service,
-          then read the due date. This app uses service plus {GESTATION_DAYS}{' '}
-          days.
+          Printed gestation table: service plus {GESTATION_DAYS} days.
         </p>
       </header>
 
-      <form className="form" onSubmit={(e) => e.preventDefault()}>
-        <label>
-          Date of service
+      <form className="form" onSubmit={(e) => e.preventDefault()} style={{ marginTop: '1rem' }}>
+        <Field label="Date of service">
           <input
             type="date"
             value={serviceDate}
             onChange={(e) => setServiceDate(e.target.value)}
           />
-        </label>
+        </Field>
       </form>
 
       {dueDate ? (
@@ -44,12 +42,13 @@ export function GestationPage() {
           </p>
         </div>
       ) : (
-        <p className="hint">Pick a service date to see the due date.</p>
+        <p className="hint" style={{ marginTop: '1rem' }}>
+          Pick a service date to see the due date.
+        </p>
       )}
 
       <p className="hint">
-        Breeding rows also show this due date.{' '}
-        <Link to="/breeding">Open breeding</Link>
+        Breeding rows show this too. <Link to="/breeding">Open breeding</Link>
       </p>
     </div>
   );

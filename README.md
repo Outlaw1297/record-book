@@ -21,12 +21,18 @@ cd app && npm run lint    # oxlint
 
 | Section | What it captures |
 |---------|------------------|
+| **Home** | Field dashboard with Log calf as the primary action |
+| **Herd** | Lifetime lookup by herd I.D. |
 | **Cow–Calf** | Calf/cow/sire IDs, sex, calving date, birth weight/codes, calving ease, remarks, open cows |
-| **Breeding** | AI 1st/2nd + pasture service |
+| **Breeding** | AI 1st/2nd + pasture service + due date |
 | **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |
 | **Sales** | Calf ID, sex, sold to, date, price, cull notes, circled / x marks |
-| **Gestation** | Service date + 283 days = due date (printed table) |
-| **Settings** | Ranch name, year, Drive/Dropbox provider choice, JSON backup |
+| **Gestation** | Service date + 283 days = due date |
+| **Account** | Operator, ranch, device — cloud login later |
+| **Settings** | Year, Drive/Dropbox, JSON backup |
+| **Onboarding** | First-run ranch name and field vs desk |
+
+Install as a **PWA** from the browser (Add to Home Screen). Works offline after first load.
 
 ## Sync model
 
@@ -44,4 +50,4 @@ cd app && npm run lint    # oxlint
 
 ## Stack
 
-Vite + React + TypeScript + Dexie. Installable later as a PWA / Capacitor wrap for app-store packaging if you want native shells.
+Vite + React + TypeScript + Dexie + Tailwind. Installable as a PWA.

@@ -91,7 +91,6 @@ export interface SaleRecord {
   saleDate?: string;
   price?: string;
   notes?: string;
-  /** How the row is marked in the paper cull/sale list. */
   listMark?: ListMark;
   flagged: boolean;
   updatedAt: string;
@@ -103,10 +102,12 @@ export type SyncProvider = 'none' | 'google-drive' | 'dropbox';
 export interface AppSettings {
   id: number;
   ranchName: string;
+  operatorName?: string;
   currentYear: number;
   syncProvider: SyncProvider;
   lastSyncedAt?: string;
   deviceId: string;
+  onboardingComplete?: boolean;
 }
 
 export interface OutboxChange {
@@ -132,6 +133,15 @@ export function newId(): string {
 
 export function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Local calendar date for field entry (not UTC). */
+export function todayIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 class RecordBookDB extends Dexie {
@@ -163,14 +173,24 @@ export const db = new RecordBookDB();
 
 export async function ensureSettings(): Promise<AppSettings> {
   const existing = await db.settings.get(1);
-  if (existing) return existing;
+  if (existing) {
+    if (existing.onboardingComplete == null) {
+      const hasRows = (await db.cowCalf.count()) > 0;
+      const next = { ...existing, onboardingComplete: hasRows };
+      await db.settings.put(next);
+      return next;
+    }
+    return existing;
+  }
 
   const settings: AppSettings = {
     id: 1,
     ranchName: 'Record Book',
+    operatorName: '',
     currentYear: new Date().getFullYear(),
     syncProvider: 'none',
     deviceId: newId(),
+    onboardingComplete: false,
   };
   await db.settings.put(settings);
   return settings;
@@ -190,4 +210,33 @@ export async function queueChange(
     payload,
     updatedAt: nowIso(),
   });
+}
+
+export async function upsertAnimalByHerdId(
+  herdId: string,
+  extras: Partial<Pick<Animal, 'sex' | 'status' | 'notes' | 'yearBorn'>> = {},
+): Promise<void> {
+  const trimmed = herdId.trim();
+  if (!trimmed) return;
+  const existing = await db.animals
+    .filter(
+      (animal) =>
+        !animal.deletedAt &&
+        animal.herdId.toLowerCase() === trimmed.toLowerCase(),
+    )
+    .first();
+  const record: Animal = {
+    id: existing?.id ?? newId(),
+    herdId: existing?.herdId ?? trimmed,
+    sex: extras.sex || existing?.sex || '',
+    status: extras.status ?? existing?.status ?? 'active',
+    notes: extras.notes ?? existing?.notes,
+    yearBorn: extras.yearBorn ?? existing?.yearBorn,
+    tagColor: existing?.tagColor,
+    phenotype: existing?.phenotype,
+    name: existing?.name,
+    updatedAt: nowIso(),
+  };
+  await db.animals.put(record);
+  await queueChange('animals', record.id, 'upsert', record);
 }

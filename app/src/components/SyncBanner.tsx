@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getSyncStatus, syncNow, type SyncStatus } from '../db/sync';
+import { useToast } from '../ui/Toast';
 
 export function SyncBanner() {
+  const toast = useToast();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,12 +39,12 @@ export function SyncBanner() {
         onClick={async () => {
           setBusy(true);
           const result = await syncNow();
-          alert(result.detail);
+          toast(result.detail);
           await refresh();
           setBusy(false);
         }}
       >
-        Sync now
+        {busy ? 'Syncing…' : 'Sync now'}
       </button>
     </div>
   );

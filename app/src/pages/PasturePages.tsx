@@ -1,12 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { EmptyState } from '../ui/Field';
+import { useToast } from '../ui/Toast';
 import {
   db,
   ensureSettings,
   newId,
   nowIso,
   queueChange,
+  upsertAnimalByHerdId,
   type PastureExposure,
   type PastureExposureAnimal,
   type PastureRole,
@@ -46,7 +49,12 @@ export function PastureListPage() {
           </Link>
         ))}
         {(rows?.length ?? 0) === 0 && (
-          <p className="empty-block">No pasture exposures for {year}.</p>
+          <EmptyState
+            title="No pastures yet"
+            body="Name the pasture, bull in/out, then add animals one at a time."
+            actionTo="/pasture/new"
+            actionLabel="Add pasture"
+          />
         )}
       </div>
     </div>
@@ -56,6 +64,7 @@ export function PastureListPage() {
 export function PastureFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const settings = useLiveQuery(() => ensureSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.pastures.get(id) : undefined),
@@ -107,6 +116,7 @@ export function PastureFormPage() {
 
     await db.pastures.put(record);
     await queueChange('pastures', record.id, 'upsert', record);
+    toast('Pasture saved');
     navigate(`/pasture/${record.id}`);
   }
 
@@ -130,6 +140,8 @@ export function PastureFormPage() {
     };
     await db.pastureAnimals.put(row);
     await queueChange('pastureAnimals', row.id, 'upsert', row);
+    await upsertAnimalByHerdId(row.animalHerdId);
+    toast('Animal added');
     setAnimalHerdId('');
     setAnimalNote('');
     setMetric('');
@@ -180,13 +192,13 @@ export function PastureFormPage() {
             rows={2}
           />
         </label>
-        <div className="form-actions">
-          <button type="submit" className="btn primary">
-            Save pasture
-          </button>
+        <div className="sticky-actions">
           <Link className="btn ghost" to="/pasture">
             Back
           </Link>
+          <button type="submit" className="btn primary">
+            Save pasture
+          </button>
         </div>
       </form>
 

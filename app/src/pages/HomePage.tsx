@@ -7,14 +7,16 @@ export function HomePage() {
   const year = settings?.currentYear ?? new Date().getFullYear();
 
   const counts = useLiveQuery(async () => {
-    const [cowCalf, breeding, pastures, sales, pending] = await Promise.all([
-      db.cowCalf.filter((r) => !r.deletedAt && r.year === year).count(),
-      db.breeding.filter((r) => !r.deletedAt && r.year === year).count(),
-      db.pastures.filter((r) => !r.deletedAt && r.year === year).count(),
-      db.sales.filter((r) => !r.deletedAt && r.year === year).count(),
-      db.outbox.filter((c) => !c.syncedAt).count(),
-    ]);
-    return { cowCalf, breeding, pastures, sales, pending };
+    const [cowCalf, breeding, pastures, sales, animals, pending] =
+      await Promise.all([
+        db.cowCalf.filter((r) => !r.deletedAt && r.year === year).count(),
+        db.breeding.filter((r) => !r.deletedAt && r.year === year).count(),
+        db.pastures.filter((r) => !r.deletedAt && r.year === year).count(),
+        db.sales.filter((r) => !r.deletedAt && r.year === year).count(),
+        db.animals.filter((r) => !r.deletedAt).count(),
+        db.outbox.filter((c) => !c.syncedAt).count(),
+      ]);
+    return { cowCalf, breeding, pastures, sales, animals, pending };
   }, [year]);
 
   return (
@@ -22,58 +24,70 @@ export function HomePage() {
       <header className="page-header">
         <h1>{settings?.ranchName ?? 'Record Book'}</h1>
         <p className="lede">
-          Digital pocket book for {year}. Works without signal; syncs when your
-          phone has service.
+          {year} calf book
+          {settings?.operatorName ? ` · ${settings.operatorName}` : ''}. Big
+          buttons, one row at a time.
         </p>
       </header>
+
+      <section className="log-hero" style={{ marginTop: '1rem' }}>
+        <div>
+          <p className="due-kicker" style={{ color: '#edc8b4' }}>
+            In the pasture
+          </p>
+          <h2
+            style={{
+              margin: '0.2rem 0 0.35rem',
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.7rem',
+            }}
+          >
+            Log a new calf
+          </h2>
+          <p>Cow, calf I.D., sex, date. Save stays on this phone.</p>
+        </div>
+        <Link className="btn primary" to="/cow-calf/new">
+          Log calf
+        </Link>
+      </section>
 
       <div className="stat-row">
         <div className="stat">
           <strong>{counts?.cowCalf ?? '—'}</strong>
-          <span>Cow–calf rows</span>
+          <span>Calves this year</span>
+        </div>
+        <div className="stat">
+          <strong>{counts?.animals ?? '—'}</strong>
+          <span>Herd I.D.s</span>
         </div>
         <div className="stat">
           <strong>{counts?.breeding ?? '—'}</strong>
-          <span>Breeding</span>
-        </div>
-        <div className="stat">
-          <strong>{counts?.pastures ?? '—'}</strong>
-          <span>Pastures</span>
+          <span>Breeding rows</span>
         </div>
         <div className="stat">
           <strong>{counts?.sales ?? '—'}</strong>
-          <span>Sales</span>
+          <span>Sales / culls</span>
         </div>
       </div>
 
       <section className="quick-grid">
-        <Link className="quick-card" to="/cow-calf/new">
-          <h2>Add cow–calf</h2>
-          <p>Calf, cow, sire, sex, date, weight, ease, remarks</p>
+        <Link className="quick-card" to="/herd">
+          <h2>Look up an animal</h2>
+          <p>Lifetime calving, breeding, pasture, and sales</p>
         </Link>
-        <Link className="quick-card" to="/breeding/new">
-          <h2>Add breeding</h2>
-          <p>AI 1st / 2nd or pasture service</p>
-        </Link>
-        <Link className="quick-card" to="/pasture/new">
-          <h2>Pasture exposure</h2>
-          <p>Pasture name, bull in/out, animal list</p>
-        </Link>
-        <Link className="quick-card" to="/sales/new">
-          <h2>Record sale / cull</h2>
-          <p>Calf ID, buyer, date, price, or cull notes</p>
+        <Link className="quick-card" to="/cow-calf">
+          <h2>Open the book</h2>
+          <p>Cow–calf, breeding, pasture, sales, due dates</p>
         </Link>
         <Link className="quick-card" to="/gestation">
-          <h2>Gestation table</h2>
-          <p>Service date plus 283 days = due date</p>
+          <h2>Due date</h2>
+          <p>Service plus 283 days</p>
+        </Link>
+        <Link className="quick-card" to="/account">
+          <h2>Account</h2>
+          <p>Ranch, operator, device — settings next door</p>
         </Link>
       </section>
-
-      {(counts?.pending ?? 0) > 0 && (
-        <p className="hint">
-          {counts?.pending} change(s) queued for cloud sync.
-        </p>
-      )}
     </div>
   );
 }

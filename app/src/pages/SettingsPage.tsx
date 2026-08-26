@@ -7,14 +7,18 @@ import {
   type SyncProvider,
 } from '../db/schema';
 import { exportHerdBackup } from '../db/sync';
+import { Field } from '../ui/Field';
+import { useToast } from '../ui/Toast';
 
 export function SettingsPage() {
+  const toast = useToast();
   const settings = useLiveQuery(() => ensureSettings());
   const pending = useLiveQuery(() =>
     db.outbox.filter((c) => !c.syncedAt).count(),
   );
 
   const [ranchName, setRanchName] = useState('');
+  const [operatorName, setOperatorName] = useState('');
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [syncProvider, setSyncProvider] = useState<SyncProvider>('none');
   const [hydrated, setHydrated] = useState(false);
@@ -22,6 +26,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (settings && !hydrated) {
       setRanchName(settings.ranchName);
+      setOperatorName(settings.operatorName ?? '');
       setCurrentYear(settings.currentYear);
       setSyncProvider(settings.syncProvider);
       setHydrated(true);
@@ -34,12 +39,13 @@ export function SettingsPage() {
     const next = {
       ...settings,
       ranchName: ranchName.trim() || 'Record Book',
+      operatorName: operatorName.trim(),
       currentYear,
       syncProvider,
     };
     await db.settings.put(next);
     await queueChange('settings', '1', 'upsert', next);
-    alert('Settings saved on this device.');
+    toast('Settings saved on this device');
   }
 
   async function downloadBackup() {
@@ -50,36 +56,42 @@ export function SettingsPage() {
     a.download = `record-book-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    toast('Backup downloaded');
   }
 
   return (
-    <div className="page narrow">
+    <div className="page">
       <header className="page-header">
         <h1>Settings</h1>
         <p className="lede">
-          Ranch year, sync provider, and local backup. Data stays on this device
-          until cloud sync is connected.
+          Ranch year, operator, and sync. Data stays here until cloud is connected.
         </p>
       </header>
 
-      <form className="form" onSubmit={onSubmit}>
-        <label>
-          Ranch name
+      <form className="form" onSubmit={onSubmit} style={{ marginTop: '1rem' }}>
+        <Field label="Ranch name">
           <input
             value={ranchName}
             onChange={(e) => setRanchName(e.target.value)}
+            autoComplete="organization"
           />
-        </label>
-        <label>
-          Working year
+        </Field>
+        <Field label="Your name">
+          <input
+            value={operatorName}
+            onChange={(e) => setOperatorName(e.target.value)}
+            autoComplete="name"
+          />
+        </Field>
+        <Field label="Working year">
           <input
             type="number"
+            inputMode="numeric"
             value={currentYear}
             onChange={(e) => setCurrentYear(Number(e.target.value))}
           />
-        </label>
-        <label>
-          Cloud sync backend
+        </Field>
+        <Field label="Cloud sync">
           <select
             value={syncProvider}
             onChange={(e) => setSyncProvider(e.target.value as SyncProvider)}
@@ -88,21 +100,19 @@ export function SettingsPage() {
             <option value="google-drive">Google Drive</option>
             <option value="dropbox">Dropbox</option>
           </select>
-        </label>
+        </Field>
         <p className="hint">
-          OAuth adapters for Drive/Dropbox come next. Choosing a provider
-          prepares this device; Sync now currently marks the local outbox.
-          Pending changes: {pending ?? 0}.
+          Drive / Dropbox login is next. Pending changes: {pending ?? 0}.
         </p>
         <p className="hint">
           Device ID: <code>{settings?.deviceId}</code>
         </p>
-        <div className="form-actions">
+        <div className="sticky-actions">
+          <button type="button" className="btn secondary" onClick={downloadBackup}>
+            Download backup
+          </button>
           <button type="submit" className="btn primary">
             Save settings
-          </button>
-          <button type="button" className="btn secondary" onClick={downloadBackup}>
-            Download JSON backup
           </button>
         </div>
       </form>

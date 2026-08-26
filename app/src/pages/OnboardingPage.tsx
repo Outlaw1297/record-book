@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { db, ensureSettings } from '../db/schema';
+import { defaultDeviceName } from '../sync/identity';
 import { Field, Segmented } from '../ui/Field';
 
 const STEPS = 3;
@@ -24,7 +25,10 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
       ranchName: ranchName.trim(),
       operatorName: operatorName.trim(),
       currentYear,
+      deviceKind: role,
+      deviceName: defaultDeviceName(role, operatorName),
       onboardingComplete: true,
+      updatedAt: new Date().toISOString(),
     });
     onDone();
   }
@@ -44,8 +48,9 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
               Record Book
             </h1>
             <p className="lede">
-              Log calves in the pasture with big, simple fields. Everything stays
-              on this device until you have signal.
+              Log calves in the pasture with big, simple fields. This phone keeps
+              the book; Drive or Dropbox shares it with the office and other
+              users when you have signal.
             </p>
             <div className="sticky-actions" style={{ gridTemplateColumns: '1fr' }}>
               <button type="button" className="btn primary" onClick={() => setStep(1)}>
@@ -113,8 +118,9 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
               How you will use it
             </h1>
             <p className="lede">
-              Same herd either way. Phone is tuned for gloves and one-handed
-              calf entry.
+              Same shared herd either way. Phone is tuned for gloves and
+              one-handed calf entry. Sign every device into the same Drive or
+              Dropbox account.
             </p>
             <Segmented
               ariaLabel="Device"

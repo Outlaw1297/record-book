@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
@@ -11,10 +11,19 @@ import { SettingsPage } from './pages/SettingsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { AccountPage } from './pages/AccountPage';
 import { HerdDetailPage, HerdListPage } from './pages/HerdPages';
+import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
 import { ensureSettings } from './db/schema';
 
-export default function App() {
+function AppGate() {
+  const location = useLocation();
+  if (location.pathname.startsWith('/oauth/callback')) {
+    return <OAuthCallbackPage />;
+  }
+  return <MainApp />;
+}
+
+function MainApp() {
   const settings = useLiveQuery(() => ensureSettings());
 
   if (!settings) {
@@ -36,28 +45,34 @@ export default function App() {
   }
 
   return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<HomePage />} />
+        <Route path="herd" element={<HerdListPage />} />
+        <Route path="herd/:herdId" element={<HerdDetailPage />} />
+        <Route path="cow-calf" element={<CowCalfListPage />} />
+        <Route path="cow-calf/:id" element={<CowCalfFormPage />} />
+        <Route path="breeding" element={<BreedingListPage />} />
+        <Route path="breeding/:id" element={<BreedingFormPage />} />
+        <Route path="pasture" element={<PastureListPage />} />
+        <Route path="pasture/:id" element={<PastureFormPage />} />
+        <Route path="sales" element={<SalesListPage />} />
+        <Route path="sales/:id" element={<SalesFormPage />} />
+        <Route path="gestation" element={<GestationPage />} />
+        <Route path="account" element={<AccountPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="book" element={<Navigate to="/cow-calf" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
     <ToastProvider>
       <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="herd" element={<HerdListPage />} />
-            <Route path="herd/:herdId" element={<HerdDetailPage />} />
-            <Route path="cow-calf" element={<CowCalfListPage />} />
-            <Route path="cow-calf/:id" element={<CowCalfFormPage />} />
-            <Route path="breeding" element={<BreedingListPage />} />
-            <Route path="breeding/:id" element={<BreedingFormPage />} />
-            <Route path="pasture" element={<PastureListPage />} />
-            <Route path="pasture/:id" element={<PastureFormPage />} />
-            <Route path="sales" element={<SalesListPage />} />
-            <Route path="sales/:id" element={<SalesFormPage />} />
-            <Route path="gestation" element={<GestationPage />} />
-            <Route path="account" element={<AccountPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="book" element={<Navigate to="/cow-calf" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+        <AppGate />
       </BrowserRouter>
     </ToastProvider>
   );

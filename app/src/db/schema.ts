@@ -1,4 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { sanitizeSettingsForSync } from '../sync/settingsPayload';
+import { emitOutboxEvent } from '../sync/types';
 
 export type Sex = 'M' | 'F' | '';
 
@@ -97,6 +99,7 @@ export interface SaleRecord {
   deletedAt?: string;
 }
 
+export type DeviceKind = 'phone' | 'desk';
 export type SyncProvider = 'none' | 'google-drive' | 'dropbox';
 
 export interface AppSettings {
@@ -107,7 +110,51 @@ export interface AppSettings {
   syncProvider: SyncProvider;
   lastSyncedAt?: string;
   deviceId: string;
+  deviceName?: string;
+  deviceKind?: DeviceKind;
+  bookId?: string;
   onboardingComplete?: boolean;
+  updatedAt?: string;
+}
+
+export interface SyncAuth {
+  id: number;
+  provider: Exclude<SyncProvider, 'none'>;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  accountEmail?: string;
+  accountName?: string;
+  rootFolderId?: string;
+  snapshotsFolderId?: string;
+  changesFolderId?: string;
+}
+
+export interface SyncApplied {
+  fileKey: string;
+  appliedAt: string;
+  provider: string;
+}
+
+export interface SyncConflict {
+  id: string;
+  entity: string;
+  entityId: string;
+  kept: 'local' | 'remote';
+  localUpdatedAt?: string;
+  remoteUpdatedAt: string;
+  createdAt: string;
+  operatorName?: string;
+  deviceName?: string;
+}
+
+export interface SyncDevice {
+  deviceId: string;
+  deviceName: string;
+  operatorName?: string;
+  kind?: DeviceKind;
+  lastSeenAt: string;
+  isThisDevice?: boolean;
 }
 
 export interface OutboxChange {
@@ -153,6 +200,10 @@ class RecordBookDB extends Dexie {
   sales!: EntityTable<SaleRecord, 'id'>;
   settings!: EntityTable<AppSettings, 'id'>;
   outbox!: EntityTable<OutboxChange, 'id'>;
+  syncAuth!: EntityTable<SyncAuth, 'id'>;
+  syncApplied!: EntityTable<SyncApplied, 'fileKey'>;
+  syncConflicts!: EntityTable<SyncConflict, 'id'>;
+  syncDevices!: EntityTable<SyncDevice, 'deviceId'>;
 
   constructor() {
     super('recordBook');
@@ -165,6 +216,14 @@ class RecordBookDB extends Dexie {
       sales: 'id, year, calfId, updatedAt',
       settings: 'id',
       outbox: 'id, entity, syncedAt, updatedAt',
+    });
+    this.version(2).stores({
+      syncAuth: 'id, provider',
+      syncApplied: 'fileKey, appliedAt',
+      syncConflicts: 'id, entity, entityId, createdAt',
+    });
+    this.version(3).stores({
+      syncDevices: 'deviceId, lastSeenAt',
     });
   }
 }
@@ -190,7 +249,10 @@ export async function ensureSettings(): Promise<AppSettings> {
     currentYear: new Date().getFullYear(),
     syncProvider: 'none',
     deviceId: newId(),
+    deviceName: 'This device',
+    deviceKind: 'phone',
     onboardingComplete: false,
+    updatedAt: nowIso(),
   };
   await db.settings.put(settings);
   return settings;
@@ -207,9 +269,10 @@ export async function queueChange(
     entity,
     entityId,
     op,
-    payload,
+    payload: entity === 'settings' ? sanitizeSettingsForSync(payload) : payload,
     updatedAt: nowIso(),
   });
+  emitOutboxEvent();
 }
 
 export async function upsertAnimalByHerdId(

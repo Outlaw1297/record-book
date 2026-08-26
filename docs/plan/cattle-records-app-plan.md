@@ -121,22 +121,24 @@ Design direction via ui-design-brain: information-dense tables on desktop; large
 ## 4. Architecture (offline-first + Drive/Dropbox)
 
 ```
-Phone (SQLite + outbox) ──┐
-                          ├──► Google Drive OR Dropbox /RecordBook/
-Desktop (SQLite + outbox)─┘         changes/  snapshots/  media/
+Phone (IndexedDB + outbox) ──┐
+Tablet / second user         ├──► Google Drive OR Dropbox /RecordBook/
+Office PC (IndexedDB + outbox)─┘     config, devices.json, changes/, snapshots/
 ```
 
-- **Local SQLite** is always the working database (works with no signal).
-- Cloud folder stores **append-only change files**, periodic **snapshots**, and **photos**.
-- Sync when cellular/Wi‑Fi is up; resume after drops.
-- Conflict policy v1: last-write-wins + conflict log for same record edited on two devices offline.
+- **Local IndexedDB** is always the working database (works with no signal).
+- Cloud folder is the **shared book** for every device signed into that account.
+- Each device keeps its own operator name; ranch name, year, and cattle rows sync.
+- Same cow/calf logged on two devices merges by herd I.D. (last `updatedAt` wins).
+- OAuth tokens live only in the local `syncAuth` table. They are never queued or uploaded.
 
 Folder layout:
 
 ```
 /RecordBook/
   config.json
-  snapshots/herd-YYYY-MM-DD.sqlite
+  devices.json
+  snapshots/herd-latest.json
   changes/<deviceId>/<seq>.jsonl
   media/<animalId>/…
 ```
@@ -179,10 +181,10 @@ Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and
 
 | Layer | Choice |
 |-------|--------|
-| App | **Flutter** (iOS, Android, Windows, macOS) |
-| Local DB | SQLite via Drift |
-| Sync | Custom outbox + Google Drive / Dropbox APIs |
-| Auth | OAuth; tokens in OS secure storage |
+| App | **Vite + React PWA** (phone + desktop browsers); native shell later if needed |
+| Local DB | IndexedDB via Dexie |
+| Sync | Outbox + Google Drive / Dropbox JSONL and snapshots |
+| Auth | PKCE OAuth; tokens only on the device |
 
 ---
 
@@ -193,7 +195,7 @@ Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and
 | **0** | Finish ingesting any missing book pages; lock field list |
 | **1** | Offline MVP: Cow–Calf list/form + animal directory |
 | **2** | Breeding + Pasture Exposure + Sales sections |
-| **3** | Drive/Dropbox sync + conflict UI |
+| **3** | Drive/Dropbox sync + conflict log |
 | **4** | Desktop grids, CSV/print, remark chips polish |
 
 ---
@@ -204,13 +206,13 @@ Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and
 
 **Decisions still needed:**
 
-1. Google Drive, Dropbox, or choose at setup?
-2. Android / iPhone / both? Windows and/or Mac first?
-3. One user, or phone + office PC editing the same year at once?
+1. Google Drive **or** Dropbox — chosen in Settings; one private account for phone + office PC.
+2. Android / iPhone / both? Windows and/or Mac first? (PWA covers browsers on all of these today.)
+3. One user, or phone + office PC editing the same year at once? (Supported: last `updatedAt` wins.)
 4. Should tag color (`y/w/pk/g/…`) be a separate picker, or stay inside the ID string as you write it today?
 
 ---
 
 ## 9. Next build step
 
-Drive/Dropbox OAuth sync, then a native Flutter/Capacitor shell if you want app-store packaging. The web MVP already mirrors the photographed sections.
+CSV/print for sale sheets, then a native Flutter/Capacitor shell if you want app-store packaging. Drive/Dropbox setup: [`docs/sync-setup.md`](../sync-setup.md).

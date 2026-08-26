@@ -60,9 +60,9 @@ services:
         condition: service_started
     volumes:
       - keys:/keys:ro
-    # Host 8080 so the machine's nginx can keep port 80. Change 8080 if needed.
+    # Host 8180 so nginx can keep 80 and 8080. Change 8180 if needed.
     ports:
-      - "8080:80"
+      - "8180:80"
 
 volumes:
   keys:

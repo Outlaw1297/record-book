@@ -28,8 +28,8 @@ docker compose up -d
 
 Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, compose `docker-compose.yml`. Leave **Build** off. Images come from `ghcr.io`.
 
-- PWA: `http://YOUR-HOST:8080/`
-- API: `http://YOUR-HOST:8080/api/` (see [API reference](docs/api.md))
+- PWA: `http://YOUR-HOST:8180/`
+- API: `http://YOUR-HOST:8180/api/` (see [API reference](docs/api.md))
 - Setup: [Docker / Portainer](docs/docker-portainer.md)
 
 ## App sections (from your notebook)

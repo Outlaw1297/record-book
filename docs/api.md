@@ -1,12 +1,12 @@
 # Ranch API
 
-HTTP API in front of the Docker Postgres herd database. Bind is `0.0.0.0:8080` inside the stack. Portainer publishes the PWA on host port **8080** (so host nginx can keep 80). Use `/api/` on that host.
+HTTP API in front of the Docker Postgres herd database. Bind is `0.0.0.0:8080` inside the stack. Portainer publishes the PWA on host port **8180** (so host nginx can keep 80 and 8080). Use `/api/` on that host.
 
 The PWA does **not** require this API. Drive/Dropbox still carry phones.
 
 ## Auth
 
-The stack generates an API key on first boot. The web container attaches it to `/api/` requests, so a browser or future app calling `http://YOUR-HOST:8080/api/...` does not send a key.
+The stack generates an API key on first boot. The web container attaches it to `/api/` requests, so a browser or future app calling `http://YOUR-HOST:8180/api/...` does not send a key.
 
 `GET /health` has no auth. Direct calls to the `api` container still need `Authorization: Bearer` with the generated key (`cat /keys/api_key` in that container).
 
@@ -43,25 +43,25 @@ JSON field names match the PWA (`herdId`, `cowId`, `updatedAt`, camelCase).
 Health:
 
 ```bash
-curl -s http://YOUR-HOST:8080/api/health
+curl -s http://YOUR-HOST:8180/api/health
 ```
 
 List animals (future project):
 
 ```bash
-curl -s http://YOUR-HOST:8080/api/v1/animals
+curl -s http://YOUR-HOST:8180/api/v1/animals
 ```
 
 Full herd:
 
 ```bash
-curl -s http://YOUR-HOST:8080/api/v1/export
+curl -s http://YOUR-HOST:8180/api/v1/export
 ```
 
 Create or replace an animal:
 
 ```bash
-curl -s -X PUT http://YOUR-HOST:8080/api/v1/animals/cow-90bk \
+curl -s -X PUT http://YOUR-HOST:8180/api/v1/animals/cow-90bk \
   -H "Content-Type: application/json" \
   -d '{"id":"cow-90bk","herdId":"90bk","sex":"F","status":"active","updatedAt":"2026-08-26T00:00:00.000Z"}'
 ```

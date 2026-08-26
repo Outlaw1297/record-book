@@ -2,6 +2,7 @@ import { getSyncAuth, requireAccessToken, saveAuthFolders } from './auth';
 import { assertOk, readJsonBody } from './http';
 import type { CloudCarrier, CloudFile, CloudProvider } from './types';
 import { RECORD_BOOK_FOLDER } from './types';
+import { newId } from '../db/schema';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
@@ -168,7 +169,7 @@ async function uploadNew(
   text: string,
 ): Promise<void> {
   const metadata = JSON.stringify({ name, parents: [parentId] });
-  const boundary = 'recordbook_' + crypto.randomUUID();
+  const boundary = 'recordbook_' + newId();
   const body =
     `--${boundary}\r\n` +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +

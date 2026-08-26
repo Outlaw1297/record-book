@@ -146,6 +146,8 @@ export function SettingsPage() {
   }
 
   async function runSync() {
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
     setBusy('sync');
     const result = await syncNow();
     toast(result.detail);

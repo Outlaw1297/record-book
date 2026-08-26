@@ -6,11 +6,12 @@ CREATE TABLE IF NOT EXISTS ranch (
   id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   ranch_name TEXT NOT NULL DEFAULT 'Record Book',
   current_year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW())::INTEGER,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  -- Epoch so a real device snapshot always wins last-write-wins on first copy.
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z'
 );
 
-INSERT INTO ranch (id, ranch_name, current_year)
-VALUES (1, 'Record Book', EXTRACT(YEAR FROM NOW())::INTEGER)
+INSERT INTO ranch (id, ranch_name, current_year, updated_at)
+VALUES (1, 'Record Book', EXTRACT(YEAR FROM NOW())::INTEGER, '1970-01-01T00:00:00Z')
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS animals (

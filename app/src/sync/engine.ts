@@ -82,9 +82,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   } else if (lastError) {
     message = lastError;
   } else if (settings.syncProvider === 'none') {
-    if (ranchConfigured && pendingCount > 0) {
-      message = `${pendingCount} change(s) waiting to copy to the ranch database`;
-    } else if (ranchConfigured && settings.lastSyncedAt) {
+    if (ranchConfigured && settings.lastSyncedAt) {
       message = `Online — ranch database last copied ${formatWhen(settings.lastSyncedAt)}`;
     } else if (ranchConfigured) {
       message = 'Online — ranch database configured';

@@ -8,45 +8,19 @@ import {
   ranchFromDb,
   saleFromDb,
 } from './maps.js';
-import { asBool, asInt, asText, iso, newer } from './util.js';
+import { asBool, asInt, asText, iso } from './util.js';
 
 type Json = Record<string, unknown>;
 
-const DATA_TABLES = [
-  'animals',
-  'cow_calf',
-  'breeding',
-  'pastures',
-  'pasture_animals',
-  'sales',
-] as const;
-
-type DataTable = (typeof DATA_TABLES)[number];
-
-function assertDataTable(table: string): DataTable {
-  if (!(DATA_TABLES as readonly string[]).includes(table)) {
-    throw new Error(`Invalid table ${table}`);
-  }
-  return table as DataTable;
-}
-
-async function currentUpdatedAt(table: DataTable | string, id: string): Promise<string | null> {
-  const safe = assertDataTable(table);
-  const result = await query<{ updated_at: Date }>(
-    `SELECT updated_at FROM ${safe} WHERE id = $1`,
-    [id],
-  );
-  const value = result.rows[0]?.updated_at;
-  return value ? value.toISOString() : null;
+function writeOutcome(rowCount: number | null): 'applied' | 'kept' {
+  return (rowCount ?? 0) > 0 ? 'applied' : 'kept';
 }
 
 export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('animals', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO animals (
        id, herd_id, tag_color, phenotype, name, sex, status, notes, year_born, updated_at, deleted_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -60,7 +34,8 @@ export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
        notes = EXCLUDED.notes,
        year_born = EXCLUDED.year_born,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE animals.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       String(payload.herdId ?? ''),
@@ -75,16 +50,14 @@ export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertCowCalf(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('cow_calf', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO cow_calf (
        id, year, calf_id, cow_id, sire_id, sex, calving_date, birth_weight, birth_codes,
        calving_ease, remarks, open_without_calf, flagged, updated_at, deleted_at
@@ -103,7 +76,8 @@ export async function upsertCowCalf(payload: Json): Promise<'applied' | 'kept'> 
        open_without_calf = EXCLUDED.open_without_calf,
        flagged = EXCLUDED.flagged,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE cow_calf.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       asInt(payload.year) ?? new Date().getFullYear(),
@@ -122,16 +96,14 @@ export async function upsertCowCalf(payload: Json): Promise<'applied' | 'kept'> 
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertBreeding(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('breeding', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO breeding (
        id, year, cow_id, kind, sire_id, service_date, flagged, updated_at, deleted_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -143,7 +115,8 @@ export async function upsertBreeding(payload: Json): Promise<'applied' | 'kept'>
        service_date = EXCLUDED.service_date,
        flagged = EXCLUDED.flagged,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE breeding.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       asInt(payload.year) ?? new Date().getFullYear(),
@@ -156,16 +129,14 @@ export async function upsertBreeding(payload: Json): Promise<'applied' | 'kept'>
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertPasture(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('pastures', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO pastures (
        id, year, pasture_name, bull_in_date, bull_out_date, notes, updated_at, deleted_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -176,7 +147,8 @@ export async function upsertPasture(payload: Json): Promise<'applied' | 'kept'> 
        bull_out_date = EXCLUDED.bull_out_date,
        notes = EXCLUDED.notes,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE pastures.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       asInt(payload.year) ?? new Date().getFullYear(),
@@ -188,16 +160,14 @@ export async function upsertPasture(payload: Json): Promise<'applied' | 'kept'> 
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertPastureAnimal(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('pasture_animals', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO pasture_animals (
        id, exposure_id, animal_herd_id, role, note, metric, flagged, updated_at, deleted_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -209,7 +179,8 @@ export async function upsertPastureAnimal(payload: Json): Promise<'applied' | 'k
        metric = EXCLUDED.metric,
        flagged = EXCLUDED.flagged,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE pasture_animals.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       String(payload.exposureId ?? ''),
@@ -222,16 +193,14 @@ export async function upsertPastureAnimal(payload: Json): Promise<'applied' | 'k
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertSale(payload: Json): Promise<'applied' | 'kept'> {
   const id = String(payload.id || '');
   if (!id) return 'kept';
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await currentUpdatedAt('sales', id);
-  if (local && !newer(updatedAt, local)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO sales (
        id, year, calf_id, sex, buyer, sale_date, price, notes, list_mark, flagged, updated_at, deleted_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -246,7 +215,8 @@ export async function upsertSale(payload: Json): Promise<'applied' | 'kept'> {
        list_mark = EXCLUDED.list_mark,
        flagged = EXCLUDED.flagged,
        updated_at = EXCLUDED.updated_at,
-       deleted_at = EXCLUDED.deleted_at`,
+       deleted_at = EXCLUDED.deleted_at
+     WHERE sales.updated_at <= EXCLUDED.updated_at`,
     [
       id,
       asInt(payload.year) ?? new Date().getFullYear(),
@@ -262,28 +232,26 @@ export async function upsertSale(payload: Json): Promise<'applied' | 'kept'> {
       iso(payload.deletedAt),
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertRanch(payload: Json): Promise<'applied' | 'kept'> {
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
-  const local = await query<{ updated_at: Date }>('SELECT updated_at FROM ranch WHERE id = 1');
-  const current = local.rows[0]?.updated_at?.toISOString() ?? null;
-  if (current && !newer(updatedAt, current)) return 'kept';
-  await query(
+  const result = await query(
     `INSERT INTO ranch (id, ranch_name, current_year, updated_at)
      VALUES (1, $1, $2, $3)
      ON CONFLICT (id) DO UPDATE SET
        ranch_name = EXCLUDED.ranch_name,
        current_year = EXCLUDED.current_year,
-       updated_at = EXCLUDED.updated_at`,
+       updated_at = EXCLUDED.updated_at
+     WHERE ranch.updated_at <= EXCLUDED.updated_at`,
     [
       String(payload.ranchName ?? 'Record Book'),
       asInt(payload.currentYear) ?? new Date().getFullYear(),
       updatedAt,
     ],
   );
-  return 'applied';
+  return writeOutcome(result.rowCount);
 }
 
 export async function upsertDevice(payload: Json): Promise<void> {

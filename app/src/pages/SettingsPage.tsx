@@ -173,6 +173,15 @@ export function SettingsPage() {
     );
   }
 
+  async function copyToRanch() {
+    saveRanchApiUrl(ranchApiUrl);
+    saveRanchApiKey(ranchApiKey);
+    setBusy('sync');
+    const result = await syncNow();
+    toast(result.detail);
+    setBusy(null);
+  }
+
   async function testRanchApi() {
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
@@ -375,6 +384,9 @@ export function SettingsPage() {
           Optional Postgres copy of this herd for a future app. Drive and Dropbox
           stay the offline book. The API key lives only on this device.
         </p>
+        <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
+          {ranchReady ? 'Configured on this device' : 'Not configured'}
+        </p>
         <Field
           label={
             hasEnvRanchApiUrl()
@@ -408,12 +420,22 @@ export function SettingsPage() {
         <div className="provider-actions">
           <button
             type="button"
+            className="btn primary"
+            disabled={busy !== null || !ranchReady}
+            onClick={() => void copyToRanch()}
+          >
+            {busy === 'sync' ? 'Copying…' : 'Copy herd to ranch database'}
+          </button>
+          <button
+            type="button"
             className="btn secondary"
             disabled={busy !== null}
             onClick={() => void saveRanchApi()}
           >
             Save ranch API
           </button>
+        </div>
+        <div className="provider-actions">
           <button
             type="button"
             className="btn ghost"

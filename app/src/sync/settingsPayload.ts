@@ -10,8 +10,6 @@ export function sanitizeSettingsForSync(payload: unknown): SyncedSettings {
       typeof record.ranchName === 'string' && record.ranchName.trim()
         ? record.ranchName
         : 'Record Book',
-    operatorName:
-      typeof record.operatorName === 'string' ? record.operatorName : '',
     currentYear:
       typeof record.currentYear === 'number' && Number.isFinite(record.currentYear)
         ? record.currentYear

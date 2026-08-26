@@ -1,8 +1,24 @@
 # Drive / Dropbox sync setup
 
-The record book keeps cattle rows in **this device’s IndexedDB**. Google Drive or Dropbox is only the private mailbox between your phone and the office PC. There is no ranch server, and OAuth tokens never go into the cloud snapshot.
+The record book keeps cattle rows in **this device’s IndexedDB**. Google Drive or Dropbox is the private shared database for every phone, tablet, and office PC. There is no ranch server, and OAuth tokens never go into the cloud snapshot.
 
-Most of the time you can work with no signal. When the phone finds Wi‑Fi or cell data, it pushes pending outbox files and pulls anything the other device wrote.
+Most of the time you can work with no signal. When a device finds Wi‑Fi or cell data, it pushes pending outbox files and pulls anything the other devices wrote.
+
+## Multiple devices and users
+
+Sign **every** device into the **same** ranch Google or Dropbox account. That is what makes it one database:
+
+| Stays on this device | Shared across the book |
+|----------------------|------------------------|
+| Your name | Ranch name and working year |
+| Device name (“Dalton’s phone”) | Animals, cow–calf, breeding, pasture, sales |
+| OAuth tokens | `RecordBook` folder on Drive/Dropbox |
+
+A second phone or the office PC: install the PWA, finish onboarding with *your* name, then Connect using that same cloud account. The first sync joins the existing book (it does not start a second herd). If two people log the same cow or calf while offline, the app merges by herd I.D. / year and keeps the newer row.
+
+**Replace this device from the shared book** (Settings) wipes unsynced rows on *this* device only and copies the cloud herd down. Use it when a new office PC should match the phone, not the other way around.
+
+Do not connect two personal Dropbox/Google logins and expect them to see each other. App-folder Dropbox is per account. One ranch login, many devices.
 
 ## Folder layout
 
@@ -10,7 +26,8 @@ Inside your account the app creates:
 
 ```text
 RecordBook/
-  config.json
+  config.json                 # bookId for this shared herd
+  devices.json                # phones, office PCs, last seen
   snapshots/herd-latest.json
   changes/<deviceId>/<timestamp>.jsonl
 ```
@@ -69,9 +86,9 @@ VITE_DROPBOX_APP_KEY=your_dropbox_app_key
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row. Nothing waits on the network.
-- **Online + connected:** a short debounce uploads one JSONL file per device, then refreshes `snapshots/herd-latest.json`.
-- **New empty device:** imports the latest snapshot, then applies any change files it has not seen.
-- **Two devices edited the same row:** last `updatedAt` wins. Settings → Overlap log.
+- **Online + connected:** a short debounce uploads one JSONL file per device, merges the latest snapshot, then refreshes `snapshots/herd-latest.json` and `devices.json`.
+- **New device:** adopts the shared ranch name/year, merges the snapshot, then applies change files it has not seen.
+- **Same cow logged twice:** merged by herd I.D. (and calf/year where it is obvious). Last `updatedAt` wins. Settings → Overlap log.
 - **Disconnect:** tokens leave this browser. The herd on the device and the cloud folder both stay.
 
 Hosted deploys must serve the PWA as a single-page app (`/oauth/callback` rewrites to `index.html`).

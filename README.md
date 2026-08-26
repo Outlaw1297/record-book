@@ -15,7 +15,7 @@ Open the printed URL. Works offline in the browser after first load (data is sto
 ```bash
 cd app && npm run build   # production build
 cd app && npm run lint    # oxlint
-cd app && npm test        # last-write-wins / snapshot sanitization
+cd app && npm test        # last-write-wins / shared-book identity
 ```
 
 ## App sections (from your notebook)
@@ -29,8 +29,8 @@ cd app && npm test        # last-write-wins / snapshot sanitization
 | **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |
 | **Sales** | Calf ID, sex, sold to, date, price, cull notes, circled / x marks |
 | **Gestation** | Service date + 283 days = due date |
-| **Account** | Operator, ranch, connected Drive/Dropbox account |
-| **Settings** | Year, Drive/Dropbox connect, overlap log, JSON backup |
+| **Account** | You on this device, other devices on the shared book |
+| **Settings** | Ranch (shared), your name/device, Drive/Dropbox, device roster, overlap log |
 | **Onboarding** | First-run ranch name and field vs desk |
 
 Install as a **PWA** from the browser (Add to Home Screen). Works offline after first load.
@@ -39,7 +39,8 @@ Install as a **PWA** from the browser (Add to Home Screen). Works offline after 
 
 - Local **IndexedDB** (Dexie) is the source of truth offline
 - Every write goes to an **outbox**
-- When online, pending rows upload as JSONL into a private **Google Drive** or **Dropbox** `RecordBook` folder, and a `snapshots/herd-latest.json` file is refreshed
+- When online, pending rows upload as JSONL into a private **Google Drive** or **Dropbox** `RecordBook` folder that **every device/user on that account shares**
+- Your name and device label stay on this device; ranch name, year, and cattle rows are the shared database
 - Tokens stay on the device; they are never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud
 

@@ -121,15 +121,15 @@ Design direction via ui-design-brain: information-dense tables on desktop; large
 ## 4. Architecture (offline-first + Drive/Dropbox)
 
 ```
-Phone (SQLite + outbox) ──┐
-                          ├──► Google Drive OR Dropbox /RecordBook/
-Desktop (SQLite + outbox)─┘         changes/  snapshots/  media/
+Phone (IndexedDB + outbox) ──┐
+Tablet / second user         ├──► Google Drive OR Dropbox /RecordBook/
+Office PC (IndexedDB + outbox)─┘     config, devices.json, changes/, snapshots/
 ```
 
 - **Local IndexedDB** is always the working database (works with no signal).
-- Cloud folder stores **append-only change files**, a periodic **JSON snapshot**, and later **photos**.
-- Sync when cellular/Wi‑Fi is up; resume after drops.
-- Conflict policy v1: last-write-wins on `updatedAt` + conflict log for the same record edited on two devices offline.
+- Cloud folder is the **shared book** for every device signed into that account.
+- Each device keeps its own operator name; ranch name, year, and cattle rows sync.
+- Same cow/calf logged on two devices merges by herd I.D. (last `updatedAt` wins).
 - OAuth tokens live only in the local `syncAuth` table. They are never queued or uploaded.
 
 Folder layout:
@@ -137,6 +137,7 @@ Folder layout:
 ```
 /RecordBook/
   config.json
+  devices.json
   snapshots/herd-latest.json
   changes/<deviceId>/<seq>.jsonl
   media/<animalId>/…

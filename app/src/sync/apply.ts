@@ -40,7 +40,6 @@ export function mergeRemoteSettings(
   return {
     ...local,
     ranchName: synced.ranchName,
-    operatorName: synced.operatorName,
     currentYear: synced.currentYear,
     updatedAt: synced.updatedAt ?? local.updatedAt,
   };

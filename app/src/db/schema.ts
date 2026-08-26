@@ -99,6 +99,7 @@ export interface SaleRecord {
   deletedAt?: string;
 }
 
+export type DeviceKind = 'phone' | 'desk';
 export type SyncProvider = 'none' | 'google-drive' | 'dropbox';
 
 export interface AppSettings {
@@ -109,6 +110,9 @@ export interface AppSettings {
   syncProvider: SyncProvider;
   lastSyncedAt?: string;
   deviceId: string;
+  deviceName?: string;
+  deviceKind?: DeviceKind;
+  bookId?: string;
   onboardingComplete?: boolean;
   updatedAt?: string;
 }
@@ -140,6 +144,17 @@ export interface SyncConflict {
   localUpdatedAt?: string;
   remoteUpdatedAt: string;
   createdAt: string;
+  operatorName?: string;
+  deviceName?: string;
+}
+
+export interface SyncDevice {
+  deviceId: string;
+  deviceName: string;
+  operatorName?: string;
+  kind?: DeviceKind;
+  lastSeenAt: string;
+  isThisDevice?: boolean;
 }
 
 export interface OutboxChange {
@@ -188,6 +203,7 @@ class RecordBookDB extends Dexie {
   syncAuth!: EntityTable<SyncAuth, 'id'>;
   syncApplied!: EntityTable<SyncApplied, 'fileKey'>;
   syncConflicts!: EntityTable<SyncConflict, 'id'>;
+  syncDevices!: EntityTable<SyncDevice, 'deviceId'>;
 
   constructor() {
     super('recordBook');
@@ -205,6 +221,9 @@ class RecordBookDB extends Dexie {
       syncAuth: 'id, provider',
       syncApplied: 'fileKey, appliedAt',
       syncConflicts: 'id, entity, entityId, createdAt',
+    });
+    this.version(3).stores({
+      syncDevices: 'deviceId, lastSeenAt',
     });
   }
 }
@@ -230,6 +249,8 @@ export async function ensureSettings(): Promise<AppSettings> {
     currentYear: new Date().getFullYear(),
     syncProvider: 'none',
     deviceId: newId(),
+    deviceName: 'This device',
+    deviceKind: 'phone',
     onboardingComplete: false,
     updatedAt: nowIso(),
   };

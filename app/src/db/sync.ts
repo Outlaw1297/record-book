@@ -1,2 +1,2 @@
-export { getSyncStatus, syncNow, exportHerdBackup } from '../sync/engine';
+export { getSyncStatus, syncNow, exportHerdBackup, replaceThisDeviceFromCloud } from '../sync/engine';
 export type { SyncStatus } from '../sync/engine';

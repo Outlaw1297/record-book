@@ -5,9 +5,26 @@ import {
   type OutboxChange,
 } from '../db/schema';
 import { decideWrite, mergeRemoteSettings, parseJsonl } from './apply';
+import {
+  breedingNaturalKey,
+  cowCalfNaturalKey,
+  normId,
+  pastureAnimalNaturalKey,
+  pastureNaturalKey,
+  pickIdentityWinner,
+  saleNaturalKey,
+} from './identity';
 import type { ChangeLine } from './types';
 
-type RecordWithMeta = { id: string; updatedAt: string; deletedAt?: string };
+type RecordWithMeta = {
+  id: string;
+  updatedAt: string;
+  deletedAt?: string;
+};
+
+function asMeta(rows: Array<{ id: string; updatedAt: string; deletedAt?: string }>): RecordWithMeta[] {
+  return rows;
+}
 
 const ENTITY_TABLES = [
   'animals',
@@ -47,6 +64,8 @@ async function logConflict(input: {
   kept: 'local' | 'remote';
   localUpdatedAt?: string;
   remoteUpdatedAt: string;
+  operatorName?: string;
+  deviceName?: string;
 }): Promise<void> {
   await db.syncConflicts.put({
     id: newId(),
@@ -56,13 +75,166 @@ async function logConflict(input: {
     localUpdatedAt: input.localUpdatedAt,
     remoteUpdatedAt: input.remoteUpdatedAt,
     createdAt: nowIso(),
+    operatorName: input.operatorName,
+    deviceName: input.deviceName,
   });
 }
 
-export async function applyRemoteChange(change: ChangeLine): Promise<'applied' | 'skipped' | 'conflict'> {
+function newest(rows: RecordWithMeta[]): RecordWithMeta | undefined {
+  return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+}
+
+async function findNaturalDuplicate(
+  entity: RecordEntity,
+  payload: Record<string, unknown>,
+  remoteId: string,
+): Promise<RecordWithMeta | undefined> {
+  switch (entity) {
+    case 'animals': {
+      const herdId = String(payload.herdId ?? '');
+      if (!herdId.trim()) return undefined;
+      const key = normId(herdId);
+      const matches = asMeta(
+        await db.animals
+          .filter((row) => row.id !== remoteId && normId(row.herdId) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'cowCalf': {
+      const key = cowCalfNaturalKey({
+        year: Number(payload.year),
+        cowId: String(payload.cowId ?? ''),
+        calfId: typeof payload.calfId === 'string' ? payload.calfId : '',
+        openWithoutCalf: Boolean(payload.openWithoutCalf),
+      });
+      const matches = asMeta(
+        await db.cowCalf
+          .filter((row) => row.id !== remoteId && cowCalfNaturalKey(row) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'breeding': {
+      const key = breedingNaturalKey({
+        year: Number(payload.year),
+        cowId: String(payload.cowId ?? ''),
+        kind: String(payload.kind ?? ''),
+      });
+      const matches = asMeta(
+        await db.breeding
+          .filter((row) => row.id !== remoteId && breedingNaturalKey(row) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'pastures': {
+      const key = pastureNaturalKey({
+        year: Number(payload.year),
+        pastureName: String(payload.pastureName ?? ''),
+      });
+      const matches = asMeta(
+        await db.pastures
+          .filter((row) => row.id !== remoteId && pastureNaturalKey(row) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'pastureAnimals': {
+      const key = pastureAnimalNaturalKey({
+        exposureId: String(payload.exposureId ?? ''),
+        animalHerdId: String(payload.animalHerdId ?? ''),
+        role: String(payload.role ?? ''),
+      });
+      const matches = asMeta(
+        await db.pastureAnimals
+          .filter(
+            (row) => row.id !== remoteId && pastureAnimalNaturalKey(row) === key,
+          )
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'sales': {
+      const key = saleNaturalKey({
+        year: Number(payload.year),
+        calfId: String(payload.calfId ?? ''),
+      });
+      const matches = asMeta(
+        await db.sales
+          .filter((row) => row.id !== remoteId && saleNaturalKey(row) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+  }
+}
+
+async function tombstone(
+  entity: RecordEntity,
+  row: RecordWithMeta,
+  at: string,
+): Promise<void> {
+  const table = tableFor(entity);
+  await table.put({
+    ...row,
+    id: row.id,
+    updatedAt: at,
+    deletedAt: row.deletedAt ?? at,
+  } as never);
+}
+
+async function retargetPastureAnimals(
+  fromId: string,
+  toId: string,
+  at: string,
+): Promise<void> {
+  if (fromId === toId) return;
+  const rows = await db.pastureAnimals
+    .filter((row) => row.exposureId === fromId)
+    .toArray();
+  for (const row of rows) {
+    const next = { ...row, exposureId: toId, updatedAt: at };
+    const clash = await db.pastureAnimals
+      .filter(
+        (other) =>
+          other.id !== row.id &&
+          pastureAnimalNaturalKey(other) === pastureAnimalNaturalKey(next),
+      )
+      .first();
+    if (clash) {
+      const winner = pickIdentityWinner(clash, next);
+      if (winner === 'local') {
+        await db.pastureAnimals.put({
+          ...row,
+          exposureId: toId,
+          updatedAt: at,
+          deletedAt: row.deletedAt ?? at,
+        });
+      } else {
+        await db.pastureAnimals.put(next);
+        await db.pastureAnimals.put({
+          ...clash,
+          updatedAt: at,
+          deletedAt: clash.deletedAt ?? at,
+        });
+      }
+    } else {
+      await db.pastureAnimals.put(next);
+    }
+  }
+}
+
+export async function applyRemoteChange(
+  change: ChangeLine,
+): Promise<'applied' | 'skipped' | 'conflict'> {
   if (change.entity === 'settings') {
     const local = await db.settings.get(1);
     if (!local) return 'skipped';
+    if (!local.lastSyncedAt) {
+      await db.settings.put(mergeRemoteSettings(local, change.payload));
+      return 'applied';
+    }
     const decision = decideWrite(local.updatedAt, change.updatedAt);
     if (decision === 'keep-local') {
       await logConflict({
@@ -71,6 +243,8 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
         kept: 'local',
         localUpdatedAt: local.updatedAt,
         remoteUpdatedAt: change.updatedAt,
+        operatorName: change.operatorName,
+        deviceName: change.deviceName,
       });
       return 'conflict';
     }
@@ -81,49 +255,85 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
         kept: 'remote',
         localUpdatedAt: local.updatedAt,
         remoteUpdatedAt: change.updatedAt,
+        operatorName: change.operatorName,
+        deviceName: change.deviceName,
       });
-      await db.settings.put(mergeRemoteSettings(local, change.payload));
-      return 'conflict';
     }
     await db.settings.put(mergeRemoteSettings(local, change.payload));
-    return 'applied';
+    return local.updatedAt && local.updatedAt !== change.updatedAt
+      ? 'conflict'
+      : 'applied';
   }
 
   if (!isRecordEntity(change.entity)) return 'skipped';
 
   const table = tableFor(change.entity);
-  const local = (await table.get(change.entityId)) as RecordWithMeta | undefined;
-  const decision = decideWrite(local?.updatedAt, change.updatedAt);
+  const payload =
+    change.payload && typeof change.payload === 'object'
+      ? (change.payload as Record<string, unknown>)
+      : {};
+  const localById = (await table.get(change.entityId)) as
+    | RecordWithMeta
+    | undefined;
+  const duplicate =
+    change.op === 'upsert'
+      ? await findNaturalDuplicate(change.entity, payload, change.entityId)
+      : undefined;
+  const candidates = [localById, duplicate].filter(
+    (row, index, rows): row is RecordWithMeta =>
+      Boolean(row) && rows.findIndex((other) => other?.id === row?.id) === index,
+  );
 
-  if (decision === 'keep-local') {
+  let bestLocal: RecordWithMeta | undefined;
+  for (const candidate of candidates) {
+    if (!bestLocal) bestLocal = candidate;
+    else if (pickIdentityWinner(bestLocal, candidate) === 'remote') {
+      bestLocal = candidate;
+    }
+  }
+
+  const remoteMeta = { id: change.entityId, updatedAt: change.updatedAt };
+  if (
+    bestLocal &&
+    bestLocal.id === change.entityId &&
+    bestLocal.updatedAt === change.updatedAt
+  ) {
+    return 'applied';
+  }
+  if (bestLocal && pickIdentityWinner(bestLocal, remoteMeta) === 'local') {
     await logConflict({
       entity: change.entity,
       entityId: change.entityId,
       kept: 'local',
-      localUpdatedAt: local?.updatedAt,
+      localUpdatedAt: bestLocal.updatedAt,
       remoteUpdatedAt: change.updatedAt,
+      operatorName: change.operatorName,
+      deviceName: change.deviceName,
     });
+    for (const candidate of candidates) {
+      if (candidate.id !== bestLocal.id) {
+        await tombstone(change.entity, candidate, bestLocal.updatedAt);
+      }
+    }
     return 'conflict';
   }
 
   const hadDifferentLocal =
-    local && local.updatedAt && local.updatedAt !== change.updatedAt;
+    bestLocal && bestLocal.updatedAt && bestLocal.updatedAt !== change.updatedAt;
 
   if (change.op === 'delete') {
-    const payload =
-      change.payload && typeof change.payload === 'object'
-        ? (change.payload as RecordWithMeta)
-        : undefined;
     await table.put({
-      ...(local ?? { id: change.entityId }),
-      ...(payload ?? {}),
+      ...(bestLocal ?? { id: change.entityId }),
+      ...payload,
       id: change.entityId,
       updatedAt: change.updatedAt,
-      deletedAt: payload?.deletedAt ?? change.updatedAt,
+      deletedAt:
+        (typeof payload.deletedAt === 'string' && payload.deletedAt) ||
+        change.updatedAt,
     } as never);
-  } else if (change.payload && typeof change.payload === 'object') {
+  } else if (Object.keys(payload).length > 0) {
     await table.put({
-      ...(change.payload as object),
+      ...payload,
       id: change.entityId,
       updatedAt: change.updatedAt,
     } as never);
@@ -131,13 +341,23 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
     return 'skipped';
   }
 
+  for (const candidate of candidates) {
+    if (candidate.id === change.entityId) continue;
+    if (change.entity === 'pastures') {
+      await retargetPastureAnimals(candidate.id, change.entityId, change.updatedAt);
+    }
+    await tombstone(change.entity, candidate, change.updatedAt);
+  }
+
   if (hadDifferentLocal) {
     await logConflict({
       entity: change.entity,
       entityId: change.entityId,
       kept: 'remote',
-      localUpdatedAt: local?.updatedAt,
+      localUpdatedAt: bestLocal?.updatedAt,
       remoteUpdatedAt: change.updatedAt,
+      operatorName: change.operatorName,
+      deviceName: change.deviceName,
     });
     return 'conflict';
   }
@@ -166,5 +386,29 @@ export async function applyRemoteFile(
     appliedAt: nowIso(),
     provider,
   });
+  return { applied, conflicts };
+}
+
+export async function applySnapshotRows(
+  entity: RecordEntity,
+  rows: unknown[],
+): Promise<{ applied: number; conflicts: number }> {
+  let applied = 0;
+  let conflicts = 0;
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || !('id' in row)) continue;
+    const record = row as RecordWithMeta;
+    const result = await applyRemoteChange({
+      v: 1,
+      deviceId: 'snapshot',
+      entity,
+      entityId: record.id,
+      op: record.deletedAt ? 'delete' : 'upsert',
+      updatedAt: record.updatedAt || nowIso(),
+      payload: record,
+    });
+    if (result === 'applied') applied += 1;
+    if (result === 'conflict') conflicts += 1;
+  }
   return { applied, conflicts };
 }

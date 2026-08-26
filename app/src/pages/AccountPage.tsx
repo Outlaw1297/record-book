@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ensureSettings } from '../db/schema';
+import { db, ensureSettings } from '../db/schema';
 import { getSyncAuth } from '../sync/auth';
+import { defaultDeviceName } from '../sync/identity';
 
 function providerLabel(provider?: string) {
   if (provider === 'google-drive') return 'Google Drive';
@@ -12,23 +13,32 @@ function providerLabel(provider?: string) {
 export function AccountPage() {
   const settings = useLiveQuery(() => ensureSettings());
   const auth = useLiveQuery(() => getSyncAuth());
+  const devices = useLiveQuery(() =>
+    db.syncDevices.orderBy('deviceName').toArray(),
+  );
+  const others = (devices ?? []).filter((device) => !device.isThisDevice);
+  const deviceLabel =
+    settings?.deviceName ||
+    defaultDeviceName(settings?.deviceKind, settings?.operatorName);
 
   return (
     <div className="page">
       <header className="page-header">
         <h1>Account</h1>
         <p className="lede">
-          This device keeps the herd locally. Drive or Dropbox is only the
-          private mailbox when you have signal.
+          You have a name on this device. The herd is the shared book in Drive
+          or Dropbox, used by every phone and office PC on the same account.
         </p>
       </header>
 
       <div className="account-card" style={{ marginTop: '1rem' }}>
-        <p className="due-kicker">Operator</p>
+        <p className="due-kicker">You on this device</p>
         <p className="due-date" style={{ fontSize: '1.6rem' }}>
           {settings?.operatorName || 'Not set'}
         </p>
-        <p className="hint">{settings?.ranchName}</p>
+        <p className="hint">
+          {settings?.ranchName} · {deviceLabel}
+        </p>
       </div>
 
       <div className="card-list" style={{ marginTop: '0.75rem' }}>
@@ -37,16 +47,23 @@ export function AccountPage() {
           <p>{settings?.currentYear}</p>
         </div>
         <div className="list-card">
-          <h2>Cloud folder</h2>
+          <h2>Shared folder</h2>
           <p>
             {providerLabel(auth?.provider)}
             {auth?.accountEmail ? ` · ${auth.accountEmail}` : ''}
           </p>
         </div>
         <div className="list-card">
-          <h2>Device</h2>
+          <h2>Other devices</h2>
           <p>
-            <code>{settings?.deviceId}</code>
+            {others.length === 0
+              ? 'None yet. Connect the office PC or another phone to the same cloud account.'
+              : others
+                  .map(
+                    (device) =>
+                      `${device.deviceName}${device.operatorName ? ` (${device.operatorName})` : ''}`,
+                  )
+                  .join(', ')}
           </p>
         </div>
       </div>

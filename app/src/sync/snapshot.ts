@@ -1,4 +1,5 @@
 import { db, ensureSettings, nowIso } from '../db/schema';
+import { applyRemoteChange, applySnapshotRows } from './remoteApply';
 import { sanitizeSettingsForSync } from './settingsPayload';
 import type { HerdSnapshot } from './types';
 
@@ -65,8 +66,46 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-export async function importSnapshot(snapshot: HerdSnapshot): Promise<void> {
-  const settings = await ensureSettings();
+export async function mergeSnapshot(
+  snapshot: HerdSnapshot,
+): Promise<{ applied: number; conflicts: number }> {
+  let applied = 0;
+  let conflicts = 0;
+  const batches: Array<
+    [
+      'animals' | 'cowCalf' | 'breeding' | 'pastures' | 'pastureAnimals' | 'sales',
+      unknown[],
+    ]
+  > = [
+    ['animals', asArray(snapshot.animals)],
+    ['cowCalf', asArray(snapshot.cowCalf)],
+    ['breeding', asArray(snapshot.breeding)],
+    ['pastures', asArray(snapshot.pastures)],
+    ['pastureAnimals', asArray(snapshot.pastureAnimals)],
+    ['sales', asArray(snapshot.sales)],
+  ];
+  for (const [entity, rows] of batches) {
+    const result = await applySnapshotRows(entity, rows);
+    applied += result.applied;
+    conflicts += result.conflicts;
+  }
+  if (snapshot.settings) {
+    const result = await applyRemoteChange({
+      v: 1,
+      deviceId: 'snapshot',
+      entity: 'settings',
+      entityId: '1',
+      op: 'upsert',
+      updatedAt: snapshot.settings.updatedAt || snapshot.exportedAt,
+      payload: snapshot.settings,
+    });
+    if (result === 'applied') applied += 1;
+    if (result === 'conflict') conflicts += 1;
+  }
+  return { applied, conflicts };
+}
+
+export async function clearHerdForReplace(): Promise<void> {
   await db.transaction(
     'rw',
     [
@@ -76,24 +115,23 @@ export async function importSnapshot(snapshot: HerdSnapshot): Promise<void> {
       db.pastures,
       db.pastureAnimals,
       db.sales,
-      db.settings,
+      db.outbox,
+      db.syncApplied,
+      db.syncConflicts,
     ],
     async () => {
-      await db.animals.bulkPut(asArray(snapshot.animals) as never[]);
-      await db.cowCalf.bulkPut(asArray(snapshot.cowCalf) as never[]);
-      await db.breeding.bulkPut(asArray(snapshot.breeding) as never[]);
-      await db.pastures.bulkPut(asArray(snapshot.pastures) as never[]);
-      await db.pastureAnimals.bulkPut(asArray(snapshot.pastureAnimals) as never[]);
-      await db.sales.bulkPut(asArray(snapshot.sales) as never[]);
-      await db.settings.put({
-        ...settings,
-        ...sanitizeSettingsForSync(snapshot.settings),
-        id: 1,
-        deviceId: settings.deviceId,
-        syncProvider: settings.syncProvider,
-        lastSyncedAt: settings.lastSyncedAt,
-        onboardingComplete: settings.onboardingComplete,
-      });
+      await db.animals.clear();
+      await db.cowCalf.clear();
+      await db.breeding.clear();
+      await db.pastures.clear();
+      await db.pastureAnimals.clear();
+      await db.sales.clear();
+      await db.syncApplied.clear();
+      await db.syncConflicts.clear();
+      const pending = await db.outbox.filter((row) => !row.syncedAt).toArray();
+      for (const row of pending) {
+        await db.outbox.delete(row.id);
+      }
     },
   );
 }

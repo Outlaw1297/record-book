@@ -4,6 +4,7 @@
 services:
   keys:
     image: busybox:1.37
+    restart: unless-stopped
     volumes:
       - keys:/keys
     command:
@@ -17,13 +18,21 @@ services:
           tr -dc A-Za-z0-9 </dev/urandom | head -c 32 > /keys/api_key
         fi
         chmod 644 /keys/pg_password /keys/api_key
+        echo "Ranch keys ready"
+        exec tail -f /dev/null
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /keys/pg_password && test -s /keys/api_key"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
 
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     depends_on:
       keys:
-        condition: service_completed_successfully
+        condition: service_healthy
     environment:
       POSTGRES_DB: recordbook
       POSTGRES_USER: recordbook
@@ -43,7 +52,7 @@ services:
     restart: unless-stopped
     depends_on:
       keys:
-        condition: service_completed_successfully
+        condition: service_healthy
       postgres:
         condition: service_healthy
     volumes:
@@ -55,7 +64,7 @@ services:
     restart: unless-stopped
     depends_on:
       keys:
-        condition: service_completed_successfully
+        condition: service_healthy
       api:
         condition: service_started
     volumes:

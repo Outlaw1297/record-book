@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.cursor
+*.md
+docs/plan/reference-photos
+app/node_modules
+app/dist
+api/node_modules
+api/dist

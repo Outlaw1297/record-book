@@ -1,5 +1,6 @@
 import { hasUsableSession } from './auth';
 import { syncNow } from './engine';
+import { hasRanchServer } from './ranchServer';
 import { emitSyncEvent, OUTBOX_EVENT } from './types';
 
 let timer: number | undefined;
@@ -15,7 +16,7 @@ export function scheduleSync(delayMs = 2500): void {
         return;
       }
       const connected = await hasUsableSession();
-      if (!connected) {
+      if (!connected && !hasRanchServer()) {
         emitSyncEvent();
         return;
       }

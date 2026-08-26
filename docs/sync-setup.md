@@ -1,6 +1,8 @@
 # Drive / Dropbox sync setup
 
-The record book keeps cattle rows in **this device’s IndexedDB**. Google Drive or Dropbox is the private shared database for every phone, tablet, and office PC. There is no ranch server, and OAuth tokens never go into the cloud snapshot.
+The record book keeps cattle rows in **this device’s IndexedDB**. Google Drive or Dropbox is the private shared database for every phone, tablet, and office PC. OAuth tokens never go into the cloud snapshot.
+
+An optional **ranch Postgres** (Docker / Portainer) is a second copy of the same herd so another app can call a REST API. It does not replace Drive or Dropbox. See [Docker / Portainer](docker-portainer.md) and [Ranch API](api.md).
 
 Most of the time you can work with no signal. When a device finds Wi‑Fi or cell data, it pushes pending outbox files and pulls anything the other devices wrote.
 
@@ -86,7 +88,8 @@ VITE_DROPBOX_APP_KEY=your_dropbox_app_key
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row. Nothing waits on the network.
-- **Online + connected:** a short debounce uploads one JSONL file per device, merges the latest snapshot, then refreshes `snapshots/herd-latest.json` and `devices.json`.
+- **Online + Drive/Dropbox:** a short debounce uploads one JSONL file per device, merges the latest snapshot, then refreshes `snapshots/herd-latest.json` and `devices.json`.
+- **Online + ranch API:** the same sync copies a full herd snapshot into Postgres. Future apps read that copy.
 - **New device:** adopts the shared ranch name/year, merges the snapshot, then applies change files it has not seen.
 - **Same cow logged twice:** merged by herd I.D. (and calf/year where it is obvious). Last `updatedAt` wins. Settings → Overlap log.
 - **Disconnect:** tokens leave this browser. The herd on the device and the cloud folder both stay.

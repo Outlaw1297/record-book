@@ -58,7 +58,7 @@ export function AccountPage() {
           <h2>Other devices</h2>
           <p>
             {others.length === 0
-              ? 'None yet. Connect the office PC or another phone to the same cloud account.'
+              ? 'None yet. Connect the office PC or another phone to the same Drive or Dropbox account so they share this book.'
               : others
                   .map(
                     (device) =>

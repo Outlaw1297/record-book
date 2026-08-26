@@ -34,4 +34,4 @@ curl -s http://YOUR-HOST/api/v1/animals
 curl -s http://YOUR-HOST/api/v1/export
 ```
 
-See [API reference](api.md). Keys live in the `keys` volume (`/keys/api_key`, `/keys/pg_password`). Data lives in the `pg` volume.
+See [API reference](api.md). Keys live in the `keys` volume (`/keys/api_key`, `/keys/pg_password`). Data lives in the `recordbook_pg` volume.

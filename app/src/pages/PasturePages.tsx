@@ -139,7 +139,9 @@ export function PastureFormPage() {
     <div className="page narrow">
       <header className="page-header">
         <h1>{existing ? existing.pastureName : 'New pasture exposure'}</h1>
-        <p className="lede">Like the PASTURE EXPOSURE page (e.g. OLD COWS).</p>
+        <p className="lede">
+          PASTURE EXPOSURE — e.g. OLD COWS, or a List of Culls on 2+3&apos;s.
+        </p>
       </header>
 
       <form className="form" onSubmit={savePasture}>

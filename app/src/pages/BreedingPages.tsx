@@ -10,6 +10,7 @@ import {
   type BreedingKind,
   type BreedingService,
 } from '../db/schema';
+import { dueDateFromService, formatDisplayDate } from '../lib/gestation';
 
 const KIND_LABEL: Record<BreedingKind, string> = {
   ai1: 'AI 1st service',
@@ -49,22 +50,29 @@ export function BreedingListPage() {
               <th>Service</th>
               <th>Sire</th>
               <th>Date</th>
+              <th>Due</th>
             </tr>
           </thead>
           <tbody>
-            {(rows ?? []).map((row) => (
-              <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
-                <td>
-                  <Link to={`/breeding/${row.id}`}>{row.cowId}</Link>
-                </td>
-                <td>{KIND_LABEL[row.kind]}</td>
-                <td>{row.sireId || '—'}</td>
-                <td>{row.serviceDate || '—'}</td>
-              </tr>
-            ))}
+            {(rows ?? []).map((row) => {
+              const due = row.serviceDate
+                ? dueDateFromService(row.serviceDate)
+                : null;
+              return (
+                <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
+                  <td>
+                    <Link to={`/breeding/${row.id}`}>{row.cowId}</Link>
+                  </td>
+                  <td>{KIND_LABEL[row.kind]}</td>
+                  <td>{row.sireId || '—'}</td>
+                  <td>{row.serviceDate || '—'}</td>
+                  <td>{due ? formatDisplayDate(due) : '—'}</td>
+                </tr>
+              );
+            })}
             {(rows?.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={4} className="empty">
+                <td colSpan={5} className="empty">
                   No breeding rows for {year}.
                 </td>
               </tr>
@@ -90,6 +98,7 @@ export function BreedingFormPage() {
   const [sireId, setSireId] = useState('');
   const [serviceDate, setServiceDate] = useState('');
   const [flagged, setFlagged] = useState(false);
+  const duePreview = serviceDate ? dueDateFromService(serviceDate) : null;
 
   useEffect(() => {
     if (!existing) return;
@@ -169,6 +178,9 @@ export function BreedingFormPage() {
             onChange={(e) => setServiceDate(e.target.value)}
           />
         </label>
+        {duePreview && (
+          <p className="hint">Due date: {formatDisplayDate(duePreview)}</p>
+        )}
         <label className="check">
           <input
             type="checkbox"

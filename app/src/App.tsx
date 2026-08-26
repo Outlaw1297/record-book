@@ -5,6 +5,7 @@ import { CowCalfFormPage, CowCalfListPage } from './pages/CowCalfPages';
 import { BreedingFormPage, BreedingListPage } from './pages/BreedingPages';
 import { PastureFormPage, PastureListPage } from './pages/PasturePages';
 import { SalesFormPage, SalesListPage } from './pages/SalesPages';
+import { GestationPage } from './pages/GestationPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="pasture/:id" element={<PastureFormPage />} />
           <Route path="sales" element={<SalesListPage />} />
           <Route path="sales/:id" element={<SalesFormPage />} />
+          <Route path="gestation" element={<GestationPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

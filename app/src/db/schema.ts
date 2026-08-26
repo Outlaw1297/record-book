@@ -80,6 +80,8 @@ export interface PastureExposureAnimal {
   deletedAt?: string;
 }
 
+export type ListMark = '' | 'x' | 'circled';
+
 export interface SaleRecord {
   id: string;
   year: number;
@@ -89,6 +91,8 @@ export interface SaleRecord {
   saleDate?: string;
   price?: string;
   notes?: string;
+  /** How the row is marked in the paper cull/sale list. */
+  listMark?: ListMark;
   flagged: boolean;
   updatedAt: string;
   deletedAt?: string;

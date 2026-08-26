@@ -24,7 +24,8 @@ cd app && npm run lint    # oxlint
 | **Cow–Calf** | Calf/cow/sire IDs, sex, calving date, birth weight/codes, calving ease, remarks, open cows |
 | **Breeding** | AI 1st/2nd + pasture service |
 | **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |
-| **Sales** | Calf ID, sex, sold to, date, price, notes |
+| **Sales** | Calf ID, sex, sold to, date, price, cull notes, circled / x marks |
+| **Gestation** | Service date + 283 days = due date (printed table) |
 | **Settings** | Ranch name, year, Drive/Dropbox provider choice, JSON backup |
 
 ## Sync model

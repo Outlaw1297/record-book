@@ -2,7 +2,7 @@
 
 **Product:** Offline-first digital version of your **American Hereford Association / myHERD.org pocket calving book**, for phone (field) and desktop (office), syncing through Google Drive or Dropbox when cell service or Wi‑Fi is available.
 
-**Status:** MVP built from available notebook photos (cow–calf, pasture exposure, sale, breeding, cover). Remaining pages can be uploaded later and folded into the schema.
+**Status:** All 11 photos from `book.zip` are in [`docs/plan/reference-photos/`](reference-photos/). MVP covers cow–calf, breeding (with due dates), pasture (including cull lists), sales/culls, gestation table, and cover identity.
 
 **UI skill:** [ui-design-brain](../../.cursor/skills/ui-design-brain/SKILL.md)
 
@@ -79,7 +79,17 @@ Header: **PASTURE**, **BULL IN**, **BULL OUT** dates.
 
 Companion list usage (same year): calf ID + status notes (`old`, `gimp`, `udder`, `big bag`), `x`-prefix and circles as **status / sold / flagged** markers. Tag color embedded in ID (`y`, `w`, `pk`, `g`, `teal`, `purple`, `org`).
 
-### 2.5 Book identity
+Page **111** is titled **2026 CULL LIST** on a printed **SALE RECORD** grid. Page **110** is a blank sale sheet for the same year. App model: one Sale Record row with optional `listMark` (`x` | `circled`) and notes for cull reason.
+
+### 2.5 Gestation Table
+
+Printed lookup: **Find Date of Service in Upper Line. Second Line Represents Date Due.** App uses **service + 283 days**. Breeding rows show the computed due date next to the service date.
+
+### 2.6 Pasture used as a cull list
+
+Page **83** is a Pasture Exposure sheet named **2+3's** with heading **List of Culls** (IDs plus reasons: old, gimpy, udder, death date). Same pasture model; animals carry notes.
+
+### 2.7 Book identity
 
 - Brand: **myHERD.org** + **American Hereford Association**
 - Optional later: export/import alignment with myHERD — **not required for v1**
@@ -90,7 +100,7 @@ Companion list usage (same year): calf ID + status notes (`old`, `gimp`, `udder`
 
 ### Mobile (field)
 
-- Home sections matching book tabs: **Cow–Calf · Breeding · Pasture · Sales**
+- Home sections matching book tabs: **Cow–Calf · Breeding · Pasture · Sales/Culls · Gestation**
 - One-row-at-a-time entry with defaults (year, calving ease `1`)
 - Fast animal picker by herd ID / tag color
 - Quick remark chips: `poll`, `GAGM`, `FAGM`, `open`, `gimp`, etc.
@@ -157,7 +167,8 @@ PastureExposureAnimal
   exposureId, animalId, role (bull|cow), note, metric (+3.3), flagged
 
 SaleRecord
-  animalId, sex, buyer, saleDate, price, year, notes
+  animalId, sex, buyer, saleDate, price, year, notes,
+  listMark (x|circled)
 ```
 
 Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and phenotype are first-class so search works (`w`, `org`, `BWF`).
@@ -187,9 +198,9 @@ Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and
 
 ---
 
-## 8. Missing photos / open questions
+## 8. Open questions
 
-**Missing uploads:** you noted some pictures failed the size limit. Please re-send remaining pages as smaller JPEGs (or a few at a time). Useful if they exist in the book: weaning weights, treatments/health, herd inventory, bull inventory, or any other tab you use every year.
+**Photos received:** front/back covers, cow–calf p16–17, breeding p70–71, pasture p81 and p83 (culls), sale/cull p110–111, gestation table. If the book has other yearly tabs (weaning weights, treatments/health, herd or bull inventory), those can still be added later.
 
 **Decisions still needed:**
 
@@ -202,4 +213,4 @@ Herd IDs stay **free text** (your real tags are not pure numbers). Tag color and
 
 ## 9. Next build step
 
-After any remaining pages arrive (or you say “build with what we have”): scaffold Flutter + Phase 1 **Cow–Calf Record** matching these columns, then Breeding / Pasture / Sales, then sync.
+Drive/Dropbox OAuth sync, then a native Flutter/Capacitor shell if you want app-store packaging. The web MVP already mirrors the photographed sections.

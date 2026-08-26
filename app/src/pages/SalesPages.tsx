@@ -7,9 +7,16 @@ import {
   newId,
   nowIso,
   queueChange,
+  type ListMark,
   type SaleRecord,
   type Sex,
 } from '../db/schema';
+
+function markLabel(mark?: ListMark): string {
+  if (mark === 'x') return 'x';
+  if (mark === 'circled') return '○';
+  return '—';
+}
 
 export function SalesListPage() {
   const settings = useLiveQuery(() => ensureSettings());
@@ -28,7 +35,7 @@ export function SalesListPage() {
       <header className="page-header row-between">
         <div>
           <h1>Sale Record</h1>
-          <p className="lede">{year}</p>
+          <p className="lede">{year} · also used as the cull list</p>
         </div>
         <Link className="btn primary" to="/sales/new">
           Add sale
@@ -39,6 +46,7 @@ export function SalesListPage() {
         <table className="data-table">
           <thead>
             <tr>
+              <th>Mark</th>
               <th>Calf I.D.</th>
               <th>Sex</th>
               <th>Sold to</th>
@@ -49,7 +57,15 @@ export function SalesListPage() {
           </thead>
           <tbody>
             {(rows ?? []).map((row) => (
-              <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
+              <tr
+                key={row.id}
+                className={
+                  row.flagged || row.listMark === 'circled'
+                    ? 'flagged'
+                    : undefined
+                }
+              >
+                <td>{markLabel(row.listMark)}</td>
                 <td>
                   <Link to={`/sales/${row.id}`}>{row.calfId}</Link>
                 </td>
@@ -62,8 +78,8 @@ export function SalesListPage() {
             ))}
             {(rows?.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
-                  No sales for {year}.
+                <td colSpan={7} className="empty">
+                  No sales or culls for {year}.
                 </td>
               </tr>
             )}
@@ -89,6 +105,7 @@ export function SalesFormPage() {
   const [saleDate, setSaleDate] = useState('');
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
+  const [listMark, setListMark] = useState<ListMark>('');
   const [flagged, setFlagged] = useState(false);
 
   useEffect(() => {
@@ -99,6 +116,7 @@ export function SalesFormPage() {
     setSaleDate(existing.saleDate ?? '');
     setPrice(existing.price ?? '');
     setNotes(existing.notes ?? '');
+    setListMark(existing.listMark ?? '');
     setFlagged(existing.flagged);
   }, [existing]);
 
@@ -118,7 +136,8 @@ export function SalesFormPage() {
       saleDate: saleDate || undefined,
       price: price.trim() || undefined,
       notes: notes.trim() || undefined,
-      flagged,
+      listMark: listMark || undefined,
+      flagged: flagged || listMark === 'circled',
       updatedAt: nowIso(),
     };
 
@@ -130,8 +149,10 @@ export function SalesFormPage() {
   return (
     <div className="page narrow">
       <header className="page-header">
-        <h1>{existing ? 'Edit sale' : 'Add sale'}</h1>
-        <p className="lede">SALE RECORD — calf, sex, sold to, date, price.</p>
+        <h1>{existing ? 'Edit sale / cull' : 'Add sale / cull'}</h1>
+        <p className="lede">
+          SALE RECORD page — also the 2026 cull list (circled or leading x).
+        </p>
       </header>
 
       <form className="form" onSubmit={onSubmit}>
@@ -182,8 +203,19 @@ export function SalesFormPage() {
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="gimp / udder / old"
+            placeholder="old / gimpy / udder / BA"
           />
+        </label>
+        <label>
+          Book mark
+          <select
+            value={listMark}
+            onChange={(e) => setListMark(e.target.value as ListMark)}
+          >
+            <option value="">None</option>
+            <option value="circled">Circled</option>
+            <option value="x">Leading x</option>
+          </select>
         </label>
         <label className="check">
           <input
@@ -191,7 +223,7 @@ export function SalesFormPage() {
             checked={flagged}
             onChange={(e) => setFlagged(e.target.checked)}
           />
-          Flagged / sold mark
+          Flagged
         </label>
         <div className="form-actions">
           <button type="submit" className="btn primary">

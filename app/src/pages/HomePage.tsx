@@ -60,8 +60,12 @@ export function HomePage() {
           <p>Pasture name, bull in/out, animal list</p>
         </Link>
         <Link className="quick-card" to="/sales/new">
-          <h2>Record sale</h2>
-          <p>Calf ID, buyer, date, price</p>
+          <h2>Record sale / cull</h2>
+          <p>Calf ID, buyer, date, price, or cull notes</p>
+        </Link>
+        <Link className="quick-card" to="/gestation">
+          <h2>Gestation table</h2>
+          <p>Service date plus 283 days = due date</p>
         </Link>
       </section>
 

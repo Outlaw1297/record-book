@@ -8,6 +8,7 @@ const links = [
   { to: '/breeding', label: 'Breeding' },
   { to: '/pasture', label: 'Pasture' },
   { to: '/sales', label: 'Sales' },
+  { to: '/gestation', label: 'Gestation' },
   { to: '/settings', label: 'Settings' },
 ];
 

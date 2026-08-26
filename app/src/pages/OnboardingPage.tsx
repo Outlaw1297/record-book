@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { db, ensureSettings } from '../db/schema';
+import { db, ensureSettings, queueChange } from '../db/schema';
 import { Field, Segmented } from '../ui/Field';
 
 const STEPS = 3;
@@ -19,14 +19,16 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
       return;
     }
     const settings = await ensureSettings();
-    await db.settings.put({
+    const next = {
       ...settings,
       ranchName: ranchName.trim(),
       operatorName: operatorName.trim(),
       currentYear,
       onboardingComplete: true,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    await db.settings.put(next);
+    await queueChange('settings', '1', 'upsert', next);
     onDone();
   }
 

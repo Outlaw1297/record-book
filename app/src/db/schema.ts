@@ -237,6 +237,14 @@ export async function ensureSettings(): Promise<AppSettings> {
   return settings;
 }
 
+function timestampFromPayload(payload: unknown): string {
+  if (payload && typeof payload === 'object' && 'updatedAt' in payload) {
+    const value = (payload as { updatedAt?: unknown }).updatedAt;
+    if (typeof value === 'string' && value) return value;
+  }
+  return nowIso();
+}
+
 export async function queueChange(
   entity: OutboxChange['entity'],
   entityId: string,
@@ -249,7 +257,7 @@ export async function queueChange(
     entityId,
     op,
     payload: entity === 'settings' ? sanitizeSettingsForSync(payload) : payload,
-    updatedAt: nowIso(),
+    updatedAt: timestampFromPayload(payload),
   });
   emitOutboxEvent();
 }

@@ -39,7 +39,6 @@ export async function disconnectCloud(): Promise<void> {
     await db.settings.put({
       ...settings,
       syncProvider: 'none',
-      updatedAt: new Date().toISOString(),
     });
   });
 }
@@ -202,7 +201,6 @@ async function persistAuth(
     await db.settings.put({
       ...settings,
       syncProvider: provider,
-      updatedAt: new Date().toISOString(),
     });
   }
   return auth;

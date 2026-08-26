@@ -37,6 +37,7 @@ export type SyncStatus = {
 };
 
 let inflight: Promise<SyncRunResult> | null = null;
+let queuedSync = false;
 let lastError: string | undefined;
 
 function isCloudProvider(value: SyncProvider): value is CloudProvider {
@@ -278,10 +279,23 @@ async function runSync(): Promise<SyncRunResult> {
 }
 
 export async function syncNow(): Promise<SyncRunResult> {
-  if (inflight) return inflight;
-  inflight = runSync().finally(() => {
-    inflight = null;
-  });
+  if (inflight) {
+    queuedSync = true;
+    return inflight;
+  }
+  inflight = (async () => {
+    let result: SyncRunResult;
+    try {
+      do {
+        queuedSync = false;
+        result = await runSync();
+      } while (queuedSync);
+      return result;
+    } finally {
+      inflight = null;
+      if (queuedSync) void syncNow();
+    }
+  })();
   return inflight;
 }
 

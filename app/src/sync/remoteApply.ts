@@ -9,6 +9,14 @@ import type { ChangeLine } from './types';
 
 type RecordWithMeta = { id: string; updatedAt: string; deletedAt?: string };
 
+function changeTimestamp(change: ChangeLine): string {
+  if (change.payload && typeof change.payload === 'object') {
+    const value = (change.payload as { updatedAt?: unknown }).updatedAt;
+    if (typeof value === 'string' && value) return value;
+  }
+  return change.updatedAt;
+}
+
 const ENTITY_TABLES = [
   'animals',
   'cowCalf',
@@ -60,27 +68,28 @@ async function logConflict(input: {
 }
 
 export async function applyRemoteChange(change: ChangeLine): Promise<'applied' | 'skipped' | 'conflict'> {
+  const remoteUpdatedAt = changeTimestamp(change);
   if (change.entity === 'settings') {
     const local = await db.settings.get(1);
     if (!local) return 'skipped';
-    const decision = decideWrite(local.updatedAt, change.updatedAt);
+    const decision = decideWrite(local.updatedAt, remoteUpdatedAt);
     if (decision === 'keep-local') {
       await logConflict({
         entity: 'settings',
         entityId: '1',
         kept: 'local',
         localUpdatedAt: local.updatedAt,
-        remoteUpdatedAt: change.updatedAt,
+        remoteUpdatedAt,
       });
       return 'conflict';
     }
-    if (local.updatedAt && local.updatedAt !== change.updatedAt) {
+    if (local.updatedAt && local.updatedAt !== remoteUpdatedAt) {
       await logConflict({
         entity: 'settings',
         entityId: '1',
         kept: 'remote',
         localUpdatedAt: local.updatedAt,
-        remoteUpdatedAt: change.updatedAt,
+        remoteUpdatedAt,
       });
       await db.settings.put(mergeRemoteSettings(local, change.payload));
       return 'conflict';
@@ -93,7 +102,7 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
 
   const table = tableFor(change.entity);
   const local = (await table.get(change.entityId)) as RecordWithMeta | undefined;
-  const decision = decideWrite(local?.updatedAt, change.updatedAt);
+  const decision = decideWrite(local?.updatedAt, remoteUpdatedAt);
 
   if (decision === 'keep-local') {
     await logConflict({
@@ -101,13 +110,13 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
       entityId: change.entityId,
       kept: 'local',
       localUpdatedAt: local?.updatedAt,
-      remoteUpdatedAt: change.updatedAt,
+      remoteUpdatedAt,
     });
     return 'conflict';
   }
 
   const hadDifferentLocal =
-    local && local.updatedAt && local.updatedAt !== change.updatedAt;
+    local && local.updatedAt && local.updatedAt !== remoteUpdatedAt;
 
   if (change.op === 'delete') {
     const payload =
@@ -118,14 +127,14 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
       ...(local ?? { id: change.entityId }),
       ...(payload ?? {}),
       id: change.entityId,
-      updatedAt: change.updatedAt,
-      deletedAt: payload?.deletedAt ?? change.updatedAt,
+      updatedAt: remoteUpdatedAt,
+      deletedAt: payload?.deletedAt ?? remoteUpdatedAt,
     } as never);
   } else if (change.payload && typeof change.payload === 'object') {
     await table.put({
       ...(change.payload as object),
       id: change.entityId,
-      updatedAt: change.updatedAt,
+      updatedAt: remoteUpdatedAt,
     } as never);
   } else {
     return 'skipped';
@@ -137,7 +146,7 @@ export async function applyRemoteChange(change: ChangeLine): Promise<'applied' |
       entityId: change.entityId,
       kept: 'remote',
       localUpdatedAt: local?.updatedAt,
-      remoteUpdatedAt: change.updatedAt,
+      remoteUpdatedAt,
     });
     return 'conflict';
   }

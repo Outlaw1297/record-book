@@ -1,5 +1,5 @@
-import { getSyncAuth, requireAccessToken, saveAuthFolders } from './auth';
-import { assertOk, readJsonBody } from './http';
+import { requireAccessToken, saveAuthFolders } from './auth';
+import { assertOk } from './http';
 import type { CloudCarrier, CloudFile, CloudProvider } from './types';
 import { RECORD_BOOK_FOLDER } from './types';
 
@@ -12,6 +12,7 @@ type DriveFile = {
   name: string;
   mimeType?: string;
   modifiedTime?: string;
+  createdTime?: string;
 };
 
 async function driveFetch(
@@ -50,26 +51,69 @@ async function listChildren(
   return files;
 }
 
+function compareDriveFiles(a: DriveFile, b: DriveFile): number {
+  const ta = a.createdTime ?? a.modifiedTime ?? '';
+  const tb = b.createdTime ?? b.modifiedTime ?? '';
+  if (ta && tb && ta !== tb) return ta.localeCompare(tb);
+  if (ta && !tb) return -1;
+  if (!ta && tb) return 1;
+  return a.id.localeCompare(b.id);
+}
+
+function pickCanonical(files: DriveFile[]): DriveFile | undefined {
+  if (files.length === 0) return undefined;
+  return files.reduce((best, file) =>
+    compareDriveFiles(file, best) < 0 ? file : best,
+  );
+}
+
+async function findChildren(
+  token: string,
+  folderId: string,
+  name: string,
+  folder: boolean,
+): Promise<DriveFile[]> {
+  const mimeClause = folder
+    ? `and mimeType = '${FOLDER_MIME}'`
+    : `and mimeType != '${FOLDER_MIME}'`;
+  const safeName = name.replace(/'/g, "\\'");
+  const files: DriveFile[] = [];
+  let pageToken = '';
+  do {
+    const query = new URLSearchParams({
+      q: `name = '${safeName}' and '${folderId}' in parents and trashed = false ${mimeClause}`,
+      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime)',
+      pageSize: '100',
+      spaces: 'drive',
+    });
+    if (pageToken) query.set('pageToken', pageToken);
+    const response = await driveFetch(token, `${FILES_URL}?${query.toString()}`);
+    await assertOk(response, 'Could not search Google Drive.');
+    const body = (await response.json()) as {
+      files?: DriveFile[];
+      nextPageToken?: string;
+    };
+    files.push(...(body.files ?? []));
+    pageToken = body.nextPageToken ?? '';
+  } while (pageToken);
+  return files;
+}
+
 async function findChild(
   token: string,
   folderId: string,
   name: string,
   folder: boolean,
 ): Promise<DriveFile | undefined> {
-  const mimeClause = folder
-    ? `and mimeType = '${FOLDER_MIME}'`
-    : `and mimeType != '${FOLDER_MIME}'`;
-  const safeName = name.replace(/'/g, "\\'");
-  const query = new URLSearchParams({
-    q: `name = '${safeName}' and '${folderId}' in parents and trashed = false ${mimeClause}`,
-    fields: 'files(id,name,mimeType,modifiedTime)',
-    pageSize: '1',
-    spaces: 'drive',
+  return pickCanonical(await findChildren(token, folderId, name, folder));
+}
+
+async function trashFile(token: string, fileId: string): Promise<void> {
+  await driveFetch(token, `${FILES_URL}/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
   });
-  const response = await driveFetch(token, `${FILES_URL}?${query.toString()}`);
-  await assertOk(response, 'Could not search Google Drive.');
-  const body = (await response.json()) as { files?: DriveFile[] };
-  return body.files?.[0];
 }
 
 async function createFolder(
@@ -96,9 +140,16 @@ async function getOrCreateFolder(
   name: string,
   parentId?: string,
 ): Promise<string> {
-  const existing = await findChild(token, parentId ?? 'root', name, true);
+  const parent = parentId ?? 'root';
+  const existing = await findChild(token, parent, name, true);
   if (existing) return existing.id;
-  return createFolder(token, name, parentId);
+  const createdId = await createFolder(token, name, parentId);
+  const canonical = await findChild(token, parent, name, true);
+  if (canonical && canonical.id !== createdId) {
+    await trashFile(token, createdId);
+    return canonical.id;
+  }
+  return createdId;
 }
 
 async function ensureFolders(token: string): Promise<{
@@ -106,24 +157,6 @@ async function ensureFolders(token: string): Promise<{
   snapshotsFolderId: string;
   changesFolderId: string;
 }> {
-  const auth = await getSyncAuth();
-  if (auth?.rootFolderId && auth.snapshotsFolderId && auth.changesFolderId) {
-    const probe = await driveFetch(
-      token,
-      `${FILES_URL}/${auth.rootFolderId}?fields=id,trashed`,
-    );
-    if (probe.ok) {
-      const body = (await readJsonBody(probe)) as { trashed?: boolean } | null;
-      if (body && body.trashed !== true) {
-        return {
-          rootFolderId: auth.rootFolderId,
-          snapshotsFolderId: auth.snapshotsFolderId,
-          changesFolderId: auth.changesFolderId,
-        };
-      }
-    }
-  }
-
   const rootFolderId = await getOrCreateFolder(token, RECORD_BOOK_FOLDER);
   const snapshotsFolderId = await getOrCreateFolder(
     token,
@@ -166,10 +199,10 @@ async function uploadNew(
   parentId: string,
   name: string,
   text: string,
-): Promise<void> {
+): Promise<string> {
   const metadata = JSON.stringify({ name, parents: [parentId] });
   const boundary = 'recordbook_' + crypto.randomUUID();
-  const body =
+  const multipart =
     `--${boundary}\r\n` +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     `${metadata}\r\n` +
@@ -183,10 +216,12 @@ async function uploadNew(
     {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-      body,
+      body: multipart,
     },
   );
   await assertOk(response, 'Could not upload to Google Drive.');
+  const created = (await response.json()) as { id: string };
+  return created.id;
 }
 
 async function updateFile(token: string, fileId: string, text: string): Promise<void> {
@@ -254,7 +289,14 @@ export class GoogleDriveCarrier implements CloudCarrier {
       await updateFile(token, existing.id, text);
       return;
     }
-    await uploadNew(token, parentId, name, text);
+    const uploadedId = await uploadNew(token, parentId, name, text);
+    if (mode === 'overwrite') {
+      const canonical = await findChild(token, parentId, name, false);
+      if (canonical && canonical.id !== uploadedId) {
+        await updateFile(token, canonical.id, text);
+        await trashFile(token, uploadedId);
+      }
+    }
   }
 
   async list(prefix: string): Promise<CloudFile[]> {

@@ -1,18 +1,14 @@
 # Ranch API
 
-HTTP API in front of the Docker Postgres herd database. Auth is a shared `API_KEY`. Bind is `0.0.0.0:$PORT` (default 8080).
+HTTP API in front of the Docker Postgres herd database. Bind is `0.0.0.0:8080` inside the stack. Portainer only publishes port **80**; the PWA and other apps should use `/api/` on that host.
 
-The PWA does **not** require this API. Drive/Dropbox still carry phones. This is the copy a future project should call.
+The PWA does **not** require this API. Drive/Dropbox still carry phones.
 
 ## Auth
 
-Send the stack `API_KEY` on every `/v1` request:
+The stack generates an API key on first boot. Nginx on port 80 attaches it to `/api/` requests, so a browser or future app calling `http://YOUR-HOST/api/...` does not send a key.
 
-```http
-Authorization: Bearer YOUR_API_KEY
-```
-
-`X-Api-Key: YOUR_API_KEY` is also accepted. `GET /health` has no auth.
+`GET /health` has no auth. Direct calls to the `api` container still need `Authorization: Bearer` with the generated key (`cat /keys/api_key` in that container).
 
 ## Endpoints
 
@@ -47,34 +43,27 @@ JSON field names match the PWA (`herdId`, `cowId`, `updatedAt`, camelCase).
 Health:
 
 ```bash
-curl -s http://YOUR-HOST:8080/health
+curl -s http://YOUR-HOST/api/health
 ```
 
 List animals (future project):
 
 ```bash
-curl -s -H "Authorization: Bearer $API_KEY" \
-  http://YOUR-HOST:8080/v1/animals
+curl -s http://YOUR-HOST/api/v1/animals
 ```
 
 Full herd:
 
 ```bash
-curl -s -H "Authorization: Bearer $API_KEY" \
-  http://YOUR-HOST:8080/v1/export
+curl -s http://YOUR-HOST/api/v1/export
 ```
 
 Create or replace an animal:
 
 ```bash
-curl -s -X PUT http://YOUR-HOST:8080/v1/animals/cow-90bk \
-  -H "Authorization: Bearer $API_KEY" \
+curl -s -X PUT http://YOUR-HOST/api/v1/animals/cow-90bk \
   -H "Content-Type: application/json" \
   -d '{"id":"cow-90bk","herdId":"90bk","sex":"F","status":"active","updatedAt":"2026-08-26T00:00:00.000Z"}'
 ```
 
-From another container on the same Docker / Portainer network, use `http://api:8080` instead of the published host port.
-
-## CORS
-
-`CORS_ORIGIN` defaults to `*`. For a browser app on another origin, set it to that origin (comma-separated if several).
+From another container on the same Docker network, use `http://api:8080` and send the generated key from `/keys/api_key`.

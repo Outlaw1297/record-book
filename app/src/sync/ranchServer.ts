@@ -44,8 +44,15 @@ export function joinRanchApiBase(raw: string, origin: string): string {
   return trimmed;
 }
 
+function ranchHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const key = getRanchApiKey();
+  if (key) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
 export function hasRanchServer(): boolean {
-  return Boolean(getRanchApiUrl() && getRanchApiKey());
+  return Boolean(getRanchApiUrl());
 }
 
 export function ranchApiBase(): string {
@@ -55,7 +62,7 @@ export function ranchApiBase(): string {
 
 export async function probeRanchServer(): Promise<{ ok: boolean; detail: string }> {
   if (!hasRanchServer()) {
-    return { ok: false, detail: 'Enter the ranch API URL and key first.' };
+    return { ok: false, detail: 'Enter the ranch API URL first.' };
   }
   try {
     const health = await fetch(`${ranchApiBase()}/health`);
@@ -63,7 +70,7 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
       return { ok: false, detail: `Ranch API health check failed (${health.status}).` };
     }
     const catalog = await fetch(`${ranchApiBase()}/v1/`, {
-      headers: { Authorization: `Bearer ${getRanchApiKey()}` },
+      headers: ranchHeaders(),
     });
     if (catalog.status === 401) {
       return { ok: false, detail: 'Ranch API key was rejected.' };
@@ -99,10 +106,7 @@ export async function pushToRanchServer(): Promise<{
   try {
     const response = await fetch(`${ranchApiBase()}/v1/sync/snapshot`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getRanchApiKey()}`,
-      },
+      headers: ranchHeaders(),
       body: JSON.stringify(snapshot),
     });
     const body = (await response.json().catch(() => ({}))) as {
@@ -118,10 +122,7 @@ export async function pushToRanchServer(): Promise<{
     }
     await fetch(`${ranchApiBase()}/v1/devices/${encodeURIComponent(settings.deviceId)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getRanchApiKey()}`,
-      },
+      headers: ranchHeaders(),
       body: JSON.stringify({
         deviceId: settings.deviceId,
         deviceName: settings.deviceName || 'Device',

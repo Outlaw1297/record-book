@@ -167,7 +167,7 @@ export function SettingsPage() {
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
     toast(
-      ranchApiUrl.trim() && ranchApiKey.trim()
+      ranchApiUrl.trim()
         ? 'Ranch API saved on this device. It is not written to Drive or Dropbox.'
         : 'Ranch API cleared on this device.',
     );
@@ -203,7 +203,7 @@ export function SettingsPage() {
   }
 
   const connected = Boolean(auth?.accessToken);
-  const ranchReady = Boolean(ranchApiUrl.trim() && ranchApiKey.trim()) || hasRanchServer();
+  const ranchReady = Boolean(ranchApiUrl.trim()) || hasRanchServer();
   const canSync = connected || ranchReady;
   const providerName =
     auth?.provider === 'dropbox'
@@ -382,7 +382,8 @@ export function SettingsPage() {
         <h2>Ranch database (Docker)</h2>
         <p className="hint">
           Optional Postgres copy of this herd for a future app. Drive and Dropbox
-          stay the offline book. The API key lives only on this device.
+          stay the offline book. The Portainer stack creates the keys; you do not
+          paste them.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'Configured on this device' : 'Not configured'}
@@ -390,32 +391,21 @@ export function SettingsPage() {
         <Field
           label={
             hasEnvRanchApiUrl()
-              ? 'Ranch API URL (build already set; paste to override)'
+              ? 'Ranch API URL (this Portainer app already uses /api)'
               : 'Ranch API URL'
           }
         >
           <input
             value={ranchApiUrl}
             onChange={(e) => setRanchApiUrl(e.target.value)}
-            placeholder="/api or http://192.168.1.10:8080"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </Field>
-        <Field label="Ranch API key">
-          <input
-            type="password"
-            value={ranchApiKey}
-            onChange={(e) => setRanchApiKey(e.target.value)}
-            placeholder="Same as API_KEY in the Docker stack"
+            placeholder="/api"
             autoComplete="off"
             spellCheck={false}
           />
         </Field>
         <p className="hint">
-          Docker web image uses <code>/api</code> (nginx proxies to the API). A
-          phone talking to Portainer on the LAN uses{' '}
-          <code>http://YOUR-HOST:8080</code>.
+          Opened from Portainer at <code>http://YOUR-HOST/</code>, leave this as{' '}
+          <code>/api</code>. No API key field — nginx sends the generated key.
         </p>
         <div className="provider-actions">
           <button

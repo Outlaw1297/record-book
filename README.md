@@ -20,16 +20,17 @@ cd app && npm test        # last-write-wins / shared-book identity
 
 ## Docker / Portainer
 
-Postgres + API + PWA. The field app still works without this stack.
+Postgres + API + PWA. No env file and no secrets to paste. First boot generates the keys.
 
 ```bash
-cp .env.example .env   # set POSTGRES_PASSWORD and API_KEY
 docker compose up --build -d
 ```
 
+Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, compose `docker-compose.yml`, enable Build, deploy.
+
 - PWA: `http://YOUR-HOST/`
-- API: `http://YOUR-HOST:8080` (see [API reference](docs/api.md))
-- Portainer steps: [Docker / Portainer](docs/docker-portainer.md)
+- API: `http://YOUR-HOST/api/` (see [API reference](docs/api.md))
+- Setup: [Docker / Portainer](docs/docker-portainer.md)
 
 ## App sections (from your notebook)
 

@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { ensureSettings } from './db/schema';
+import { startSyncScheduler } from './sync/scheduler';
 
+startSyncScheduler();
 void ensureSettings();
 
 if ('serviceWorker' in navigator) {

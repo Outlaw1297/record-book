@@ -44,7 +44,7 @@ export function HomePage() {
           >
             Log a new calf
           </h2>
-          <p>Cow, calf I.D., sex, date. Save stays on this phone.</p>
+          <p>Cow, calf I.D., sex, date. Stays on this phone until you have signal.</p>
         </div>
         <Link className="btn primary" to="/cow-calf/new">
           Log calf
@@ -85,7 +85,7 @@ export function HomePage() {
         </Link>
         <Link className="quick-card" to="/account">
           <h2>Account</h2>
-          <p>Ranch, operator, device — settings next door</p>
+          <p>Ranch, operator, Drive or Dropbox folder</p>
         </Link>
       </section>
     </div>

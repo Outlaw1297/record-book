@@ -25,6 +25,7 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
       operatorName: operatorName.trim(),
       currentYear,
       onboardingComplete: true,
+      updatedAt: new Date().toISOString(),
     });
     onDone();
   }

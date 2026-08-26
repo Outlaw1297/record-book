@@ -1,16 +1,25 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ensureSettings } from '../db/schema';
+import { getSyncAuth } from '../sync/auth';
+
+function providerLabel(provider?: string) {
+  if (provider === 'google-drive') return 'Google Drive';
+  if (provider === 'dropbox') return 'Dropbox';
+  return 'Not connected';
+}
 
 export function AccountPage() {
   const settings = useLiveQuery(() => ensureSettings());
+  const auth = useLiveQuery(() => getSyncAuth());
 
   return (
     <div className="page">
       <header className="page-header">
         <h1>Account</h1>
         <p className="lede">
-          This device keeps the herd locally. Cloud login comes later.
+          This device keeps the herd locally. Drive or Dropbox is only the
+          private mailbox when you have signal.
         </p>
       </header>
 
@@ -28,8 +37,11 @@ export function AccountPage() {
           <p>{settings?.currentYear}</p>
         </div>
         <div className="list-card">
-          <h2>Sign in</h2>
-          <p>Google / ranch login will land here. Not required for field entry.</p>
+          <h2>Cloud folder</h2>
+          <p>
+            {providerLabel(auth?.provider)}
+            {auth?.accountEmail ? ` · ${auth.accountEmail}` : ''}
+          </p>
         </div>
         <div className="list-card">
           <h2>Device</h2>

@@ -1,4 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { sanitizeSettingsForSync } from '../sync/settingsPayload';
+import { emitOutboxEvent } from '../sync/types';
 
 export type Sex = 'M' | 'F' | '';
 
@@ -108,6 +110,36 @@ export interface AppSettings {
   lastSyncedAt?: string;
   deviceId: string;
   onboardingComplete?: boolean;
+  updatedAt?: string;
+}
+
+export interface SyncAuth {
+  id: number;
+  provider: Exclude<SyncProvider, 'none'>;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  accountEmail?: string;
+  accountName?: string;
+  rootFolderId?: string;
+  snapshotsFolderId?: string;
+  changesFolderId?: string;
+}
+
+export interface SyncApplied {
+  fileKey: string;
+  appliedAt: string;
+  provider: string;
+}
+
+export interface SyncConflict {
+  id: string;
+  entity: string;
+  entityId: string;
+  kept: 'local' | 'remote';
+  localUpdatedAt?: string;
+  remoteUpdatedAt: string;
+  createdAt: string;
 }
 
 export interface OutboxChange {
@@ -153,6 +185,9 @@ class RecordBookDB extends Dexie {
   sales!: EntityTable<SaleRecord, 'id'>;
   settings!: EntityTable<AppSettings, 'id'>;
   outbox!: EntityTable<OutboxChange, 'id'>;
+  syncAuth!: EntityTable<SyncAuth, 'id'>;
+  syncApplied!: EntityTable<SyncApplied, 'fileKey'>;
+  syncConflicts!: EntityTable<SyncConflict, 'id'>;
 
   constructor() {
     super('recordBook');
@@ -165,6 +200,11 @@ class RecordBookDB extends Dexie {
       sales: 'id, year, calfId, updatedAt',
       settings: 'id',
       outbox: 'id, entity, syncedAt, updatedAt',
+    });
+    this.version(2).stores({
+      syncAuth: 'id, provider',
+      syncApplied: 'fileKey, appliedAt',
+      syncConflicts: 'id, entity, entityId, createdAt',
     });
   }
 }
@@ -191,6 +231,7 @@ export async function ensureSettings(): Promise<AppSettings> {
     syncProvider: 'none',
     deviceId: newId(),
     onboardingComplete: false,
+    updatedAt: nowIso(),
   };
   await db.settings.put(settings);
   return settings;
@@ -207,9 +248,10 @@ export async function queueChange(
     entity,
     entityId,
     op,
-    payload,
+    payload: entity === 'settings' ? sanitizeSettingsForSync(payload) : payload,
     updatedAt: nowIso(),
   });
+  emitOutboxEvent();
 }
 
 export async function upsertAnimalByHerdId(

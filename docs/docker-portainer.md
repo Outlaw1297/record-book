@@ -15,7 +15,7 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 5. Leave **Build** **off**
 6. Deploy. Do not add env vars.
 
-Wait until `web` is healthy, then open `http://YOUR-HOST/`.
+Wait until `web` is healthy, then open `http://YOUR-HOST:8080/` (port 80 is left for the host nginx).
 
 Settings → Ranch database is already set to `/api`. Use **Copy herd to ranch database** when you have signal.
 
@@ -27,15 +27,15 @@ If a previous deploy failed, remove that stack and create it again so it picks u
 docker compose up -d
 ```
 
-Same result: PWA on port 80, API under `/api`, Postgres only on the internal network.
+Same result: PWA on host port **8080**, API under `/api`, Postgres only on the internal network. Change the left-hand `8080` in `docker-compose.yml` if that port is taken too.
 
 ## Future project
 
 Call the same host. Nginx sends the generated key; you do not paste one.
 
 ```bash
-curl -s http://YOUR-HOST/api/v1/animals
-curl -s http://YOUR-HOST/api/v1/export
+curl -s http://YOUR-HOST:8080/api/v1/animals
+curl -s http://YOUR-HOST:8080/api/v1/export
 ```
 
 See [API reference](api.md). Keys live in the `keys` volume (`/keys/api_key`, `/keys/pg_password`). Data lives in the `pg` volume.

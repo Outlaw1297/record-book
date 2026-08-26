@@ -404,7 +404,7 @@ export function SettingsPage() {
           />
         </Field>
         <p className="hint">
-          Opened from Portainer at <code>http://YOUR-HOST/</code>, leave this as{' '}
+          Opened from Portainer at <code>http://YOUR-HOST:8080/</code>, leave this as{' '}
           <code>/api</code>. No API key field — nginx sends the generated key.
         </p>
         <div className="provider-actions">

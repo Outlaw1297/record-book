@@ -1,5 +1,5 @@
-const CACHE = 'record-book-v2';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/favicon.svg'];
+const CACHE = 'record-book-v3';
+const APP_SHELL = ['/manifest.webmanifest', '/icon.svg', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -23,11 +23,16 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/oauth/')) return;
+  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() =>
-        caches.match('/').then((cached) => cached || caches.match('/index.html')),
+        caches.match('/index.html').then((cached) => cached || fetch(event.request)),
       ),
     );
     return;
@@ -36,12 +41,12 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && !response.headers.get('cache-control')?.includes('no-store')) {
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put(event.request, copy));
         }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),
+      .catch(() => caches.match(event.request)),
   );
 });

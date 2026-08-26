@@ -9,3 +9,5 @@ api/dist/
 .env.local
 .env.*.local
 *.local
+*.apk
+*.aab

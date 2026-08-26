@@ -1,6 +1,6 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop browsers. Data stays on the device (IndexedDB); phones share a private Google Drive or Dropbox folder. An optional **Docker / Portainer** stack keeps a Postgres copy of the same herd behind a REST API for a future project.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). Phones can also share a private Google Drive or Dropbox folder. An optional **Docker / Portainer** stack keeps a Postgres copy of the same herd behind a REST API for a future project.
 
 ## Run locally
 
@@ -31,6 +31,7 @@ Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, 
 - PWA: `http://YOUR-HOST:8180/`
 - API: `http://YOUR-HOST:8180/api/` (see [API reference](docs/api.md))
 - Setup: [Docker / Portainer](docs/docker-portainer.md)
+- Field phone: [Android APK](docs/android.md) (bundled app, works with the NAS off)
 
 ## App sections (from your notebook)
 
@@ -47,7 +48,7 @@ Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, 
 | **Settings** | Ranch (shared), your name/device, Drive/Dropbox, device roster, overlap log |
 | **Onboarding** | First-run ranch name and field vs desk |
 
-Install as a **PWA** from the browser (Add to Home Screen). Works offline after first load.
+Install the **Android APK** for pasture use ([install](docs/android.md)). The Portainer PWA is for the office browser.
 
 ## Sync model
 
@@ -70,4 +71,4 @@ Setup: [Drive / Dropbox OAuth](docs/sync-setup.md) · [Docker / Portainer](docs/
 
 ## Stack
 
-Vite + React + TypeScript + Dexie + Tailwind. Installable as a PWA. Optional ranch API: Hono + Postgres 16, run with Docker Compose / Portainer.
+Vite + React + TypeScript + Dexie + Tailwind. Field app: Capacitor Android APK. Office: Docker PWA. Optional ranch API: Hono + Postgres 16.

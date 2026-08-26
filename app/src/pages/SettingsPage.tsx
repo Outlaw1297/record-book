@@ -26,6 +26,7 @@ import {
   saveGoogleClientId,
 } from '../sync/credentials';
 import { defaultDeviceName } from '../sync/identity';
+import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
   getRanchApiKey,
   getRanchApiUrl,
@@ -203,6 +204,7 @@ export function SettingsPage() {
   }
 
   const connected = Boolean(auth?.accessToken);
+  const native = isNativeApp();
   const ranchReady = Boolean(ranchApiUrl.trim()) || hasRanchServer();
   const canSync = connected || ranchReady;
   const providerName =
@@ -218,8 +220,9 @@ export function SettingsPage() {
       <header className="page-header">
         <h1>Settings</h1>
         <p className="lede">
-          One private Drive or Dropbox folder is the shared book for phones.
-          An optional ranch database in Docker holds the same herd for other apps.
+          {native
+            ? 'This Android app keeps the book on the phone. No website needed. Drive, Dropbox, or the ranch API run when you have signal.'
+            : 'One private Drive or Dropbox folder is the shared book for phones. An optional ranch database in Docker holds the same herd for other apps.'}
         </p>
       </header>
 
@@ -340,8 +343,15 @@ export function SettingsPage() {
           <summary>App keys (once per ranch)</summary>
           <p className="hint">
             Create a Google OAuth client and/or Dropbox app, then paste the
-            public IDs. Redirect URI must be this site plus{' '}
-            <code>/oauth/callback</code>. See <code>docs/sync-setup.md</code>.
+            public IDs. Redirect URI must be this origin plus{' '}
+            <code>/oauth/callback</code>.
+            {native ? (
+              <>
+                {' '}
+                The Android app uses <code>https://localhost/oauth/callback</code>.
+              </>
+            ) : null}{' '}
+            See <code>docs/sync-setup.md</code>.
           </p>
           <Field
             label={
@@ -390,22 +400,36 @@ export function SettingsPage() {
         </p>
         <Field
           label={
-            hasEnvRanchApiUrl()
-              ? 'Ranch API URL (this Portainer app already uses /api)'
-              : 'Ranch API URL'
+            native
+              ? 'Ranch API URL'
+              : hasEnvRanchApiUrl()
+                ? 'Ranch API URL (this Portainer app already uses /api)'
+                : 'Ranch API URL'
           }
         >
           <input
             value={ranchApiUrl}
             onChange={(e) => setRanchApiUrl(e.target.value)}
-            placeholder="/api"
+            placeholder={native ? RANCH_LAN_API_PLACEHOLDER : '/api'}
             autoComplete="off"
             spellCheck={false}
           />
         </Field>
         <p className="hint">
-          Opened from Portainer at <code>http://YOUR-HOST:8180/</code>, leave this as{' '}
-          <code>/api</code>. No API key field — nginx sends the generated key.
+          {native ? (
+            <>
+              Cattle stay on this phone with no website. On ranch Wi-Fi, paste{' '}
+              <code>{RANCH_LAN_API_PLACEHOLDER}</code> to copy the herd into
+              Postgres. Do not use <code>/api</code> here — that only works inside
+              the Portainer site.
+            </>
+          ) : (
+            <>
+              Opened from Portainer at <code>http://YOUR-HOST:8180/</code>, leave
+              this as <code>/api</code>. No API key field — nginx sends the
+              generated key.
+            </>
+          )}
         </p>
         <div className="provider-actions">
           <button

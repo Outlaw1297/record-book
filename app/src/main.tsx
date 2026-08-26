@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { ensureSettings } from './db/schema';
+import { isNativeApp } from './platform';
 import { startSyncScheduler } from './sync/scheduler';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
@@ -18,7 +19,7 @@ createRoot(document.getElementById('root')!).render(
 
 startSyncScheduler();
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !isNativeApp()) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/sw.js');
   });

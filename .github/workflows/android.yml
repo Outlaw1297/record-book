@@ -1,0 +1,85 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/android.yml'
+      - 'docs/android.md'
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.github/workflows/android.yml'
+      - 'docs/android.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: app/android/*.gradle*
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      - name: Web build for the APK
+        run: npm run build
+        # Do not set VITE_RANCH_API_URL. /api only works inside Portainer nginx.
+
+      - run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: app/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Name the APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk record-book-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: record-book-debug
+          path: app/record-book-debug.apk
+
+      - name: Publish sideload APK
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-debug
+          name: Record Book Android (debug)
+          prerelease: true
+          make_latest: false
+          files: app/record-book-debug.apk
+          body: |
+            Sideload this APK. The record book is bundled on the phone, so field logging works with no website.
+
+            1. Download `record-book-debug.apk` on the phone.
+            2. Open it and allow that one install from unknown sources.
+            3. Log calves offline. IndexedDB stays on the device.
+
+            On ranch Wi-Fi, Settings → Ranch API URL: `http://192.168.1.56:8180/api` to copy the herd into Postgres.
+
+            Drive/Dropbox: add `https://localhost/oauth/callback` as a redirect URI.
+
+            See [docs/android.md](https://github.com/Outlaw1297/record-book/blob/main/docs/android.md).

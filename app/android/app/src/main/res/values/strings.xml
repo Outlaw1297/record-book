@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Record Book</string>
+    <string name="title_activity_main">Record Book</string>
+    <string name="package_name">me.flyingjranch.recordbook</string>
+    <string name="custom_url_scheme">me.flyingjranch.recordbook</string>
+</resources>

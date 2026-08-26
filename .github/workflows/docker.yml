@@ -3,6 +3,13 @@ name: Docker images
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - '!app/android/**'
+      - '!app/capacitor.config.ts'
+      - 'api/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker.yml'
   workflow_dispatch:
 
 permissions:

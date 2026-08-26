@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  ensureSettings,
+  getSettings,
   newId,
   nowIso,
   todayIsoDate,
@@ -24,7 +24,7 @@ const KIND_LABEL: Record<BreedingKind, string> = {
 };
 
 export function BreedingListPage() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const year = settings?.currentYear ?? new Date().getFullYear();
   const rows = useLiveQuery(
     () =>
@@ -119,7 +119,7 @@ export function BreedingFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.breeding.get(id) : undefined),
     [id],

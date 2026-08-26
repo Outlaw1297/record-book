@@ -5,7 +5,7 @@ import { EmptyState } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 import {
   db,
-  ensureSettings,
+  getSettings,
   newId,
   nowIso,
   queueChange,
@@ -16,7 +16,7 @@ import {
 } from '../db/schema';
 
 export function PastureListPage() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const year = settings?.currentYear ?? new Date().getFullYear();
   const rows = useLiveQuery(
     () =>
@@ -65,7 +65,7 @@ export function PastureFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.pastures.get(id) : undefined),
     [id],

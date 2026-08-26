@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ensureSettings } from '../db/schema';
+import { getSettings } from '../db/schema';
 import { SyncBanner } from './SyncBanner';
 import { BookTabs, isBookNavActive } from '../ui/BookTabs';
 import {
@@ -17,7 +17,7 @@ function initials(name?: string) {
 }
 
 export function Layout() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const { pathname } = useLocation();
   const bookActive = isBookNavActive(pathname);
 

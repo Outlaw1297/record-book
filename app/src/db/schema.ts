@@ -245,6 +245,11 @@ class RecordBookDB extends Dexie {
 
 export const db = new RecordBookDB();
 
+/** Read-only. Safe inside Dexie liveQuery callbacks. */
+export function getSettings(): Promise<AppSettings | undefined> {
+  return db.settings.get(1);
+}
+
 export async function ensureSettings(): Promise<AppSettings> {
   const existing = await db.settings.get(1);
   if (existing) {

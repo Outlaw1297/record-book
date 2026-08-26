@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  ensureSettings,
+  getSettings,
   nowIso,
   queueChange,
 } from '../db/schema';
@@ -43,7 +43,7 @@ import { useToast } from '../ui/Toast';
 export function SettingsPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const pending = useLiveQuery(() =>
     db.outbox.filter((change) => !change.syncedAt).count(),
   );

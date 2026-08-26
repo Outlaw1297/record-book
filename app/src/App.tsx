@@ -13,7 +13,7 @@ import { AccountPage } from './pages/AccountPage';
 import { HerdDetailPage, HerdListPage } from './pages/HerdPages';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
-import { ensureSettings } from './db/schema';
+import { getSettings } from './db/schema';
 
 function AppGate() {
   const location = useLocation();
@@ -24,7 +24,7 @@ function AppGate() {
 }
 
 function MainApp() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
 
   if (!settings) {
     return (
@@ -36,11 +36,7 @@ function MainApp() {
 
   if (!settings.onboardingComplete) {
     return (
-      <OnboardingPage
-        onDone={() => {
-          void ensureSettings();
-        }}
-      />
+      <OnboardingPage onDone={() => undefined} />
     );
   }
 

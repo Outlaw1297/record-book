@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  ensureSettings,
+  getSettings,
   newId,
   nowIso,
   upsertAnimalByHerdId,
@@ -22,7 +22,7 @@ function markLabel(mark?: ListMark): string {
 }
 
 export function SalesListPage() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const year = settings?.currentYear ?? new Date().getFullYear();
   const rows = useLiveQuery(
     () =>
@@ -114,7 +114,7 @@ export function SalesFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.sales.get(id) : undefined),
     [id],

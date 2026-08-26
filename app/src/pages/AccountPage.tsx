@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, ensureSettings } from '../db/schema';
+import { db, getSettings } from '../db/schema';
 import { getSyncAuth } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
 
@@ -11,7 +11,7 @@ function providerLabel(provider?: string) {
 }
 
 export function AccountPage() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const auth = useLiveQuery(() => getSyncAuth());
   const devices = useLiveQuery(async () => {
     const rows = await db.syncDevices.toArray();

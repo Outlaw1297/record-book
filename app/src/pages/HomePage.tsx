@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, ensureSettings } from '../db/schema';
+import { db, getSettings } from '../db/schema';
 
 export function HomePage() {
-  const settings = useLiveQuery(() => ensureSettings());
+  const settings = useLiveQuery(() => getSettings());
   const year = settings?.currentYear ?? new Date().getFullYear();
 
   const counts = useLiveQuery(async () => {

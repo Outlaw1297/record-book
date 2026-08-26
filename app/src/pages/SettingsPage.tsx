@@ -372,8 +372,8 @@ export function SettingsPage() {
         </div>
         {others.length === 0 && (devices ?? []).length > 0 ? (
           <p className="hint" style={{ marginTop: '0.6rem' }}>
-            Connect the office PC or another phone with the same cloud account
-            to share this book.
+            Connect the office PC or another phone with the same Drive or
+            Dropbox account to share this book.
           </p>
         ) : null}
       </section>

@@ -1,5 +1,5 @@
-# Portainer: Stacks → Git → this repo → main → docker-compose.yml → enable Build → Deploy.
-# No environment variables. Keys are created on first boot and stored in the keys volume.
+# Portainer: Git this repo, branch main, compose docker-compose.yml.
+# Leave Build OFF. Images are published to ghcr.io on each push to main.
 
 services:
   keys:
@@ -38,7 +38,8 @@ services:
       retries: 10
 
   api:
-    build: ./api
+    image: ghcr.io/outlaw1297/record-book-api:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       keys:
@@ -49,7 +50,8 @@ services:
       - keys:/keys:ro
 
   web:
-    build: ./app
+    image: ghcr.io/outlaw1297/record-book-web:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       keys:

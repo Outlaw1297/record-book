@@ -4,23 +4,27 @@ The phone app still keeps cattle on the device and still uses Drive or Dropbox o
 
 No environment variables. On first boot the stack writes random keys into a Docker volume and nginx attaches the API key for you.
 
+Portainer does **not** build from this repo (that is what caused `path "/data/compose/.../api" not found`). It pulls ready-made images from `ghcr.io`.
+
 ## Portainer
 
 1. Stacks → Add stack → Repository
 2. URL: `https://github.com/Outlaw1297/record-book`
 3. Branch: `main`
 4. Compose path: `docker-compose.yml`
-5. Enable **Build**
+5. Leave **Build** **off**
 6. Deploy. Do not add env vars.
 
 Wait until `web` is healthy, then open `http://YOUR-HOST/`.
 
 Settings → Ranch database is already set to `/api`. Use **Copy herd to ranch database** when you have signal.
 
+If a previous deploy failed, remove that stack and create it again so it picks up this compose file.
+
 ## Compose CLI
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
 Same result: PWA on port 80, API under `/api`, Postgres only on the internal network.

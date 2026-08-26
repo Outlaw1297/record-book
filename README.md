@@ -23,10 +23,10 @@ cd app && npm test        # last-write-wins / shared-book identity
 Postgres + API + PWA. No env file and no secrets to paste. First boot generates the keys.
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
-Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, compose `docker-compose.yml`, enable Build, deploy.
+Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, compose `docker-compose.yml`. Leave **Build** off. Images come from `ghcr.io`.
 
 - PWA: `http://YOUR-HOST/`
 - API: `http://YOUR-HOST/api/` (see [API reference](docs/api.md))

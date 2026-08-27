@@ -2,7 +2,7 @@
 
 HTTP API in front of the Docker Postgres herd database. Bind is `0.0.0.0:8080` inside the stack. Portainer publishes the PWA on host port **8180** (so host nginx can keep 80 and 8080). Use `/api/` on that host.
 
-The PWA does **not** require this API. Drive/Dropbox still carry phones.
+The PWA syncs this API. Drive/Dropbox sign-in is optional.
 
 ## Auth
 
@@ -17,7 +17,11 @@ A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/ap
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/` | Same as health (so `/api` and `/api/` are not 404) |
-| GET | `/oauth-clients` | Public PKCE client IDs for Drive/Dropbox (may be empty) |
+| GET | `/oauth-clients` | Public PKCE client IDs (may be empty) |
+| GET | `/oauth/ready/:provider` | Whether Google/Dropbox sign-in is configured |
+| GET | `/oauth/start/:provider` | Begin sign-in (redirects to Google/Dropbox) |
+| GET | `/oauth/callback` | OAuth return from Google/Dropbox |
+| GET | `/oauth/session/:id` | One-time tokens for the app after sign-in |
 | PUT | `/oauth-clients` | Save those public IDs so other devices can hydrate them |
 | GET | `/health` | Process up |
 | GET | `/ready` | Postgres ping |

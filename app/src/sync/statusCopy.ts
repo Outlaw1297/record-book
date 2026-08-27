@@ -15,20 +15,20 @@ export function noneProviderBanner(opts: {
   ranchSyncedAt?: string;
 }): string {
   const { pendingCount, ranchConfigured, ranchSyncedAt } = opts;
+  if (ranchConfigured && pendingCount > 0 && !ranchSyncedAt) {
+    return `${pendingCount} change(s) copying to the ranch database…`;
+  }
   if (ranchConfigured && ranchSyncedAt) {
     const when = formatWhen(ranchSyncedAt);
     return pendingCount > 0
-      ? `Ranch database copied ${when}. Connect Drive or Dropbox to share phones.`
-      : `Online — ranch database last copied ${when}`;
-  }
-  if (ranchConfigured && pendingCount > 0) {
-    return `${pendingCount} change(s) copying to the ranch database…`;
+      ? `${pendingCount} change(s) copying to the ranch database…`
+      : `Online — ranch database last synced ${when}`;
   }
   if (ranchConfigured) {
-    return 'Online — copies to the ranch database on Wi-Fi. Connect Drive or Dropbox to share phones.';
+    return 'Online — ranch database is the shared book. Copies on Wi-Fi.';
   }
   if (pendingCount > 0) {
-    return `${pendingCount} change(s) on this phone. Connect Drive or Dropbox in Settings to share them.`;
+    return `${pendingCount} change(s) on this phone. Open Settings on ranch Wi-Fi.`;
   }
-  return 'Online — connect Drive or Dropbox in Settings';
+  return 'Online — set the ranch API in Settings';
 }

@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { noneProviderBanner } from './statusCopy';
 
 describe('noneProviderBanner', () => {
-  it('says the ranch copy finished even if Drive is not connected', () => {
+  it('treats the ranch database as the shared book after a copy', () => {
     expect(
       noneProviderBanner({
-        pendingCount: 4,
+        pendingCount: 0,
         ranchConfigured: true,
         ranchSyncedAt: '2026-08-27T00:00:00.000Z',
       }),
-    ).toMatch(/Ranch database copied/);
+    ).toMatch(/ranch database last synced/);
   });
 
-  it('says pending rows are copying to ranch before the first success', () => {
+  it('says pending rows are copying to ranch', () => {
     expect(
       noneProviderBanner({
         pendingCount: 4,

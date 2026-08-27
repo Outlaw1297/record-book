@@ -1,6 +1,6 @@
 # Android APK (offline field app)
 
-The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device. Drive, Dropbox, and the ranch API are used only when you have signal.
+The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device. On ranch Wi-Fi it syncs with the Docker Postgres book.
 
 A PWA “Add to Home Screen” shortcut still needs the website the first time, and HTTP on the LAN is not a secure context, so service-worker offline is unreliable there. Use the APK in the pasture.
 
@@ -20,17 +20,9 @@ The APK does **not** bake `/api`. That path only works inside the Portainer ngin
 
 On first launch the phone uses `http://192.168.1.56:8180/api`. That address is for the app, not a web page. To check from Chrome, open `http://192.168.1.56:8180/api/health` — it should show `{"ok":true}`. Change the URL in Settings only if the NAS IP is different.
 
-## Drive / Dropbox from the APK
+## Google / Dropbox from the APK
 
-Create the Google/Dropbox app once (see [sync setup](sync-setup.md)). In Settings, paste the Google client ID and/or Dropbox app key, tap **Save app IDs**, then **Connect**. The app creates `RecordBook/` and keeps it in sync.
-
-Redirect URI for the APK:
-
-```text
-https://localhost/oauth/callback
-```
-
-Also register `http://192.168.1.56:8180/oauth/callback` for the office PWA. The Capacitor WebView is a secure `https://localhost` origin.
+Optional. Tap **Sign in with Google** or **Sign in with Dropbox**. The ranch API holds the app keys and finishes login. You do not paste keys on the phone. See [sync setup](sync-setup.md).
 
 ## Build locally
 

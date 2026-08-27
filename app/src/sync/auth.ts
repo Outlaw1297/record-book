@@ -1,6 +1,7 @@
 import { db, ensureSettings, type SyncAuth } from '../db/schema';
 import { clientIdFor } from './credentials';
 import { createPkce, oauthRedirectUri, randomUrlSafe, toFormBody } from './pkce';
+import { ranchUrl } from './ranchServer';
 import type { CloudProvider } from './types';
 
 const OAUTH_SESSION_KEY = 'record-book.oauth';
@@ -45,12 +46,32 @@ export async function disconnectCloud(): Promise<void> {
 }
 
 export async function startOAuth(provider: CloudProvider): Promise<void> {
+  const readyUrl = ranchUrl(`/oauth/ready/${provider}`);
+  if (readyUrl) {
+    try {
+      const ready = await fetch(readyUrl);
+      const body = (await ready.json().catch(() => ({}))) as { error?: string };
+      if (ready.ok) {
+        const start = ranchUrl(
+          `/oauth/start/${provider}?return_origin=${encodeURIComponent(window.location.origin)}`,
+        );
+        window.location.assign(start);
+        return;
+      }
+      if (ready.status !== 503) {
+        throw new Error(body.error || 'Could not start ranch sign-in.');
+      }
+    } catch (error) {
+      if (error instanceof Error && !/failed to fetch|not fetched|networkerror/i.test(error.message)) {
+        throw error;
+      }
+    }
+  }
+
   const clientId = clientIdFor(provider);
   if (!clientId) {
     throw new Error(
-      provider === 'google-drive'
-        ? 'Paste the Google client ID under Shared cloud folder, then tap Connect Google Drive.'
-        : 'Paste the Dropbox app key under Shared cloud folder, then tap Connect Dropbox.',
+      'Sign in is not set up on this ranch yet. Add the Google/Dropbox app on the NAS (or GitHub secrets), then tap Connect again. You do not paste keys on the phone.',
     );
   }
 
@@ -215,6 +236,52 @@ export async function completeOAuthCallback(
   if (error) {
     localStorage.removeItem(OAUTH_SESSION_KEY);
     return { ok: false, detail: error };
+  }
+
+  const handshake = params.get('ranch_oauth');
+  const handshakeProvider = params.get('provider');
+  if (handshake) {
+    const sessionUrl = ranchUrl(`/oauth/session/${encodeURIComponent(handshake)}`);
+    if (!sessionUrl) {
+      return { ok: false, detail: 'Ranch API is not set. Sign in on ranch Wi-Fi.' };
+    }
+    const response = await fetch(sessionUrl);
+    const tokens = (await response.json()) as TokenResponse & { provider?: CloudProvider };
+    if (!response.ok || !tokens.access_token) {
+      return {
+        ok: false,
+        detail: tokens.error_description || tokens.error || 'Sign-in expired. Try Connect again.',
+      };
+    }
+    const provider =
+      tokens.provider ||
+      (handshakeProvider === 'google-drive' || handshakeProvider === 'dropbox'
+        ? handshakeProvider
+        : null);
+    if (!provider) {
+      return { ok: false, detail: 'Sign-in did not say Google or Dropbox.' };
+    }
+    const previous = await db.syncAuth.get(1);
+    await persistAuth(provider, tokens, previous, { connect: true });
+    try {
+      const { syncNow } = await import('./engine');
+      const synced = await syncNow();
+      if (synced.ok) {
+        return {
+          ok: true,
+          detail:
+            provider === 'google-drive'
+              ? 'Google signed in.'
+              : 'Dropbox signed in.',
+        };
+      }
+    } catch {
+      /* Login succeeded; ranch sync will retry. */
+    }
+    return {
+      ok: true,
+      detail: provider === 'google-drive' ? 'Google signed in.' : 'Dropbox signed in.',
+    };
   }
 
   const session = readSession();

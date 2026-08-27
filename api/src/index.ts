@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { apiKeyAuth, corsOrigin } from './auth.js';
 import { migrate, ping, pool, query } from './db.js';
+import { oauth } from './oauth.js';
 import { v1 } from './routes.js';
 
 const app = new Hono({ strict: false });
@@ -41,6 +42,8 @@ async function readOauthClients(): Promise<OauthClients> {
     return fromEnv;
   }
 }
+
+app.route('/oauth', oauth);
 
 app.get('/oauth-clients', async (c) => c.json(await readOauthClients()));
 

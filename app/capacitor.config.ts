@@ -18,6 +18,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     cleartext: true,
     allowNavigation: [
+      '192.168.1.56',
       'accounts.google.com',
       '*.google.com',
       '*.googleusercontent.com',

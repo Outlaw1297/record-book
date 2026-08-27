@@ -17,7 +17,7 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 
 Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host). To confirm the API from a browser, open `http://YOUR-HOST:8180/api/health` — it should show `{"ok":true}`. `/api` by itself is not the app.
 
-Settings → Ranch database is already set to `/api`. The herd copies into Docker Postgres on ranch Wi-Fi even before Drive or Dropbox is connected. Use **Copy to ranch** in Settings to push once.
+Settings → Ranch database is already set to `/api`. That Postgres database is the shared book. Phones and the office pull and push on ranch Wi-Fi. Use **Sync ranch database** in Settings to run it once.
 
 Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. On ranch Wi-Fi it copies to `http://YOUR-HOST:8180/api` by itself.
 

@@ -1,5 +1,6 @@
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
-import { buildSnapshot } from './snapshot';
+import { buildSnapshot, mergeSnapshot } from './snapshot';
+import type { HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
 
 const URL_KEY = 'record-book.ranchApiUrl';
@@ -87,6 +88,105 @@ export function ranchUnreachableDetail(error: unknown, healthUrl: string): strin
     return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
   }
   return raw;
+}
+
+function asHerdSnapshot(body: unknown): HerdSnapshot | null {
+  if (!body || typeof body !== 'object') return null;
+  const record = body as Record<string, unknown>;
+  const format = record.format;
+  if (
+    typeof format === 'string' &&
+    format !== 'record-book-snapshot' &&
+    format !== 'record-book-backup'
+  ) {
+    return null;
+  }
+  const settings =
+    record.settings && typeof record.settings === 'object'
+      ? (record.settings as HerdSnapshot['settings'])
+      : { ranchName: 'Record Book', currentYear: new Date().getFullYear() };
+  return {
+    format: 'record-book-snapshot',
+    version: 1,
+    exportedAt:
+      typeof record.exportedAt === 'string'
+        ? record.exportedAt
+        : new Date().toISOString(),
+    animals: Array.isArray(record.animals) ? record.animals : [],
+    cowCalf: Array.isArray(record.cowCalf) ? record.cowCalf : [],
+    breeding: Array.isArray(record.breeding) ? record.breeding : [],
+    pastures: Array.isArray(record.pastures) ? record.pastures : [],
+    pastureAnimals: Array.isArray(record.pastureAnimals) ? record.pastureAnimals : [],
+    sales: Array.isArray(record.sales) ? record.sales : [],
+    settings,
+  };
+}
+
+export async function pullFromRanchServer(): Promise<{
+  ok: boolean;
+  applied: number;
+  conflicts: number;
+  detail: string;
+}> {
+  if (!hasRanchServer()) {
+    return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
+  }
+  try {
+    const response = await fetch(ranchUrl('/v1/export'), {
+      headers: ranchHeaders('GET'),
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        applied: 0,
+        conflicts: 0,
+        detail: `Ranch API ${response.status}`,
+      };
+    }
+    const snapshot = asHerdSnapshot(await response.json().catch(() => null));
+    if (!snapshot) {
+      return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
+    }
+    const merged = await mergeSnapshot(snapshot);
+    return {
+      ok: true,
+      applied: merged.applied,
+      conflicts: merged.conflicts,
+      detail:
+        merged.applied > 0
+          ? `Pulled ${merged.applied} row(s) from the ranch database.`
+          : 'Ranch database is up to date.',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      applied: 0,
+      conflicts: 0,
+      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+    };
+  }
+}
+
+export type RanchDeviceRow = {
+  deviceId: string;
+  deviceName: string;
+  operatorName?: string;
+  kind?: string;
+  lastSeenAt: string;
+};
+
+export async function loadRanchDevices(): Promise<RanchDeviceRow[]> {
+  if (!hasRanchServer()) return [];
+  try {
+    const response = await fetch(ranchUrl('/v1/devices'), {
+      headers: ranchHeaders('GET'),
+    });
+    if (!response.ok) return [];
+    const body = (await response.json()) as unknown;
+    return Array.isArray(body) ? (body as RanchDeviceRow[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function probeRanchServer(): Promise<{ ok: boolean; detail: string }> {

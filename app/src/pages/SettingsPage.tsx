@@ -20,14 +20,6 @@ import {
 import { defaultDeviceName } from '../sync/identity';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
-  getDropboxAppKey,
-  getGoogleClientId,
-  hydrateOAuthClients,
-  publishOAuthClients,
-  saveDropboxAppKey,
-  saveGoogleClientId,
-} from '../sync/credentials';
-import {
   getRanchApiKey,
   getRanchApiUrl,
   hasEnvRanchApiUrl,
@@ -62,8 +54,6 @@ export function SettingsPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
-  const [googleClientId, setGoogleClientId] = useState('');
-  const [dropboxAppKey, setDropboxAppKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [busy, setBusy] = useState<
     'google-drive' | 'dropbox' | 'off' | 'replace' | 'ranch' | null
@@ -80,22 +70,13 @@ export function SettingsPage() {
       setCurrentYear(settings.currentYear);
       setRanchApiUrl(getRanchApiUrl());
       setRanchApiKey(getRanchApiKey());
-      setGoogleClientId(getGoogleClientId());
-      setDropboxAppKey(getDropboxAppKey());
       setHydrated(true);
     }
   }, [settings, hydrated]);
 
   useEffect(() => {
-    void hydrateOAuthClients().then(() => {
-      setGoogleClientId((current) => current.trim() || getGoogleClientId());
-      setDropboxAppKey((current) => current.trim() || getDropboxAppKey());
-    });
-  }, []);
-
-  useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
-      toast('Cloud folder connected. Syncing the shared book…');
+      toast('Signed in. Syncing the ranch database…');
       setSearchParams(
         {},
         {
@@ -133,9 +114,6 @@ export function SettingsPage() {
   }
 
   async function connect(provider: CloudProvider) {
-    saveGoogleClientId(googleClientId);
-    saveDropboxAppKey(dropboxAppKey);
-    void publishOAuthClients();
     setBusy(provider);
     try {
       await startOAuth(provider);
@@ -154,7 +132,7 @@ export function SettingsPage() {
 
   async function replaceFromCloud() {
     const ok = window.confirm(
-      'Replace the herd on THIS device with the shared Drive/Dropbox book? Unsynced rows on this device will be dropped. Other devices are not changed.',
+      'Replace the herd on THIS device with the ranch database? Unsynced rows on this device will be dropped. Other devices are not changed.',
     );
     if (!ok) return;
     setBusy('replace');
@@ -265,146 +243,15 @@ export function SettingsPage() {
         </div>
       </form>
 
-      <section className="sync-panel">
-        <h2>Shared cloud folder</h2>
-        <p className="hint">
-          Sign this device and every other device into the <strong>same</strong>{' '}
-          Google or Dropbox account. Create the app IDs once (not your
-          password), paste them here, then Connect. The app creates a private{' '}
-          <code>RecordBook</code> folder and keeps it up to date.
-        </p>
-
-        <div className="account-card" style={{ marginTop: '0.85rem' }}>
-          <p className="due-kicker">{connected ? 'Connected' : 'Not connected'}</p>
-          <p className="due-date" style={{ fontSize: '1.35rem' }}>
-            {providerName ?? 'Choose a carrier'}
-          </p>
-          <p className="hint">
-            {auth?.accountEmail ||
-              'Connect once at the house. Changes sync by themselves when you have signal.'}
-          </p>
-          <p className="hint">
-            Pending changes: {pending ?? 0}
-            {settings?.bookId ? ` · Book ${settings.bookId.slice(0, 8)}` : ''}
-          </p>
-        </div>
-
-        <div className="form" style={{ marginTop: '0.85rem' }}>
-          <Field label="Google client ID">
-            <input
-              value={googleClientId}
-              onChange={(e) => setGoogleClientId(e.target.value)}
-              placeholder="….apps.googleusercontent.com"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Dropbox app key">
-            <input
-              value={dropboxAppKey}
-              onChange={(e) => setDropboxAppKey(e.target.value)}
-              placeholder="From dropbox.com/developers/apps"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <p className="hint">
-            One-time, as the ranch owner.{' '}
-            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
-              Google: Web client
-            </a>
-            {' · '}
-            <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noreferrer">
-              Dropbox: Create app
-            </a>
-            . Add this redirect URI:{' '}
-            <code>{`${window.location.origin}/oauth/callback`}</code>
-            {native ? (
-              <>
-                {' '}
-                and <code>http://192.168.1.56:8180/oauth/callback</code> for the office
-                browser.
-              </>
-            ) : (
-              <>
-                {' '}
-                and <code>https://localhost/oauth/callback</code> for the phone app.
-              </>
-            )}
-          </p>
-          <div className="provider-actions">
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={busy !== null}
-              onClick={() => {
-                saveGoogleClientId(googleClientId);
-                saveDropboxAppKey(dropboxAppKey);
-                void publishOAuthClients();
-                toast(
-                  googleClientId.trim() || dropboxAppKey.trim()
-                    ? 'App IDs saved on this phone. Tap Connect next.'
-                    : 'App IDs cleared on this phone.',
-                );
-              }}
-            >
-              Save app IDs
-            </button>
-          </div>
-        </div>
-
-        <div className="provider-actions">
-          <button
-            type="button"
-            className="btn primary"
-            disabled={busy !== null}
-            onClick={() => void connect('google-drive')}
-          >
-            {busy === 'google-drive' ? 'Opening Google…' : 'Connect Google Drive'}
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            disabled={busy !== null}
-            onClick={() => void connect('dropbox')}
-          >
-            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Connect Dropbox'}
-          </button>
-        </div>
-        <div className="provider-actions">
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={busy !== null || !connected}
-            onClick={() => void disconnect()}
-          >
-            Disconnect
-          </button>
-        </div>
-        <button
-          type="button"
-          className="btn ghost block"
-          style={{ marginTop: '0.55rem' }}
-          disabled={busy !== null || !connected}
-          onClick={() => void replaceFromCloud()}
-        >
-          {busy === 'replace' ? 'Replacing…' : 'Replace this device from the shared book'}
-        </button>
-
-        <p className="hint" style={{ marginTop: '0.55rem' }}>
-          This device ID: <code>{settings?.deviceId}</code>
-        </p>
-      </section>
-
       <section className="sync-panel form">
-        <h2>Ranch database (Docker)</h2>
+        <h2>Ranch database</h2>
         <p className="hint">
-          Optional Postgres copy of this herd for a future app. On ranch Wi-Fi
-          it copies by itself, even before Drive or Dropbox is connected. Drive
-          and Dropbox stay the phone-to-phone book.
+          This Docker Postgres database is the shared book. Every phone and the
+          office copy here on ranch Wi-Fi. You do not need Google or Dropbox
+          for that.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
-          {ranchReady ? 'Copies on Wi-Fi' : 'Not configured'}
+          {ranchReady ? 'Shared book on Wi-Fi' : 'Not configured'}
         </p>
         <Field
           label={
@@ -426,16 +273,14 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code>. That is for
-              the app, not a web page. To check in a browser, open{' '}
-              <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it should show{' '}
-              <code>{'{"ok":true}'}</code>.
+              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code>. To check in a
+              browser, open <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it
+              should show <code>{'{"ok":true}'}</code>.
             </>
           ) : (
             <>
               Opened from Portainer at <code>http://YOUR-HOST:8180/</code>, leave
-              this as <code>/api</code>. A browser check is{' '}
-              <code>/api/health</code>, not the app itself.
+              this as <code>/api</code>.
             </>
           )}
         </p>
@@ -454,7 +299,72 @@ export function SettingsPage() {
             disabled={busy !== null || !ranchReady}
             onClick={() => void testRanchApi()}
           >
-            {busy === 'ranch' ? 'Copying…' : 'Copy to ranch'}
+            {busy === 'ranch' ? 'Syncing…' : 'Sync ranch database'}
+          </button>
+        </div>
+        <button
+          type="button"
+          className="btn ghost block"
+          style={{ marginTop: '0.55rem' }}
+          disabled={busy !== null || !ranchReady}
+          onClick={() => void replaceFromCloud()}
+        >
+          {busy === 'replace' ? 'Replacing…' : 'Replace this device from the ranch database'}
+        </button>
+        <p className="hint" style={{ marginTop: '0.55rem' }}>
+          Pending changes: {pending ?? 0}
+          {settings?.deviceId ? (
+            <>
+              {' '}
+              · This device ID: <code>{settings.deviceId}</code>
+            </>
+          ) : null}
+        </p>
+      </section>
+
+      <section className="sync-panel">
+        <h2>Google or Dropbox sign-in</h2>
+        <p className="hint">
+          Optional. Tap Connect and sign in like any other app. The ranch
+          holds the app keys; you never paste them on the phone.
+        </p>
+
+        <div className="account-card" style={{ marginTop: '0.85rem' }}>
+          <p className="due-kicker">{connected ? 'Signed in' : 'Not signed in'}</p>
+          <p className="due-date" style={{ fontSize: '1.35rem' }}>
+            {providerName ?? 'Google or Dropbox'}
+          </p>
+          <p className="hint">
+            {auth?.accountEmail || 'The herd still lives in the ranch database either way.'}
+          </p>
+        </div>
+
+        <div className="provider-actions">
+          <button
+            type="button"
+            className="btn primary"
+            disabled={busy !== null}
+            onClick={() => void connect('google-drive')}
+          >
+            {busy === 'google-drive' ? 'Opening Google…' : 'Sign in with Google'}
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy !== null}
+            onClick={() => void connect('dropbox')}
+          >
+            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Sign in with Dropbox'}
+          </button>
+        </div>
+        <div className="provider-actions">
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={busy !== null || !connected}
+            onClick={() => void disconnect()}
+          >
+            Sign out
           </button>
         </div>
       </section>

@@ -77,15 +77,16 @@ async function putCowCalf(incoming: CowCalfRecord): Promise<void> {
   await queueChange('cowCalf', record.id, 'upsert', record);
   await upsertAnimalByHerdId(record.cowId, { animalType: existing ? undefined : 'Cow', sex: 'F' });
   if (record.calfId) {
+    const calf = await findAnimalByHerdId(record.calfId);
     await upsertAnimalByHerdId(record.calfId, {
-      sex: record.sex,
+      sex: record.sex || calf?.sex,
       yearBorn: record.year,
-      animalType: 'Calf',
       damId: record.cowId,
       sireId: record.sireId,
       birthDate: record.calvingDate,
       birthWeight: record.birthWeight,
       calvingEase: record.calvingEase,
+      ...(calf?.animalType ? {} : { animalType: 'Calf' }),
     });
   }
   if (record.sireId && record.sireId !== 'open') {

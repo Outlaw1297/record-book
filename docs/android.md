@@ -18,7 +18,7 @@ This is a **debug** APK for sideload, not a Play Store build.
 
 Settings → **Sign in with Google** or **Sign in with Dropbox**. That opens Google or Dropbox login for **your** account (not this phone’s file picker). The app writes `RecordBook` in that account.
 
-See [Native Google Drive and Dropbox login](oauth-setup.md) for the official OAuth docs and how to bake the public client IDs once.
+Click-by-click setup (Google Cloud, Dropbox, GitHub secrets, rebuild): [Sign in with Google and Dropbox](oauth-setup.md).
 
 ## Ranch database (optional)
 

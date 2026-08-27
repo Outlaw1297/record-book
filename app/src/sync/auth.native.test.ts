@@ -10,7 +10,7 @@ describe('native cloud login', () => {
 
   it('does not tell people to paste keys on the phone', () => {
     expect(missingClientIdMessage('google-drive')).not.toMatch(/paste/i);
-    expect(missingClientIdMessage('google-drive')).toMatch(/Android client/);
+    expect(missingClientIdMessage('google-drive')).toMatch(/oauth-setup/);
     expect(missingClientIdMessage('dropbox')).toMatch(/their own Dropbox/);
   });
 });

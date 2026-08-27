@@ -57,7 +57,7 @@ Install the **Android APK** for pasture use ([install](docs/android.md)). The Po
 - Local **IndexedDB** (Dexie) is the working store offline
 - Every write goes to an **outbox**
 - **If this ranch runs its own Docker server**, Postgres on that host is this ranch’s book (`/api` on that host). Other ranches who pull the same image get their own empty database
-- **If this ranch has no server**, **Sign in with Google** or **Sign in with Dropbox** using this ranch’s account. Native OAuth; another ranch signs into theirs. Setup: [Native login](docs/oauth-setup.md)
+- **If this ranch has no server**, **Sign in with Google** or **Sign in with Dropbox** using this ranch’s account. Native OAuth; another ranch signs into theirs. First-time setup: [click-by-click walkthrough](docs/oauth-setup.md)
 - Your name and device label stay on this device; ranch name, year, and cattle rows stay in this ranch’s book
 - The ranch API key stays on the device; it is never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud

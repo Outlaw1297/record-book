@@ -19,7 +19,7 @@ export function clientIdFor(provider: CloudProvider): string {
 
 export function missingClientIdMessage(provider: CloudProvider): string {
   if (provider === 'google-drive') {
-    return 'Google sign-in is not baked into this APK yet. Create a Google Cloud OAuth web client and an Android client for me.flyingjranch.recordbook, add VITE_GOOGLE_CLIENT_ID, and rebuild. Each ranch still signs into their own Google account.';
+    return 'Google sign-in is not in this APK yet. On a computer open github.com/Outlaw1297/record-book → docs/oauth-setup.md and follow Walkthrough 1 (Google), then 3 and 4. Each ranch still signs into their own Google account.';
   }
-  return 'Dropbox sign-in is not baked into this APK yet. Create a Dropbox app with PKCE, add VITE_DROPBOX_APP_KEY, and rebuild. Each ranch still signs into their own Dropbox.';
+  return 'Dropbox sign-in is not in this APK yet. On a computer open github.com/Outlaw1297/record-book → docs/oauth-setup.md and follow Walkthrough 2 (Dropbox), then 3 and 4. Each ranch still signs into their own Dropbox.';
 }

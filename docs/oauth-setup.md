@@ -1,79 +1,221 @@
-# Native Google Drive and Dropbox login
+# Sign in with Google and Dropbox — click-by-click
 
-The Android **file picker** cannot open Drive or Dropbox on many phones. Those apps often do not show up under “Open from.” Record Book therefore signs in with the **official native OAuth flows**, then writes a `RecordBook` folder in **that ranch’s** account.
+You only do this **once**, on a computer, as the person who publishes Record Book. After that, every ranch signs into **their own** Google or Dropbox. These IDs identify the Record Book **app**, not a ranch’s cattle.
 
-This is not a shared product Drive or Dropbox. Each ranch signs into **their** Google or Dropbox. The OAuth client IDs only identify Record Book as the app.
+You need a Google account, a Dropbox account, and owner access to [github.com/Outlaw1297/record-book](https://github.com/Outlaw1297/record-book).
 
-## Official docs
+Do the four walks in order. Have a notes app or paper ready. You will copy two short strings:
 
-### Google (Android installed app)
+- Google **Web client ID** (ends in `.apps.googleusercontent.com`)
+- Dropbox **App key** (a short code, not the App secret)
 
-Google’s installed-app flow is **not** a folder picker. Custom URI schemes are not used for Google on Android.
+Do **not** put the Google Android client ID in GitHub. Do **not** put the Dropbox App secret anywhere in the app.
 
-- [OAuth 2.0 for iOS & Desktop / installed apps](https://developers.google.com/identity/protocols/oauth2/native-app) — PKCE, system browser, no client secret
-- [Authorize access to Google user data on Android](https://developer.android.com/identity/authorization) — Credential Manager to pick the account, then `AuthorizationClient.authorize()` for Drive. Create **both** an Android client (package + SHA-1) and a Web client (used as `webClientId`)
-- [Choose Google Drive API scopes](https://developers.google.com/drive/api/guides/about-auth) — use `https://www.googleapis.com/auth/drive.file` (files this app creates)
-- [Capgo Google Login on Android](https://capgo.app/docs/plugins/social-login/google/android/) — this APK’s plugin. Drive scopes require a modified `MainActivity` that forwards `AuthorizationClient` results
+---
 
-You need **two** OAuth client IDs in the **same** Google Cloud project:
+## Walkthrough 1 — Google Cloud (Drive login)
 
-| Client type | Used for | Where it goes |
-|-------------|----------|---------------|
-| **Web application** | Access-token audience / `webClientId` | GitHub secret `VITE_GOOGLE_CLIENT_ID` |
-| **Android** (package + SHA-1) | Proves this APK may call Google | Google Cloud Console only. Do **not** put this ID in the app |
+Official pages: [Create a project](https://developers.google.com/workspace/guides/create-project), [OAuth consent](https://developers.google.com/workspace/guides/configure-oauth-consent), [Android + Web clients](https://developer.android.com/identity/authorization), [Drive scopes](https://developers.google.com/drive/api/guides/about-auth).
 
-A common failure is using the Android client ID as `webClientId`. Credential Manager requires the **Web** client ID.
+### 1A. Make a project
 
-### Dropbox (native app / PKCE)
+1. On a computer, open [console.cloud.google.com](https://console.cloud.google.com/) and sign in with **your** Google account.
+2. If Google asks you to accept terms, accept them.
+3. At the top of the page, click the project name (or **Select a project**).
+4. Click **New project**.
+5. Project name: `Record Book`
+6. Click **Create**. Wait until the top bar shows **Record Book**.
 
-- [Dropbox OAuth Guide](https://developers.dropbox.com/oauth-guide) — mobile apps must use **authorization code + PKCE** (no app secret in the APK). Offline access needs `token_access_type=offline` so a refresh token is returned
-- [Dropbox HTTP /oauth2/authorize](https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize)
-- [Dropbox Java SDK Android Auth](https://github.com/dropbox/dropbox-sdk-java) — Custom Tabs or the Dropbox app; redirect `db-{appKey}` or a registered custom scheme
-- [Capgo generic OAuth2](https://capgo.app/docs/plugins/social-login/oauth2/) — Custom Tabs + PKCE. This APK returns to `me.flyingjranch.recordbook://oauth/callback`
+You do **not** need to turn on billing for this.
 
-Do not tell each ranch to create their own Dropbox app. Register Record Book once. Each user signs into **their** Dropbox.
+### 1B. Turn on the Drive API
 
-## What the APK actually does
+1. Open [this Drive API page](https://console.cloud.google.com/apis/library/drive.googleapis.com) (it should still be in the Record Book project).
+2. Click **Enable**. If it already says **Manage**, you are done.
 
-`@capgo/capacitor-social-login`:
+### 1C. Register the app (consent screen)
 
-1. **Google:** Credential Manager signs the ranch in, then `AuthorizationClient` requests `drive.file`. Access tokens stay on the phone. `MainActivity` implements `ModifiedMainActivityForSocialLoginPlugin` so those extra scopes are allowed.
-2. **Dropbox:** Chrome Custom Tabs open Dropbox OAuth with PKCE and `token_access_type=offline`, then return to `me.flyingjranch.recordbook://oauth/callback`.
+Google will not let you create login IDs until this is filled in.
 
-## Create the Record Book OAuth apps once
+1. Open [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding).
+2. If you see **Google Auth platform not configured yet**, click **Get started**.
+3. **App name:** `Record Book`
+4. **User support email:** pick your Gmail from the list.
+5. Click **Next**.
+6. **Audience:** click **External** (people who are not in a Google Workspace company). Click **Next**.
+7. **Contact information:** type the same email again. Click **Next**.
+8. Check **I agree to the Google API Services: User Data Policy**. Click **Continue**, then **Create**.
 
-Do this once for the product. Do not ask each ranch to create their own Google Cloud project.
+### 1D. Add yourself as a test user
 
-### Google
+While the app is in Testing, Google only lets listed accounts sign in. `drive.file` counts as extra access, so you **must** add your Gmail.
 
-1. Open [Google Cloud Console → APIs](https://console.cloud.google.com/apis/library) and enable **Google Drive API**.
-2. [OAuth consent screen](https://console.cloud.google.com/auth/overview): External, app name Record Book. Add yourself as a test user while it is in Testing. Declare the `drive.file` scope.
-3. [Credentials](https://console.cloud.google.com/apis/credentials):
-   - **Web application** client. Copy the client ID. That is `VITE_GOOGLE_CLIENT_ID`.
-   - **Android** client. Package name `me.flyingjranch.recordbook`. SHA-1 of this debug APK:
+1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
+2. Under **Test users**, click **Add users**.
+3. Type your Gmail. Click **Save**.
+4. If anyone else on this ranch will test Google login, add their Gmail the same way.
 
-     `CB:80:C1:B3:7A:DA:5E:5D:FE:9D:7B:0B:66:C1:0F:03:D9:76:11:BE`
+You do **not** need to click Publish to Production for your own phones.
 
-     Do not put the Android client ID in the app. Google matches the APK by package + SHA-1.
+### 1E. Tell Google you only need this app’s Drive files
 
-Google Cloud changes can take a few hours to propagate. If the consent screen is Testing, every Google account that signs in must be a test user.
+1. Open [Google Auth Platform → Data Access](https://console.cloud.google.com/auth/scopes).
+2. Click **Add or remove scopes**.
+3. In the filter box, paste:
 
-### Dropbox
+   `https://www.googleapis.com/auth/drive.file`
 
-1. Open [Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app.
-2. Scoped app, **App folder** (API path `/RecordBook` lives inside the app folder) or Full Dropbox. Permissions: `files.content.read`, `files.content.write`, `files.metadata.read`, `files.metadata.write`.
-3. Enable PKCE. Redirect URI: `me.flyingjranch.recordbook://oauth/callback`
-4. Copy the **App key**. That is `VITE_DROPBOX_APP_KEY`. Do not put the app secret in the APK.
+4. Check that row. It is a **non-sensitive** scope (files Record Book creates). Do **not** check the huge “See, edit, create, and delete all of your Google Drive files” row.
+5. Click **Update**, then **Save**.
 
-## Bake the public IDs into the APK
+### 1F. Create the Web client (this is `VITE_GOOGLE_CLIENT_ID`)
 
-GitHub repo secrets (these are public OAuth client IDs, not farm data):
+Capgo / Google Sign-In on Android needs a **Web** client ID, even though this is a phone app. Using the Android ID here is the usual reason Google login fails.
 
-- `VITE_GOOGLE_CLIENT_ID` — the **Web** client ID, ending in `.apps.googleusercontent.com`
-- `VITE_DROPBOX_APP_KEY`
+1. Open [Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients).
+2. Click **Create client**.
+3. **Application type:** **Web application**.
+4. **Name:** `Record Book Web`
+5. Leave **Authorized JavaScript origins** and **Authorized redirect URIs** empty.
+6. Click **Create**.
+7. Copy **Client ID** only. It looks like:
 
-Then rebuild **Android APK** on `main`. Until those secrets exist, Sign in with Google / Dropbox tells you they are not baked yet.
+   `123456789012-abcdefghijklmnopqrstuvwxyz.apps.googleusercontent.com`
 
-## On the phone
+8. Paste that into your notes. Label it **Web client ID**. Close the dialog.
+9. Do **not** copy Client secret. The phone never uses it.
 
-Settings → **Sign in with Google** or **Sign in with Dropbox**. Android opens Google or Dropbox login for **your** account. The herd copies into a RecordBook folder there. Another ranch signs into **their** account.
+### 1G. Create the Android client (stays in Google only)
+
+This proves the sideload APK is allowed to talk to Google. You never paste this ID into GitHub.
+
+1. Still on [Clients](https://console.cloud.google.com/auth/clients), click **Create client** again.
+2. **Application type:** **Android**.
+3. **Name:** `Record Book Android debug`
+4. **Package name:** type this exactly, all lowercase:
+
+   `me.flyingjranch.recordbook`
+
+5. **SHA-1 certificate fingerprint:** paste this exactly (colons included):
+
+   `CB:80:C1:B3:7A:DA:5E:5D:FE:9D:7B:0B:66:C1:0F:03:D9:76:11:BE`
+
+   That fingerprint is for the **debug** APK from this repo. Skip **Verify ownership**.
+6. Click **Create**. You can close the dialog. You do **not** need this Client ID for GitHub.
+
+Google can take a few minutes (sometimes a couple of hours) to notice a new Android client.
+
+---
+
+## Walkthrough 2 — Dropbox (Dropbox login)
+
+Official pages: [Dropbox App Console](https://www.dropbox.com/developers/apps), [OAuth Guide](https://developers.dropbox.com/oauth-guide) (mobile apps use PKCE: App key only, no App secret in the phone).
+
+### 2A. Create the app
+
+1. On a computer, open [www.dropbox.com/developers/apps](https://www.dropbox.com/developers/apps) and sign in.
+2. Click **Create app**.
+3. **Choose an API:** **Scoped access**.
+4. **Choose the type of access:** **App folder**. Record Book then only sees a folder Dropbox makes for this app (`Apps/Record Book` in that person’s Dropbox). Other ranches still use **their** Dropbox; this does not put their cattle in yours.
+5. **Name:** `Record Book` (if that name is taken, `Record Book herd` is fine).
+6. Click **Create app**.
+
+### 2B. Settings tab
+
+You should now be on the app’s **Settings** page.
+
+1. Copy **App key**. Paste it into your notes. Label it **Dropbox App key**. That is `VITE_DROPBOX_APP_KEY`.
+2. Leave **App secret** alone. Do not put it in GitHub or the APK. Skipping the secret **is** the PKCE setup the phone uses.
+3. If you see **Allow implicit grant** (or “token” grant), leave it **off**.
+4. Under **OAuth 2** → **Redirect URIs**, paste this exactly, then click **Add**:
+
+   `me.flyingjranch.recordbook://oauth/callback`
+
+   No spaces. Same spelling as the package name.
+5. If you see **Enable additional users** (or “Allow other users to connect”), turn it **on**. Otherwise only *your* Dropbox can sign in, and other ranches cannot use Dropbox login.
+
+### 2C. Permissions tab
+
+1. Click the **Permissions** tab at the top of the Dropbox app page.
+2. Check these four (and leave the rest unchecked unless you know you need them):
+
+   - `files.content.read`
+   - `files.content.write`
+   - `files.metadata.read`
+   - `files.metadata.write`
+
+3. Click **Submit** at the bottom. If you skip Submit, login can succeed and file copy still fails.
+
+---
+
+## Walkthrough 3 — Put the two IDs in GitHub
+
+This is how they get baked into the next APK. They are public OAuth client IDs, not farm data. Official: [Using secrets in GitHub Actions](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions).
+
+1. On a computer, open [github.com/Outlaw1297/record-book](https://github.com/Outlaw1297/record-book).
+2. Click **Settings** (right side of the repo tabs). If you do not see Settings, you are not signed in as the repo owner.
+3. In the left sidebar, scroll to **Security**.
+4. Click **Secrets and variables**, then **Actions**.
+5. Click **New repository secret**.
+6. **Name:** `VITE_GOOGLE_CLIENT_ID`  
+   **Secret:** paste the **Web client ID** from walk 1F (must end in `.apps.googleusercontent.com`).  
+   Click **Add secret**.
+7. Click **New repository secret** again.
+8. **Name:** `VITE_DROPBOX_APP_KEY`  
+   **Secret:** paste the **App key** from walk 2B (not the App secret).  
+   Click **Add secret**.
+
+Names must match exactly, including `VITE_` and the underscores. If you paste the Android client ID into `VITE_GOOGLE_CLIENT_ID`, Google login will still fail.
+
+---
+
+## Walkthrough 4 — Rebuild and install the APK
+
+Adding secrets does not change the APK already on the phone. You have to build again.
+
+1. Open [github.com/Outlaw1297/record-book/actions](https://github.com/Outlaw1297/record-book/actions).
+2. In the left list, click **Android APK**.
+3. Click **Run workflow** (right side). Branch: **main**. Click the green **Run workflow**.
+4. Wait until that run is green (about one to two minutes).
+5. Open [the android-debug release](https://github.com/Outlaw1297/record-book/releases/tag/android-debug).
+6. Download `record-book-debug.apk` on the phone (Chrome on the phone is easiest).
+7. On the phone: Settings → Apps → Record Book → Uninstall (old debug builds can refuse to update).
+8. Open the downloaded APK and allow that one install.
+9. Open **Record Book** → **Settings**.
+10. Tap **Sign in with Google**. Pick **your** Google account and allow Drive. You should **not** see the phone’s file picker.
+11. Or tap **Sign in with Dropbox**. Sign into **your** Dropbox. You should return to Record Book, not a folder list of internal storage.
+
+If Google says the app is not verified, that is normal in Testing. Tap **Continue**. If it says the user is not allowed, go back to walk 1D and add that Gmail as a test user, wait a few minutes, try again.
+
+---
+
+## What “success” looks like
+
+| You tap | What should happen |
+|---------|-------------------|
+| Sign in with Google | Google account picker / consent, then Settings shows your Gmail |
+| Sign in with Dropbox | Dropbox website or app login, then back into Record Book |
+| Either, after sync | A `RecordBook` folder in **that** Drive or Dropbox |
+
+| You still see | What it means |
+|---------------|----------------|
+| “not baked into this APK yet” | Secrets missing, wrong names, or you did not install the **new** APK after the rebuild |
+| Phone file picker (“Open from”, Dalton’s Z Fold5) | Old APK. Uninstall and install the latest `record-book-debug.apk` |
+| Google error 28444 / “developer console is not set up” | Web ID was used incorrectly, or the Android client package / SHA-1 does not match |
+| Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
+
+Another ranch installs the **same** APK and signs into **their** Google or Dropbox. They never get your herd.
+
+---
+
+## Official docs (if a screen looks different)
+
+Google renamed some menus to **Google Auth Platform**. If **Clients** is missing, finish **Get started** on Branding first.
+
+- [OAuth 2.0 for installed apps](https://developers.google.com/identity/protocols/oauth2/native-app)
+- [Authorize Google user data on Android](https://developer.android.com/identity/authorization)
+- [Drive API scopes](https://developers.google.com/drive/api/guides/about-auth)
+- [Capgo Google Login on Android](https://capgo.app/docs/plugins/social-login/google/android/)
+- [Dropbox OAuth Guide](https://developers.dropbox.com/oauth-guide)
+- [Dropbox HTTP OAuth](https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize)
+- [GitHub Actions secrets](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)

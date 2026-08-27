@@ -19,7 +19,7 @@ See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android
 
 ## This ranch’s Google Drive or Dropbox (no server)
 
-Settings → **Sign in with Google** or **Sign in with Dropbox**. That is native OAuth into **your** account. Setup: [Native login](oauth-setup.md).
+Settings → **Sign in with Google** or **Sign in with Dropbox**. That is native OAuth into **your** account. First-time setup (once, on a computer): [click-by-click walkthrough](oauth-setup.md).
 
 HTTP LAN Docker sites use this ranch’s database instead.
 

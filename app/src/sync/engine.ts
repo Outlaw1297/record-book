@@ -332,7 +332,10 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
         pushed = options.replace
           ? { pushed: 0 }
           : await pushLocal(carrier, settings.deviceId);
-        await maybeWriteSnapshot(carrier, true);
+        await maybeWriteSnapshot(
+          carrier,
+          pulled.pulled > 0 || pushed.pushed > 0 || options.replace === true,
+        );
         const changeFiles = await carrier.list('changes');
         const roster = await publishRoster(
           carrier,
@@ -371,7 +374,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       parts.push(ranch.detail);
       const now = nowIso();
       await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
-      if (!cloudOk) {
+      if (!cloudProvider) {
         const pending = await db.outbox
           .filter((change) => !change.syncedAt)
           .toArray();

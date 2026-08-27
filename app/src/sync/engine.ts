@@ -61,6 +61,7 @@ export type SyncStatus = {
 };
 
 let inflight: Promise<SyncRunResult> | null = null;
+let queuedSync = false;
 let lastError: string | undefined;
 
 function isCloudProvider(value: SyncProvider): value is CloudProvider {
@@ -333,13 +334,13 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       if (incoming.applied) parts.push(`received ${incoming.applied} from ranch`);
       if (incoming.conflicts) parts.push(`${incoming.conflicts} overlap(s) logged`);
 
+      const pending = await db.outbox.filter((change) => !change.syncedAt).toArray();
       const ranch = await pushToRanchServer();
       if (ranch.ok) {
         ranchOk = true;
         parts.push(ranch.detail);
         const now = nowIso();
         await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
-        const pending = await db.outbox.filter((change) => !change.syncedAt).toArray();
         if (pending.length > 0) {
           await markOutboxSynced(pending.map((change) => change.id));
           pushed = { pushed: pending.length };
@@ -476,10 +477,22 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
 }
 
 export async function syncNow(): Promise<SyncRunResult> {
-  if (inflight) return inflight;
-  inflight = runSync().finally(() => {
-    inflight = null;
-  });
+  if (inflight) {
+    queuedSync = true;
+    return inflight;
+  }
+  inflight = (async () => {
+    try {
+      let result = await runSync();
+      while (queuedSync) {
+        queuedSync = false;
+        result = await runSync();
+      }
+      return result;
+    } finally {
+      inflight = null;
+    }
+  })();
   return inflight;
 }
 

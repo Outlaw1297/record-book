@@ -55,7 +55,7 @@ If you see the gray box that says a domain “must be pre-registered here” and
 While the app is in Testing, Google only lets listed accounts sign in. `drive.file` counts as extra access, so you **must** add your Gmail.
 
 1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
-2. Publishing status should say **Testing**. If **Publish app** is greyed out, leave it. That is what we want.
+2. Publishing status should say **Testing**. Grey **Publish app** is what we want. If the tooltip says you need a homepage URL and privacy policy URL “for switching the app to external production mode”, do **not** add those URLs. That list is only to Publish. Stay in Testing.
 3. **User type** should say **External**. Grey **Make internal** (“Because you're not a Google Workspace user…”) is expected on a personal Gmail. Do not try to change it. This still means each ranch signs into **their** Google, not yours.
 4. If a yellow box says **Your app's OAuth configuration is incomplete** with **Go to Branding**:
    1. Click **Go to Branding**.
@@ -132,7 +132,7 @@ This does **not** put other ranches on your Drive. Each person still signs into 
 1. On a computer, open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
 2. Find **Publishing status**.
 3. It must say **Testing**.
-4. Grey **Publish app** is fine. Incomplete-branding yellow box is fine. Do not try to un-grey Publish.
+4. Grey **Publish app** is fine. The tooltip about homepage URL and privacy policy URL is Google asking you to Publish. Ignore it. Incomplete-branding yellow box is fine. Do not try to un-grey Publish.
 5. If it says **In production**, look for **Back to testing** / unpublish. Click that. Confirm. Do **not** click **Publish app**.
 
 **B. Add the Gmail that is on the phone**
@@ -260,6 +260,7 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | Audience “No rows to display” under Test users | Drive will fail. Add the phone’s Gmail. |
 | Google Search Console / authorized domains | Ignore. Leave domains empty. That box is only if you typed a website. |
 | Audience User type External / grey Make internal | Correct on a personal Gmail. Leave External. Still each ranch’s own Google. |
+| Grey Publish app / homepage + privacy policy required | Ignore. That is only to leave Testing. Do not add those URLs. |
 | Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
 
 Another ranch installs the **same** APK and signs into **their** Google or Dropbox. They never get your herd.

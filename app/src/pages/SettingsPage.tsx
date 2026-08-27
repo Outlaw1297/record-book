@@ -194,8 +194,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps the book. Sign in with Google or Dropbox once; the RecordBook folder is created for you and syncs by itself when you have signal.'
-            : 'Sign in with Google or Dropbox. The shared RecordBook folder is created for you. Sync runs in the background.'}
+            ? 'This phone keeps a local copy. On ranch Wi-Fi it syncs with the Docker database, which is the shared book.'
+            : 'This browser keeps a local copy. It syncs with the Docker database on this NAS.'}
         </p>
       </header>
 

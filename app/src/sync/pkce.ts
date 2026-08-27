@@ -22,6 +22,10 @@ export async function createPkce(): Promise<{
   return { verifier, challenge: bytesToBase64Url(new Uint8Array(digest)) };
 }
 
+/** Custom-scheme return used by the APK (Custom Tabs), never the ranch API. */
+export const NATIVE_OAUTH_REDIRECT_URI = 'me.flyingjranch.recordbook://oauth/callback';
+
+/** Browser / PWA return. The APK uses native Google Sign-In and the custom scheme above. */
 export function oauthRedirectUri(): string {
   return `${window.location.origin}/oauth/callback`;
 }

@@ -27,8 +27,9 @@ export function AccountPage() {
       <header className="page-header">
         <h1>Account</h1>
         <p className="lede">
-          You have a name on this device. The herd is the shared book in Drive
-          or Dropbox, used by every phone and office PC on the same account.
+          You have a name on this device. The herd is the shared book — the
+          ranch Docker database if this install has one, otherwise Google Drive
+          or Dropbox.
         </p>
       </header>
 
@@ -58,7 +59,7 @@ export function AccountPage() {
           <h2>Other devices</h2>
           <p>
             {others.length === 0
-              ? 'None yet. Connect the office PC or another phone to the same Drive or Dropbox account so they share this book.'
+              ? 'None yet. Sign in on another phone or the office, or sync with a ranch server if you have one.'
               : others
                   .map(
                     (device) =>

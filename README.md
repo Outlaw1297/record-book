@@ -1,6 +1,6 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). Phones can also share a private Google Drive or Dropbox folder. An optional **Docker / Portainer** stack keeps a Postgres copy of the same herd behind a REST API for a future project.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). Phones sign in with Google or Dropbox on the device when there is no ranch server. This ranch can also run an optional **Docker / Portainer** stack so Postgres is the shared book on the NAS.
 
 ## Run locally
 
@@ -52,10 +52,11 @@ Install the **Android APK** for pasture use ([install](docs/android.md)). The Po
 
 ## Sync model
 
-- Local **IndexedDB** (Dexie) is the source of truth offline
+- Local **IndexedDB** (Dexie) is the working store offline
 - Every write goes to an **outbox**
-- When online, pending rows upload as JSONL into a private **Google Drive** or **Dropbox** `RecordBook` folder that **every device/user on that account shares**
-- Optional **ranch Postgres** (Docker / Portainer) is a second copy of the herd for other apps. It does not replace Drive
+- **If this install has a ranch Docker server** and the phone can reach it, Postgres is the shared book
+- **If there is no ranch server**, sign in with **Google Drive** or **Dropbox** on the device; that folder is the shared book
+- Native login does not call the ranch API. Client IDs are baked at APK/web build time
 - Your name and device label stay on this device; ranch name, year, and cattle rows are the shared database
 - Tokens and the ranch API key stay on the device; they are never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud

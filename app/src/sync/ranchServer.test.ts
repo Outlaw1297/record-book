@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchUnreachableDetail } from './ranchServer';
+import { joinRanchApiBase, ranchUnreachableDetail, shouldAdoptLanRanch } from './ranchServer';
+import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -41,5 +42,19 @@ describe('ranchUnreachableDetail', () => {
     expect(ranchUnreachableDetail(new Error('Ranch API 503'), health)).toBe(
       'Ranch API 503',
     );
+  });
+});
+
+describe('shouldAdoptLanRanch', () => {
+  it('keeps a URL the user already saved', () => {
+    expect(shouldAdoptLanRanch('http://nas:8180/api', false)).toBe('http://nas:8180/api');
+  });
+
+  it('adopts the Flying J LAN URL only when that NAS answers', () => {
+    expect(shouldAdoptLanRanch('', true)).toBe(RANCH_LAN_API_PLACEHOLDER);
+  });
+
+  it('leaves cloud-only installs without a ranch URL', () => {
+    expect(shouldAdoptLanRanch('', false)).toBe('');
   });
 });

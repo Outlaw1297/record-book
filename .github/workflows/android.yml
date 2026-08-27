@@ -50,7 +50,11 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_DROPBOX_APP_KEY: ${{ secrets.VITE_DROPBOX_APP_KEY }}
 
-      - run: npx cap sync android
+      - name: Capacitor sync
+        run: npx cap sync android
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_DROPBOX_APP_KEY: ${{ secrets.VITE_DROPBOX_APP_KEY }}
 
       - name: Assemble debug APK
         working-directory: app/android
@@ -80,9 +84,8 @@ jobs:
             1. Download `record-book-debug.apk` on the phone.
             2. Open it and allow that one install from unknown sources.
             3. Log calves offline. IndexedDB stays on the device.
+            4. Tap **Sign in with Google** or **Sign in with Dropbox**. That login is native and does not need a ranch server.
 
-            On ranch Wi-Fi, Settings → Ranch API URL: `http://192.168.1.56:8180/api` to copy the herd into Postgres.
-
-            Drive/Dropbox: add `https://localhost/oauth/callback` as a redirect URI.
+            If this ranch runs Docker, the app probes `http://192.168.1.56:8180/api/health` and uses that database when it answers.
 
             See [docs/android.md](https://github.com/Outlaw1297/record-book/blob/main/docs/android.md).

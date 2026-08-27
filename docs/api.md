@@ -2,7 +2,7 @@
 
 HTTP API in front of the Docker Postgres herd database. Bind is `0.0.0.0:8080` inside the stack. Portainer publishes the PWA on host port **8180** (so host nginx can keep 80 and 8080). Use `/api/` on that host.
 
-The PWA syncs this API. Drive/Dropbox sign-in is optional.
+The PWA on this NAS syncs this API. Phones without a ranch server sign in with Google or Dropbox instead; they do not need these OAuth routes.
 
 ## Auth
 

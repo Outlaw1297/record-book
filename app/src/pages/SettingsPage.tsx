@@ -76,7 +76,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
-      toast('Signed in. Syncing the ranch database…');
+      toast('Signed in. Syncing…');
       setSearchParams(
         {},
         {
@@ -116,7 +116,11 @@ export function SettingsPage() {
   async function connect(provider: CloudProvider) {
     setBusy(provider);
     try {
-      await startOAuth(provider);
+      const result = await startOAuth(provider);
+      if (!result.navigated) {
+        toast(result.detail || 'Signed in.');
+        setBusy(null);
+      }
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not start login.');
       setBusy(null);
@@ -132,7 +136,9 @@ export function SettingsPage() {
 
   async function replaceFromCloud() {
     const ok = window.confirm(
-      'Replace the herd on THIS device with the ranch database? Unsynced rows on this device will be dropped. Other devices are not changed.',
+      ranchReady
+        ? 'Replace the herd on THIS device with the ranch database? Unsynced rows on this device will be dropped. Other devices are not changed.'
+        : 'Replace the herd on THIS device from Google Drive or Dropbox? Unsynced rows on this device will be dropped.',
     );
     if (!ok) return;
     setBusy('replace');
@@ -194,8 +200,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps a local copy. On ranch Wi-Fi it syncs with the Docker database, which is the shared book.'
-            : 'This browser keeps a local copy. It syncs with the Docker database on this NAS.'}
+            ? 'This phone keeps a local copy. Sign in with Google or Dropbox to share the book without a ranch server. If this ranch runs Docker, that database is used when you are on ranch Wi-Fi.'
+            : 'This browser keeps a local copy. Sign in with Google or Dropbox to share, or use the Docker database if this site is on a ranch NAS.'}
         </p>
       </header>
 
@@ -244,11 +250,11 @@ export function SettingsPage() {
       </form>
 
       <section className="sync-panel form">
-        <h2>Ranch database</h2>
+        <h2>Ranch server (optional)</h2>
         <p className="hint">
-          This Docker Postgres database is the shared book. Every phone and the
-          office copy here on ranch Wi-Fi. You do not need Google or Dropbox
-          for that.
+          Only if this ranch runs the Portainer stack. This Docker Postgres
+          database is then the shared book on ranch Wi-Fi. Installs without a
+          server skip this and sign in with Google or Dropbox instead.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'Shared book on Wi-Fi' : 'Not configured'}
@@ -273,9 +279,11 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code>. To check in a
-              browser, open <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it
-              should show <code>{'{"ok":true}'}</code>.
+              Leave empty unless this ranch has a NAS. On Flying J Wi-Fi the
+              app looks for <code>{RANCH_LAN_API_PLACEHOLDER}</code> by itself.
+              To check in a browser, open{' '}
+              <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it should show{' '}
+              <code>{'{"ok":true}'}</code>.
             </>
           ) : (
             <>
@@ -306,10 +314,14 @@ export function SettingsPage() {
           type="button"
           className="btn ghost block"
           style={{ marginTop: '0.55rem' }}
-          disabled={busy !== null || !ranchReady}
+          disabled={busy !== null || (!ranchReady && !connected)}
           onClick={() => void replaceFromCloud()}
         >
-          {busy === 'replace' ? 'Replacing…' : 'Replace this device from the ranch database'}
+          {busy === 'replace'
+            ? 'Replacing…'
+            : ranchReady
+              ? 'Replace this device from the ranch database'
+              : 'Replace this device from Google Drive or Dropbox'}
         </button>
         <p className="hint" style={{ marginTop: '0.55rem' }}>
           Pending changes: {pending ?? 0}
@@ -325,8 +337,9 @@ export function SettingsPage() {
       <section className="sync-panel">
         <h2>Google or Dropbox sign-in</h2>
         <p className="hint">
-          Optional. Tap Connect and sign in like any other app. The ranch
-          holds the app keys; you never paste them on the phone.
+          How phones share the book when there is no ranch server. Tap Sign in
+          like any other app. Client IDs are baked into the APK; you never paste
+          them on the phone.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -335,7 +348,10 @@ export function SettingsPage() {
             {providerName ?? 'Google or Dropbox'}
           </p>
           <p className="hint">
-            {auth?.accountEmail || 'The herd still lives in the ranch database either way.'}
+            {auth?.accountEmail ||
+              (ranchReady
+                ? 'The herd still lives in the ranch database if you skip this.'
+                : 'Sign in so other phones and the office share this book.')}
           </p>
         </div>
 

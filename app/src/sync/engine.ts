@@ -16,9 +16,14 @@ import {
   upsertRoster,
   type DeviceRoster,
 } from './identity';
-import { hasRanchServer, loadRanchDevices, pullFromRanchServer, pushToRanchServer } from './ranchServer';
+import {
+  hasRanchServer,
+  loadRanchDevices,
+  pullFromRanchServer,
+  pushToRanchServer,
+} from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
-import { formatWhen, noneProviderBanner } from './statusCopy';
+import { formatWhen, noneProviderBanner, noSharedBookDetail } from './statusCopy';
 import {
   buildSnapshot,
   clearHerdForReplace,
@@ -75,7 +80,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const auth = await getSyncAuth();
   const connected = await hasUsableSession();
   const ranchConfigured = hasRanchServer();
-  const needsAuth = isCloudProvider(settings.syncProvider) && !connected && !ranchConfigured;
+  const needsAuth = !connected && !ranchConfigured;
   const label = providerLabel(settings.syncProvider);
   const others = Math.max(0, deviceCount - 1);
 
@@ -95,7 +100,9 @@ export async function getSyncStatus(): Promise<SyncStatus> {
       ? `Online — reconnect ${label}, or the ranch database still copies itself`
       : `Online — reconnect ${label} in Settings`;
   } else if (pendingCount > 0) {
-    message = `${pendingCount} change(s) syncing to ${label}…`;
+    message = ranchConfigured
+      ? `${pendingCount} change(s) syncing to the ranch database…`
+      : `${pendingCount} change(s) syncing to ${label}…`;
   } else if (others > 0 && settings.lastSyncedAt) {
     message = `Online — shared book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
@@ -286,7 +293,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
   if (!ranchConfigured && !cloudProvider) {
     return {
       ok: false,
-      detail: 'Ranch API is not set. Open Settings on ranch Wi-Fi.',
+      detail: noSharedBookDetail(),
       pulled: 0,
       pushed: 0,
       conflicts: 0,
@@ -306,11 +313,59 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
   let pulled = { pulled: 0, conflicts: 0 };
   let pushed = { pushed: 0 };
   let ranchOk = false;
+  const cloudLabel = cloudProvider ? providerLabel(cloudProvider) : undefined;
 
   if (ranchConfigured) {
     if (options.replace) await clearHerdForReplace();
     const incoming = await pullFromRanchServer();
-    if (!incoming.ok) {
+    if (incoming.ok) {
+      pulled = { pulled: incoming.applied, conflicts: incoming.conflicts };
+      if (incoming.applied) parts.push(`received ${incoming.applied} from ranch`);
+      if (incoming.conflicts) parts.push(`${incoming.conflicts} overlap(s) logged`);
+
+      const ranch = await pushToRanchServer();
+      if (ranch.ok) {
+        ranchOk = true;
+        parts.push(ranch.detail);
+        const now = nowIso();
+        await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
+        const pending = await db.outbox.filter((change) => !change.syncedAt).toArray();
+        if (pending.length > 0) {
+          await markOutboxSynced(pending.map((change) => change.id));
+          pushed = { pushed: pending.length };
+        }
+
+        const devices = await loadRanchDevices();
+        if (devices.length > 0) {
+          await cacheRoster(
+            {
+              bookId: (await ensureSettings()).bookId || settings.deviceId,
+              updatedAt: now,
+              devices: devices.map((device) => ({
+                deviceId: device.deviceId,
+                deviceName: device.deviceName,
+                operatorName: device.operatorName,
+                kind: device.kind === 'desk' ? 'desk' : device.kind === 'phone' ? 'phone' : undefined,
+                lastSeenAt: device.lastSeenAt,
+              })),
+            },
+            settings.deviceId,
+          );
+        }
+      } else if (!cloudProvider) {
+        lastError = ranch.detail;
+        emitSyncEvent();
+        return {
+          ok: false,
+          detail: ranch.detail,
+          pulled: pulled.pulled,
+          pushed: 0,
+          conflicts: pulled.conflicts,
+        };
+      } else {
+        parts.push(ranch.detail);
+      }
+    } else if (!cloudProvider) {
       lastError = incoming.detail;
       emitSyncEvent();
       return {
@@ -320,56 +375,33 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
         pushed: 0,
         conflicts: 0,
       };
-    }
-    pulled = { pulled: incoming.applied, conflicts: incoming.conflicts };
-    if (incoming.applied) parts.push(`received ${incoming.applied} from ranch`);
-    if (incoming.conflicts) parts.push(`${incoming.conflicts} overlap(s) logged`);
-
-    const ranch = await pushToRanchServer();
-    if (!ranch.ok) {
-      lastError = ranch.detail;
-      emitSyncEvent();
-      return {
-        ok: false,
-        detail: ranch.detail,
-        pulled: pulled.pulled,
-        pushed: 0,
-        conflicts: pulled.conflicts,
-      };
-    }
-    ranchOk = true;
-    parts.push(ranch.detail);
-    const now = nowIso();
-    await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
-    const pending = await db.outbox.filter((change) => !change.syncedAt).toArray();
-    if (pending.length > 0) {
-      await markOutboxSynced(pending.map((change) => change.id));
-      pushed = { pushed: pending.length };
-    }
-
-    const devices = await loadRanchDevices();
-    if (devices.length > 0) {
-      await cacheRoster(
-        {
-          bookId: (await ensureSettings()).bookId || settings.deviceId,
-          updatedAt: now,
-          devices: devices.map((device) => ({
-            deviceId: device.deviceId,
-            deviceName: device.deviceName,
-            operatorName: device.operatorName,
-            kind: device.kind === 'desk' ? 'desk' : device.kind === 'phone' ? 'phone' : undefined,
-            lastSeenAt: device.lastSeenAt,
-          })),
-        },
-        settings.deviceId,
-      );
+    } else {
+      parts.push(incoming.detail);
     }
   }
 
-  if (cloudProvider && !options.replace) {
+  const useCloud = Boolean(cloudProvider) && (!options.replace || !ranchOk);
+  if (useCloud && cloudProvider) {
     const token = await getValidAccessToken();
-    if (token) {
+    if (!token) {
+      if (!ranchOk) {
+        lastError = 'Sign in with Google or Dropbox in Settings.';
+        emitSyncEvent();
+        return {
+          ok: false,
+          detail: lastError,
+          pulled: 0,
+          pushed: 0,
+          conflicts: 0,
+        };
+      }
+    } else {
       try {
+        if (options.replace && !ranchOk && !ranchConfigured) {
+          await clearHerdForReplace();
+        } else if (options.replace && !ranchOk && ranchConfigured) {
+          /* Herd was already cleared for the ranch attempt. */
+        }
         const carrier = carrierFor(cloudProvider);
         await carrier.ensureRoot();
         const book = await ensureBook(carrier);
@@ -388,11 +420,11 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           changeFiles.map((file) => file.key),
         );
         if (roster.devices.length > 1) {
-          parts.push(`${roster.devices.length} devices on Drive/Dropbox`);
+          parts.push(`${roster.devices.length} devices on ${cloudLabel}`);
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Cloud backup failed.';
+          error instanceof Error ? error.message : `${cloudLabel ?? 'Cloud'} sync failed.`;
         if (!ranchOk) {
           lastError = message;
           emitSyncEvent();
@@ -411,10 +443,13 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
 
   await db.settings.update(1, { lastSyncedAt: nowIso() });
   lastError = undefined;
-  const detail =
-    parts.length > 0
+  const detail = ranchOk
+    ? parts.length > 0
       ? `Synced with ranch database — ${parts.join(', ')}.`
-      : 'Herd is up to date on the ranch database.';
+      : 'Herd is up to date on the ranch database.'
+    : parts.length > 0
+      ? `Synced with ${cloudLabel ?? 'cloud'} — ${parts.join(', ')}.`
+      : `Herd is up to date on ${cloudLabel ?? 'cloud'}.`;
   emitSyncEvent();
   return {
     ok: true,

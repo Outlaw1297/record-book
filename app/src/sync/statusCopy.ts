@@ -28,7 +28,11 @@ export function noneProviderBanner(opts: {
     return 'Online — ranch database is the shared book. Copies on Wi-Fi.';
   }
   if (pendingCount > 0) {
-    return `${pendingCount} change(s) on this phone. Open Settings on ranch Wi-Fi.`;
+    return `${pendingCount} change(s) on this phone. Sign in with Google or Dropbox, or set a ranch API if you have a server.`;
   }
-  return 'Online — set the ranch API in Settings';
+  return 'Online — sign in with Google or Dropbox, or set a ranch API if you have a server';
+}
+
+export function noSharedBookDetail(): string {
+  return 'Sign in with Google or Dropbox in Settings. If this ranch runs the Docker book, set the ranch API URL too.';
 }

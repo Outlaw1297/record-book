@@ -35,6 +35,13 @@ export function clientIdFor(provider: CloudProvider): string {
   return provider === 'google-drive' ? getGoogleClientId() : getDropboxAppKey();
 }
 
+export function missingClientIdMessage(provider: CloudProvider): string {
+  const name = provider === 'google-drive' ? 'Google' : 'Dropbox';
+  const secret =
+    provider === 'google-drive' ? 'VITE_GOOGLE_CLIENT_ID' : 'VITE_DROPBOX_APP_KEY';
+  return `${name} sign-in is not baked into this build. Add the ${secret} GitHub secret and rebuild the app. You do not paste keys on the phone.`;
+}
+
 export function hasEnvGoogleClientId(): boolean {
   return Boolean(fromEnv('VITE_GOOGLE_CLIENT_ID'));
 }
@@ -63,7 +70,7 @@ export async function hydrateOAuthClients(): Promise<void> {
       saveDropboxAppKey(body.dropboxAppKey);
     }
   } catch {
-    /* Ranch may be offline; Connect still works after pasting IDs in Settings. */
+    /* Ranch may be offline; baked GitHub secrets still sign in without a server. */
   }
 }
 
@@ -84,6 +91,6 @@ export async function publishOAuthClients(): Promise<void> {
       }),
     });
   } catch {
-    /* This phone can still Connect with the pasted IDs. */
+    /* This phone can still sign in with baked client IDs. */
   }
 }

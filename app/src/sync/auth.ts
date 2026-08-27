@@ -1,5 +1,11 @@
 import { db, ensureSettings, type SyncAuth } from '../db/schema';
-import { clientIdFor } from './credentials';
+import { isNativeApp } from '../platform';
+import { clientIdFor, missingClientIdMessage } from './credentials';
+import {
+  loginWithNativePlatform,
+  logoutNativePlatform,
+  refreshNativeSession,
+} from './nativeAuth';
 import { createPkce, oauthRedirectUri, randomUrlSafe, toFormBody } from './pkce';
 import { ranchUrl } from './ranchServer';
 import type { CloudProvider } from './types';
@@ -20,6 +26,8 @@ type TokenResponse = {
   error_description?: string;
 };
 
+type AccountInfo = { email?: string; name?: string };
+
 function readSession(): OauthSession | null {
   try {
     const raw = localStorage.getItem(OAUTH_SESSION_KEY);
@@ -34,6 +42,8 @@ export async function getSyncAuth(): Promise<SyncAuth | undefined> {
 }
 
 export async function disconnectCloud(): Promise<void> {
+  const previous = await db.syncAuth.get(1);
+  await logoutNativePlatform(previous?.provider);
   const settings = await ensureSettings();
   await db.transaction('rw', db.syncAuth, db.settings, async () => {
     await db.syncAuth.delete(1);
@@ -45,34 +55,33 @@ export async function disconnectCloud(): Promise<void> {
   });
 }
 
-export async function startOAuth(provider: CloudProvider): Promise<void> {
-  const readyUrl = ranchUrl(`/oauth/ready/${provider}`);
-  if (readyUrl) {
+function signedInDetail(provider: CloudProvider): string {
+  return provider === 'google-drive' ? 'Google signed in.' : 'Dropbox signed in.';
+}
+
+export async function startOAuth(
+  provider: CloudProvider,
+): Promise<{ navigated: boolean; detail?: string }> {
+  if (isNativeApp()) {
+    const native = await loginWithNativePlatform(provider);
+    const previous = await db.syncAuth.get(1);
+    await persistAuth(provider, native.tokens, previous, {
+      connect: true,
+      account: native.account,
+    });
     try {
-      const ready = await fetch(readyUrl);
-      const body = (await ready.json().catch(() => ({}))) as { error?: string };
-      if (ready.ok) {
-        const start = ranchUrl(
-          `/oauth/start/${provider}?return_origin=${encodeURIComponent(window.location.origin)}`,
-        );
-        window.location.assign(start);
-        return;
-      }
-      if (ready.status !== 503) {
-        throw new Error(body.error || 'Could not start ranch sign-in.');
-      }
-    } catch (error) {
-      if (error instanceof Error && !/failed to fetch|not fetched|networkerror/i.test(error.message)) {
-        throw error;
-      }
+      const { syncNow } = await import('./engine');
+      const synced = await syncNow();
+      if (synced.ok) return { navigated: false, detail: synced.detail };
+    } catch {
+      /* Login succeeded; background sync will retry. */
     }
+    return { navigated: false, detail: signedInDetail(provider) };
   }
 
   const clientId = clientIdFor(provider);
   if (!clientId) {
-    throw new Error(
-      'Sign in is not set up on this ranch yet. Add the Google/Dropbox app on the NAS (or GitHub secrets), then tap Connect again. You do not paste keys on the phone.',
-    );
+    throw new Error(missingClientIdMessage(provider));
   }
 
   const { verifier, challenge } = await createPkce();
@@ -105,6 +114,7 @@ export async function startOAuth(provider: CloudProvider): Promise<void> {
   }
 
   window.location.assign(url.toString());
+  return { navigated: true };
 }
 
 async function exchangeCode(
@@ -153,7 +163,7 @@ async function exchangeCode(
 async function fetchAccount(
   provider: CloudProvider,
   accessToken: string,
-): Promise<{ email?: string; name?: string }> {
+): Promise<AccountInfo> {
   try {
     if (provider === 'google-drive') {
       const response = await fetch(
@@ -196,15 +206,17 @@ async function persistAuth(
   provider: CloudProvider,
   tokens: TokenResponse,
   previous?: SyncAuth,
-  options: { connect?: boolean } = {},
+  options: { connect?: boolean; account?: AccountInfo } = {},
 ): Promise<SyncAuth> {
   const reuseAccount =
     !options.connect &&
     previous?.provider === provider &&
     Boolean(previous.accountEmail);
-  const account = reuseAccount
-    ? { email: previous?.accountEmail, name: previous?.accountName }
-    : await fetchAccount(provider, tokens.access_token!);
+  const account = options.account
+    ? options.account
+    : reuseAccount
+      ? { email: previous?.accountEmail, name: previous?.accountName }
+      : await fetchAccount(provider, tokens.access_token!);
   const auth: SyncAuth = {
     id: 1,
     provider,
@@ -243,7 +255,10 @@ export async function completeOAuthCallback(
   if (handshake) {
     const sessionUrl = ranchUrl(`/oauth/session/${encodeURIComponent(handshake)}`);
     if (!sessionUrl) {
-      return { ok: false, detail: 'Ranch API is not set. Sign in on ranch Wi-Fi.' };
+      return {
+        ok: false,
+        detail: 'Sign-in expired. Use Sign in with Google or Dropbox in Settings.',
+      };
     }
     const response = await fetch(sessionUrl);
     const tokens = (await response.json()) as TokenResponse & { provider?: CloudProvider };
@@ -267,21 +282,12 @@ export async function completeOAuthCallback(
       const { syncNow } = await import('./engine');
       const synced = await syncNow();
       if (synced.ok) {
-        return {
-          ok: true,
-          detail:
-            provider === 'google-drive'
-              ? 'Google signed in.'
-              : 'Dropbox signed in.',
-        };
+        return { ok: true, detail: signedInDetail(provider) };
       }
     } catch {
-      /* Login succeeded; ranch sync will retry. */
+      /* Login succeeded; sync will retry. */
     }
-    return {
-      ok: true,
-      detail: provider === 'google-drive' ? 'Google signed in.' : 'Dropbox signed in.',
-    };
+    return { ok: true, detail: signedInDetail(provider) };
   }
 
   const session = readSession();
@@ -327,42 +333,47 @@ export async function completeOAuthCallback(
 }
 
 async function refreshTokens(auth: SyncAuth): Promise<SyncAuth> {
-  if (!auth.refreshToken) {
-    throw new Error('Cloud session expired. Reconnect in Settings.');
+  if (auth.refreshToken) {
+    const clientId = clientIdFor(auth.provider);
+    const tokenUrl =
+      auth.provider === 'google-drive'
+        ? 'https://oauth2.googleapis.com/token'
+        : 'https://api.dropboxapi.com/oauth2/token';
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: toFormBody({
+        grant_type: 'refresh_token',
+        refresh_token: auth.refreshToken,
+        client_id: clientId,
+      }),
+    });
+    const json = (await response.json()) as TokenResponse;
+    if (response.ok && json.access_token) {
+      return persistAuth(auth.provider, json, auth);
+    }
   }
-  const clientId = clientIdFor(auth.provider);
-  const tokenUrl =
-    auth.provider === 'google-drive'
-      ? 'https://oauth2.googleapis.com/token'
-      : 'https://api.dropboxapi.com/oauth2/token';
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: toFormBody({
-      grant_type: 'refresh_token',
-      refresh_token: auth.refreshToken,
-      client_id: clientId,
-    }),
-  });
-  const json = (await response.json()) as TokenResponse;
-  if (!response.ok || !json.access_token) {
-    throw new Error('Cloud session expired. Reconnect in Settings.');
+  if (isNativeApp()) {
+    const native = await refreshNativeSession(auth.provider);
+    if (native?.access_token) {
+      return persistAuth(auth.provider, native, auth);
+    }
   }
-  return persistAuth(auth.provider, json, auth);
+  throw new Error('Cloud session expired. Reconnect in Settings.');
 }
 
 export async function hasUsableSession(): Promise<boolean> {
   const auth = await getSyncAuth();
   if (!auth?.accessToken) return false;
   if (Date.now() < auth.expiresAt - 5000) return true;
-  return Boolean(auth.refreshToken);
+  if (auth.refreshToken) return true;
+  return isNativeApp();
 }
 
 export async function getValidAccessToken(): Promise<string | null> {
   const auth = await getSyncAuth();
   if (!auth?.accessToken) return null;
   if (Date.now() < auth.expiresAt - 120_000) return auth.accessToken;
-  if (!auth.refreshToken) return null;
   try {
     const next = await refreshTokens(auth);
     return next.accessToken;
@@ -378,7 +389,7 @@ export async function requireAccessToken(): Promise<{
   const token = await getValidAccessToken();
   const auth = await getSyncAuth();
   if (!token || !auth) {
-    throw new Error('Connect Google Drive or Dropbox in Settings.');
+    throw new Error('Sign in with Google or Dropbox in Settings.');
   }
   return { token, auth };
 }

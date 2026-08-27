@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSettings } from '../db/schema';
-import { getSyncAuth } from '../sync/auth';
+import { listCloudAuths } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
 
 function providerLabel(provider?: string) {
@@ -10,9 +10,21 @@ function providerLabel(provider?: string) {
   return 'Not connected';
 }
 
+function cloudSummary(
+  auths: Array<{ provider: string; accountEmail?: string }>,
+): string {
+  if (auths.length === 0) return 'Not connected';
+  return auths
+    .map((row) => {
+      const name = providerLabel(row.provider);
+      return row.accountEmail ? `${name} · ${row.accountEmail}` : name;
+    })
+    .join(' · ');
+}
+
 export function AccountPage() {
   const settings = useLiveQuery(() => getSettings());
-  const auth = useLiveQuery(() => getSyncAuth());
+  const auths = useLiveQuery(() => listCloudAuths()) ?? [];
   const devices = useLiveQuery(async () => {
     const rows = await db.syncDevices.toArray();
     return rows.sort((a, b) => a.deviceName.localeCompare(b.deviceName));
@@ -49,11 +61,8 @@ export function AccountPage() {
           <p>{settings?.currentYear}</p>
         </div>
         <div className="list-card">
-          <h2>This ranch’s Drive or Dropbox</h2>
-          <p>
-            {providerLabel(auth?.provider)}
-            {auth?.accountEmail ? ` · ${auth.accountEmail}` : ''}
-          </p>
+          <h2>This ranch’s Drive and Dropbox</h2>
+          <p>{cloudSummary(auths)}</p>
         </div>
         <div className="list-card">
           <h2>Other devices</h2>

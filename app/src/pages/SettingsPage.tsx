@@ -14,7 +14,7 @@ import {
 } from '../db/sync';
 import {
   disconnectCloud,
-  getSyncAuth,
+  listCloudAuths,
   startOAuth,
 } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
@@ -47,7 +47,7 @@ export function SettingsPage() {
     const rows = await db.syncDevices.toArray();
     return rows.sort((a, b) => a.deviceName.localeCompare(b.deviceName));
   });
-  const auth = useLiveQuery(() => getSyncAuth());
+  const auths = useLiveQuery(() => listCloudAuths()) ?? [];
 
   const [ranchName, setRanchName] = useState('');
   const [operatorName, setOperatorName] = useState('');
@@ -128,10 +128,16 @@ export function SettingsPage() {
     }
   }
 
-  async function disconnect() {
-    setBusy('off');
-    await disconnectCloud();
-    toast('Disconnected. Herd stays on this device.');
+  async function disconnect(provider?: CloudProvider) {
+    setBusy(provider ?? 'off');
+    await disconnectCloud(provider);
+    toast(
+      provider === 'google-drive'
+        ? 'Disconnected Google. Dropbox stays signed in if you used it.'
+        : provider === 'dropbox'
+          ? 'Disconnected Dropbox. Google stays signed in if you used it.'
+          : 'Disconnected. Herd stays on this device.',
+    );
     setBusy(null);
   }
 
@@ -185,15 +191,11 @@ export function SettingsPage() {
     toast('Backup downloaded');
   }
 
-  const connected = Boolean(auth?.accessToken);
+  const googleAuth = auths.find((row) => row.provider === 'google-drive');
+  const dropboxAuth = auths.find((row) => row.provider === 'dropbox');
+  const connected = auths.length > 0;
   const native = isNativeApp();
   const ranchReady = Boolean(ranchApiUrl.trim()) || hasRanchServer();
-  const providerName =
-    auth?.provider === 'dropbox'
-      ? 'Dropbox'
-      : auth?.provider === 'google-drive'
-        ? 'Google Drive'
-        : null;
   const others = (devices ?? []).filter((device) => !device.isThisDevice);
 
   return (
@@ -345,22 +347,21 @@ export function SettingsPage() {
         <p className="hint">
           {native
             ? ranchReady
-              ? 'This ranch’s Docker database is the book. Sign in to YOUR Google or Dropbox so the herd also copies there. If the NAS is off, this phone uses that spare copy. Other ranches sign into their own accounts.'
-              : 'No Docker server on this phone. Sign in to YOUR Google or Dropbox and that account is this ranch’s book. Other ranches sign into their own accounts.'
+              ? 'This ranch’s Docker database is the book. Sign in to YOUR Google, YOUR Dropbox, or both. Spare copies go to each account you connect. If the NAS is off, the last one you signed into is the book. Other ranches use their own accounts.'
+              : 'No Docker server on this phone. Sign in to YOUR Google, YOUR Dropbox, or both. Each connected account gets the herd. Other ranches use their own accounts.'
             : 'Sign in on the Android app (not this website). The phone copies this Docker herd to YOUR Drive or Dropbox. Google login in this browser usually fails on http://NAS.'}
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
-          <p className="due-kicker">{connected ? 'Signed in' : 'Not signed in'}</p>
-          <p className="due-date" style={{ fontSize: '1.35rem' }}>
-            {providerName ?? 'Your Drive or Dropbox'}
+          <p className="due-kicker">{googleAuth ? 'Google Drive signed in' : 'Google Drive'}</p>
+          <p className="due-date" style={{ fontSize: '1.2rem' }}>
+            {googleAuth?.accountEmail || googleAuth?.accountName || 'Not signed in'}
           </p>
-          <p className="hint">
-            {auth?.accountName ||
-              auth?.accountEmail ||
-              (ranchReady
-                ? 'The ranch database is the book. This account is the spare copy.'
-                : 'Phones and the office on THIS ranch sign into the same Google or Dropbox account, or use this ranch’s API.')}
+        </div>
+        <div className="account-card" style={{ marginTop: '0.55rem' }}>
+          <p className="due-kicker">{dropboxAuth ? 'Dropbox signed in' : 'Dropbox'}</p>
+          <p className="due-date" style={{ fontSize: '1.2rem' }}>
+            {dropboxAuth?.accountEmail || dropboxAuth?.accountName || 'Not signed in'}
           </p>
         </div>
 
@@ -388,10 +389,18 @@ export function SettingsPage() {
               <button
                 type="button"
                 className="btn ghost"
-                disabled={busy !== null || !connected}
-                onClick={() => void disconnect()}
+                disabled={busy !== null || !googleAuth}
+                onClick={() => void disconnect('google-drive')}
               >
-                Disconnect this account
+                Disconnect Google
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={busy !== null || !dropboxAuth}
+                onClick={() => void disconnect('dropbox')}
+              >
+                Disconnect Dropbox
               </button>
             </div>
           </>

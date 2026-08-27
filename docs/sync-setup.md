@@ -23,7 +23,7 @@ See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android
 Settings on the **phone** → **Sign in with Google** or **Sign in with Dropbox**. That is native OAuth into **your** account. First-time setup (once, on a computer): [click-by-click walkthrough](oauth-setup.md).
 
 - **No Docker:** that account is this ranch’s book.
-- **With Docker:** that account is a spare copy of the ranch database. The Portainer website cannot sign in to Google on `http://NAS` (Google blocks that). Use the APK.
+- **With Docker:** those accounts are spare copies of the ranch database. You can sign into Google, Dropbox, or both. The Portainer website cannot sign in to Google on `http://NAS` (Google blocks that). Use the APK.
 
 ## This ranch’s server (optional)
 

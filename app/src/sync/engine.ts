@@ -6,7 +6,8 @@ import {
   type SyncProvider,
 } from '../db/schema';
 import { serializeJsonl } from './apply';
-import { getSyncAuth, getValidAccessToken, hasUsableSession } from './auth';
+import { getValidAccessToken, hasUsableSession, listCloudAuths } from './auth';
+import { preferredCloudProvider } from './authStore';
 import { carrierFor } from './carrier';
 import { cloudSyncRole } from './cloudRole';
 import {
@@ -73,16 +74,29 @@ function providerLabel(provider: SyncProvider): string {
   return 'this ranch’s book';
 }
 
+function cloudLabels(providers: CloudProvider[]): string {
+  if (providers.length === 2) return 'this ranch’s Google Drive and Dropbox';
+  if (providers.length === 1) return providerLabel(providers[0]);
+  return 'this ranch’s book';
+}
+
 export async function getSyncStatus(): Promise<SyncStatus> {
   const settings = await ensureSettings();
   const pendingCount = await db.outbox.filter((change) => !change.syncedAt).count();
   const conflictCount = await db.syncConflicts.count();
   const deviceCount = await db.syncDevices.count();
-  const auth = await getSyncAuth();
+  const auths = await listCloudAuths();
   const connected = await hasUsableSession();
   const ranchConfigured = hasRanchServer();
   const needsAuth = !connected && !ranchConfigured;
-  const label = providerLabel(settings.syncProvider);
+  const cloudProviders = auths.map((row) => row.provider);
+  const label = cloudLabels(
+    cloudProviders.length > 0
+      ? cloudProviders
+      : isCloudProvider(settings.syncProvider)
+        ? [settings.syncProvider]
+        : [],
+  );
   const others = Math.max(0, deviceCount - 1);
   const online = isSyncOnline(
     typeof navigator !== 'undefined' ? navigator.onLine : false,
@@ -94,7 +108,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     message = 'Offline — changes saved on this device';
   } else if (lastError) {
     message = lastError;
-  } else if (settings.syncProvider === 'none') {
+  } else if (!connected && settings.syncProvider === 'none') {
     message = noneProviderBanner({
       pendingCount,
       ranchConfigured,
@@ -132,7 +146,10 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     ranchSyncedAt: settings.ranchSyncedAt,
     provider: settings.syncProvider,
     message,
-    accountEmail: auth?.accountEmail,
+    accountEmail: auths
+      .map((row) => row.accountEmail)
+      .filter(Boolean)
+      .join(' · ') || undefined,
     conflictCount,
     needsAuth,
     connected,
@@ -301,13 +318,35 @@ async function maybeWriteSnapshot(
   );
 }
 
+async function copySnapshotTo(provider: CloudProvider): Promise<void> {
+  const carrier = carrierFor(provider);
+  await carrier.ensureRoot();
+  const book = await ensureBook(carrier);
+  await maybeWriteSnapshot(carrier, true);
+  const changeFiles = await carrier.list('changes');
+  await publishRoster(
+    carrier,
+    book.bookId,
+    changeFiles.map((file) => file.key),
+  );
+}
+
+const CLOUD_PROVIDERS: CloudProvider[] = ['google-drive', 'dropbox'];
+
+async function connectedCloudProviders(): Promise<CloudProvider[]> {
+  const connected: CloudProvider[] = [];
+  for (const provider of CLOUD_PROVIDERS) {
+    if (await getValidAccessToken(provider)) connected.push(provider);
+  }
+  return connected;
+}
+
 async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
   const settings = await ensureSettings();
   const ranchConfigured = hasRanchServer();
-  const cloudProvider = isCloudProvider(settings.syncProvider)
-    ? settings.syncProvider
-    : null;
-  if (!ranchConfigured && !cloudProvider) {
+  const connectedClouds = await connectedCloudProviders();
+  const preferred = preferredCloudProvider(settings.syncProvider, connectedClouds);
+  if (!ranchConfigured && connectedClouds.length === 0) {
     return {
       ok: false,
       detail: noSharedBookDetail(),
@@ -330,7 +369,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
   let pulled = { pulled: 0, conflicts: 0 };
   let pushed = { pushed: 0 };
   let ranchOk = false;
-  const cloudLabel = cloudProvider ? providerLabel(cloudProvider) : undefined;
+  const cloudLabel = cloudLabels(connectedClouds);
 
   if (ranchConfigured) {
     if (options.replace) await clearHerdForReplace();
@@ -369,7 +408,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
             settings.deviceId,
           );
         }
-      } else if (!cloudProvider) {
+      } else if (connectedClouds.length === 0) {
         lastError = ranch.detail;
         emitSyncEvent();
         return {
@@ -382,7 +421,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       } else {
         parts.push(ranch.detail);
       }
-    } else if (!cloudProvider) {
+    } else if (connectedClouds.length === 0) {
       lastError = incoming.detail;
       emitSyncEvent();
       return {
@@ -397,12 +436,47 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     }
   }
 
-  const cloudRole = cloudSyncRole(ranchOk, Boolean(cloudProvider));
-  if (cloudRole !== 'off' && cloudProvider) {
-    const token = await getValidAccessToken();
-    if (!token) {
-      if (cloudRole === 'book') {
-        lastError = 'Sign in with Google or Dropbox in Settings.';
+  const cloudRole = cloudSyncRole(ranchOk, connectedClouds.length > 0);
+  if (cloudRole !== 'off') {
+    const bookProvider = preferred ?? connectedClouds[0];
+    if (cloudRole === 'book' && bookProvider) {
+      try {
+        if (options.replace && !ranchConfigured) {
+          await clearHerdForReplace();
+        }
+        const carrier = carrierFor(bookProvider);
+        await carrier.ensureRoot();
+        const book = await ensureBook(carrier);
+        const remote = await pullRemote(carrier);
+        pulled = {
+          pulled: pulled.pulled + remote.pulled,
+          conflicts: pulled.conflicts + remote.conflicts,
+        };
+        const sent = await pushLocal(carrier, settings.deviceId);
+        pushed = { pushed: pushed.pushed + sent.pushed };
+        await maybeWriteSnapshot(carrier, true);
+        const changeFiles = await carrier.list('changes');
+        const roster = await publishRoster(
+          carrier,
+          book.bookId,
+          changeFiles.map((file) => file.key),
+        );
+        if (roster.devices.length > 1) {
+          parts.push(`${roster.devices.length} devices on ${providerLabel(bookProvider)}`);
+        }
+        for (const extra of connectedClouds.filter((item) => item !== bookProvider)) {
+          try {
+            await copySnapshotTo(extra);
+            parts.push(`spare copy on ${providerLabel(extra)}`);
+          } catch (error) {
+            parts.push(
+              error instanceof Error ? error.message : `${providerLabel(extra)} spare copy failed.`,
+            );
+          }
+        }
+      } catch (error) {
+        lastError =
+          error instanceof Error ? error.message : `${cloudLabel} sync failed.`;
         emitSyncEvent();
         return {
           ok: false,
@@ -412,53 +486,22 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           conflicts: 0,
         };
       }
-      parts.push('sign in with Google or Dropbox to keep a spare copy');
-    } else {
-      try {
-        if (options.replace && cloudRole === 'book' && !ranchConfigured) {
-          await clearHerdForReplace();
-        } else if (options.replace && cloudRole === 'book' && ranchConfigured) {
-          /* Herd was already cleared for the ranch attempt. */
+    } else if (cloudRole === 'backup') {
+      const copied: string[] = [];
+      for (const provider of connectedClouds) {
+        try {
+          await copySnapshotTo(provider);
+          copied.push(providerLabel(provider));
+        } catch (error) {
+          parts.push(
+            error instanceof Error ? error.message : `${providerLabel(provider)} spare copy failed.`,
+          );
         }
-        const carrier = carrierFor(cloudProvider);
-        await carrier.ensureRoot();
-        const book = await ensureBook(carrier);
-        if (cloudRole === 'book') {
-          const remote = await pullRemote(carrier);
-          pulled = {
-            pulled: pulled.pulled + remote.pulled,
-            conflicts: pulled.conflicts + remote.conflicts,
-          };
-          const sent = await pushLocal(carrier, settings.deviceId);
-          pushed = { pushed: pushed.pushed + sent.pushed };
-        }
-        await maybeWriteSnapshot(carrier, true);
-        const changeFiles = await carrier.list('changes');
-        const roster = await publishRoster(
-          carrier,
-          book.bookId,
-          changeFiles.map((file) => file.key),
-        );
-        if (cloudRole === 'backup') {
-          parts.push(`spare copy on ${cloudLabel}`);
-        } else if (roster.devices.length > 1) {
-          parts.push(`${roster.devices.length} devices on ${cloudLabel}`);
-        }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : `${cloudLabel ?? 'Cloud'} sync failed.`;
-        if (cloudRole === 'book') {
-          lastError = message;
-          emitSyncEvent();
-          return {
-            ok: false,
-            detail: lastError,
-            pulled: 0,
-            pushed: 0,
-            conflicts: 0,
-          };
-        }
-        parts.push(message);
+      }
+      if (copied.length > 0) {
+        parts.push(`spare copy on ${copied.join(' and ')}`);
+      } else if (connectedClouds.length === 0) {
+        parts.push('sign in with Google or Dropbox to keep a spare copy');
       }
     }
   }

@@ -26,7 +26,7 @@ The APK does **not** bake `/api`. That path only works inside a Portainer site *
 
 If **you** run Docker on **your** network, type **your** API in Settings, for example `http://YOUR-NAS:8180/api`. Do not type another ranch’s address. Check `http://YOUR-NAS:8180/api/health` in a browser; it should show `{"ok":true}`.
 
-Keep **Sign in with Google** or **Dropbox** on that same phone. The ranch database is the book. Drive or Dropbox gets a spare copy after each ranch sync. If the NAS is off, the phone uses that copy.
+Keep **Sign in with Google** and **Sign in with Dropbox** on that same phone. You can use both. The ranch database is the book. Each signed-in account gets a spare copy after ranch sync. If the NAS is off, the phone uses the last one you signed into.
 
 ## Build locally
 

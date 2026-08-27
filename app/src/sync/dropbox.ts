@@ -69,14 +69,14 @@ export class DropboxCarrier implements CloudCarrier {
   readonly provider: CloudProvider = 'dropbox';
 
   async ensureRoot(): Promise<void> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('dropbox');
     await createFolder(token, ROOT);
     await createFolder(token, `${ROOT}/snapshots`);
     await createFolder(token, `${ROOT}/changes`);
   }
 
   async readText(path: string): Promise<string | null> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('dropbox');
     const response = await dropboxFetch(token, `${CONTENT}/files/download`, {
       method: 'POST',
       headers: {
@@ -96,7 +96,7 @@ export class DropboxCarrier implements CloudCarrier {
     text: string,
     mode: 'add' | 'overwrite' = 'overwrite',
   ): Promise<void> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('dropbox');
     await this.ensureRoot();
     const parts = path.split('/').filter(Boolean);
     if (parts.length > 1) {
@@ -123,7 +123,7 @@ export class DropboxCarrier implements CloudCarrier {
   }
 
   async list(prefix: string): Promise<CloudFile[]> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('dropbox');
     await this.ensureRoot();
     const path = fullPath(prefix.replace(/\/$/, ''));
     const files: CloudFile[] = [];

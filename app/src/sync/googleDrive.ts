@@ -1,4 +1,4 @@
-import { getSyncAuth, requireAccessToken, saveAuthFolders } from './auth';
+import { getAuthFor, requireAccessToken, saveAuthFolders } from './auth';
 import { assertOk, readJsonBody } from './http';
 import type { CloudCarrier, CloudFile, CloudProvider } from './types';
 import { RECORD_BOOK_FOLDER } from './types';
@@ -107,7 +107,7 @@ async function ensureFolders(token: string): Promise<{
   snapshotsFolderId: string;
   changesFolderId: string;
 }> {
-  const auth = await getSyncAuth();
+  const auth = await getAuthFor('google-drive');
   if (auth?.rootFolderId && auth.snapshotsFolderId && auth.changesFolderId) {
     const probe = await driveFetch(
       token,
@@ -132,7 +132,7 @@ async function ensureFolders(token: string): Promise<{
     rootFolderId,
   );
   const changesFolderId = await getOrCreateFolder(token, 'changes', rootFolderId);
-  await saveAuthFolders({ rootFolderId, snapshotsFolderId, changesFolderId });
+  await saveAuthFolders('google-drive', { rootFolderId, snapshotsFolderId, changesFolderId });
   return { rootFolderId, snapshotsFolderId, changesFolderId };
 }
 
@@ -225,12 +225,12 @@ export class GoogleDriveCarrier implements CloudCarrier {
   readonly provider: CloudProvider = 'google-drive';
 
   async ensureRoot(): Promise<void> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('google-drive');
     await ensureFolders(token);
   }
 
   async readText(path: string): Promise<string | null> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('google-drive');
     const { parentId, name } = await resolveParent(token, path);
     const file = await findChild(token, parentId, name, false);
     if (!file) return null;
@@ -248,7 +248,7 @@ export class GoogleDriveCarrier implements CloudCarrier {
     text: string,
     mode: 'add' | 'overwrite' = 'overwrite',
   ): Promise<void> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('google-drive');
     const { parentId, name } = await resolveParent(token, path);
     const existing = mode === 'add' ? undefined : await findChild(token, parentId, name, false);
     if (existing) {
@@ -259,7 +259,7 @@ export class GoogleDriveCarrier implements CloudCarrier {
   }
 
   async list(prefix: string): Promise<CloudFile[]> {
-    const { token } = await requireAccessToken();
+    const { token } = await requireAccessToken('google-drive');
     const folders = await ensureFolders(token);
     const trimmed = prefix.replace(/\/$/, '');
     if (trimmed === 'changes' || trimmed.startsWith('changes/')) {

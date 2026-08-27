@@ -7,6 +7,7 @@ import {
   refreshNativeSession,
 } from './nativeAuth';
 import { createPkce, oauthRedirectUri, randomUrlSafe, toFormBody } from './pkce';
+import { authRowId, preferredCloudProvider, relocatedDropboxAuth } from './authStore';
 import type { CloudProvider } from './types';
 
 const OAUTH_SESSION_KEY = 'record-book.oauth';
@@ -36,16 +37,65 @@ function readSession(): OauthSession | null {
   }
 }
 
-export async function getSyncAuth(): Promise<SyncAuth | undefined> {
-  return db.syncAuth.get(1);
+let migratedAuthRows = false;
+
+async function migrateCloudAuthRows(): Promise<void> {
+  if (migratedAuthRows) return;
+  const row = await db.syncAuth.get(1);
+  const moved = relocatedDropboxAuth(row);
+  if (moved) {
+    await db.syncAuth.put(moved);
+    await db.syncAuth.delete(1);
+  }
+  migratedAuthRows = true;
 }
 
-export async function disconnectCloud(): Promise<void> {
-  const previous = await db.syncAuth.get(1);
-  await logoutNativePlatform(previous?.provider);
+export async function getAuthFor(provider: CloudProvider): Promise<SyncAuth | undefined> {
+  await migrateCloudAuthRows();
+  const row = await db.syncAuth.get(authRowId(provider));
+  return row?.provider === provider ? row : undefined;
+}
+
+export async function listCloudAuths(): Promise<SyncAuth[]> {
+  await migrateCloudAuthRows();
+  const rows = await db.syncAuth.toArray();
+  return rows.filter(
+    (row) => row.provider === 'google-drive' || row.provider === 'dropbox',
+  );
+}
+
+export async function getSyncAuth(): Promise<SyncAuth | undefined> {
+  const settings = await db.settings.get(1);
+  const rows = await listCloudAuths();
+  const preferred = preferredCloudProvider(
+    settings?.syncProvider,
+    rows.map((row) => row.provider),
+  );
+  if (!preferred) return undefined;
+  return rows.find((row) => row.provider === preferred);
+}
+
+export async function disconnectCloud(provider?: CloudProvider): Promise<void> {
+  await migrateCloudAuthRows();
+  if (provider) {
+    await logoutNativePlatform(provider);
+    const settings = await ensureSettings();
+    const remaining = (await listCloudAuths()).filter((row) => row.provider !== provider);
+    await db.transaction('rw', db.syncAuth, db.settings, async () => {
+      await db.syncAuth.delete(authRowId(provider));
+      const next = remaining[0]?.provider ?? 'none';
+      await db.settings.put({
+        ...settings,
+        syncProvider: settings.syncProvider === provider ? next : settings.syncProvider,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    return;
+  }
+  await logoutNativePlatform();
   const settings = await ensureSettings();
   await db.transaction('rw', db.syncAuth, db.settings, async () => {
-    await db.syncAuth.delete(1);
+    await db.syncAuth.clear();
     await db.settings.put({
       ...settings,
       syncProvider: 'none',
@@ -56,8 +106,8 @@ export async function disconnectCloud(): Promise<void> {
 
 function signedInDetail(provider: CloudProvider): string {
   return provider === 'google-drive'
-    ? 'Signed in to YOUR Google Drive. Other ranches are not on this book.'
-    : 'Signed in to YOUR Dropbox. Other ranches are not on this book.';
+    ? 'Signed in to YOUR Google Drive. Dropbox stays connected if you already signed in there.'
+    : 'Signed in to YOUR Dropbox. Google stays connected if you already signed in there.';
 }
 
 export async function startOAuth(
@@ -65,7 +115,7 @@ export async function startOAuth(
 ): Promise<{ navigated: boolean; detail?: string }> {
   if (isNativeApp()) {
     const native = await loginWithNativePlatform(provider);
-    const previous = await db.syncAuth.get(1);
+    const previous = await getAuthFor(provider);
     await persistAuth(provider, native.tokens, previous, {
       connect: true,
       account: native.account,
@@ -219,7 +269,7 @@ async function persistAuth(
       ? { email: previous?.accountEmail, name: previous?.accountName }
       : await fetchAccount(provider, tokens.access_token!);
   const auth: SyncAuth = {
-    id: 1,
+    id: authRowId(provider),
     provider,
     accessToken: tokens.access_token!,
     refreshToken: tokens.refresh_token || previous?.refreshToken,
@@ -266,7 +316,7 @@ export async function completeOAuthCallback(
     return { ok: false, detail: 'Login state did not match. Try connecting again.' };
   }
 
-  const previous = await db.syncAuth.get(1);
+  const previous = await getAuthFor(session.provider);
   const tokens = await exchangeCode(session.provider, code, session.verifier);
   await persistAuth(session.provider, tokens, previous, { connect: true });
   try {
@@ -323,16 +373,23 @@ async function refreshTokens(auth: SyncAuth): Promise<SyncAuth> {
   throw new Error('Cloud session expired. Reconnect in Settings.');
 }
 
-export async function hasUsableSession(): Promise<boolean> {
-  const auth = await getSyncAuth();
+function authLooksUsable(auth: SyncAuth | undefined): boolean {
   if (!auth?.accessToken) return false;
   if (Date.now() < auth.expiresAt - 5000) return true;
   if (auth.refreshToken) return true;
   return isNativeApp();
 }
 
-export async function getValidAccessToken(): Promise<string | null> {
-  const auth = await getSyncAuth();
+export async function hasUsableSession(provider?: CloudProvider): Promise<boolean> {
+  if (provider) return authLooksUsable(await getAuthFor(provider));
+  const rows = await listCloudAuths();
+  return rows.some((row) => authLooksUsable(row));
+}
+
+export async function getValidAccessToken(
+  provider?: CloudProvider,
+): Promise<string | null> {
+  const auth = provider ? await getAuthFor(provider) : await getSyncAuth();
   if (!auth?.accessToken) return null;
   if (Date.now() < auth.expiresAt - 120_000) return auth.accessToken;
   try {
@@ -343,24 +400,29 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
 }
 
-export async function requireAccessToken(): Promise<{
+export async function requireAccessToken(provider: CloudProvider): Promise<{
   token: string;
   auth: SyncAuth;
 }> {
-  const token = await getValidAccessToken();
-  const auth = await getSyncAuth();
+  const token = await getValidAccessToken(provider);
+  const auth = await getAuthFor(provider);
   if (!token || !auth) {
-    throw new Error('Sign in with Google or Dropbox in Settings.');
+    throw new Error(
+      provider === 'google-drive'
+        ? 'Sign in with Google in Settings.'
+        : 'Sign in with Dropbox in Settings.',
+    );
   }
   return { token, auth };
 }
 
 export async function saveAuthFolders(
+  provider: CloudProvider,
   patch: Partial<
     Pick<SyncAuth, 'rootFolderId' | 'snapshotsFolderId' | 'changesFolderId'>
   >,
 ): Promise<void> {
-  const auth = await getSyncAuth();
+  const auth = await getAuthFor(provider);
   if (!auth) return;
   await db.syncAuth.put({ ...auth, ...patch });
 }

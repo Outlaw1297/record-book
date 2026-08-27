@@ -52,7 +52,18 @@ If you see the gray box that says a domain “must be pre-registered here” and
 
 ### 1D. Add yourself as a test user
 
-While the app is in Testing, Google only lets listed accounts sign in. `drive.file` counts as extra access, so you **must** add your Gmail.
+Adding a Gmail here does **not** put that ranch on your Drive. Google is only allowing that account to see the Allow screen and connect **their** Drive. You still cannot see their cattle.
+
+Google has two modes. Record Book is meant to be universal (unknown ranches, their own Google). That is **later**. Tonight is **Testing**:
+
+| Mode | Who can tap Sign in with Google | What you type |
+|------|----------------------------------|---------------|
+| **Testing** (now) | Only Gmails you add. Max 100. | **Your** Gmail, so *your* phone works. Not future ranches. |
+| **In production** (later) | Any Google account. Same APK. They sign into **theirs**. | Homepage + privacy policy website, then Google’s review. That is when Search Console / Authorized domains matter. |
+
+Do **not** add people you do not know. You will never know every ranch. Dropbox’s equivalent of “any user” is **Enable additional users**. Google’s equivalent is **Publish**, which needs a real website. Skip Publish until Drive works on your phone.
+
+While the app is in Testing, Google only lets listed accounts sign in. Add **your** Gmail.
 
 1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
 2. Publishing status should say **Testing**. Grey **Publish app** is what we want. If the tooltip says you need a homepage URL and privacy policy URL “for switching the app to external production mode”, do **not** add those URLs. That list is only to Publish. Stay in Testing.
@@ -71,7 +82,7 @@ While the app is in Testing, Google only lets listed accounts sign in. `drive.fi
 
 You do **not** need **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
 
-If you Publish, Google blocks Drive until a long review (privacy policy website, demo video). Do not do that for this ranch tool. The 100-user cap on Audience is normal in Testing.
+Do not Publish tonight. Publishing without a homepage and privacy policy is what that grey button is blocking, and a half-finished Publish is how unknown Gmails get **403 Access blocked**. The 100-user cap on Audience is Google’s Testing lock, not Record Book sharing cattle. After your phone works, unknown ranches need the production walk (website + Publish), not more test-user rows.
 
 ### 1E. Tell Google you only need this app’s Drive files
 
@@ -125,7 +136,7 @@ Google can take a few minutes (sometimes a couple of hours) to notice a new Andr
 
 You do **not** send Record Book through Google’s paid/review verification. Keep it in Testing. Official: [exceptions to verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements) (personal use, and apps left in Testing).
 
-This does **not** put other ranches on your Drive. Each person still signs into **their** Gmail. You only add their address so Google will show them the Allow screen.
+This does **not** put other ranches on your Drive. Each person still signs into **their** Gmail. You only add **your** address so Google will show **you** the Allow screen. Unknown ranches are not added here. They wait until the app is Published.
 
 **A. Stay in Testing. Do not Publish.**
 

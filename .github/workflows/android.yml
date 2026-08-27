@@ -43,6 +43,26 @@ jobs:
 
       - run: npm ci
 
+      - name: Require baked OAuth client IDs
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_DROPBOX_APP_KEY: ${{ secrets.VITE_DROPBOX_APP_KEY }}
+        run: |
+          missing=0
+          if [ -z "$VITE_GOOGLE_CLIENT_ID" ]; then
+            echo "Missing GitHub Actions secret VITE_GOOGLE_CLIENT_ID (Google Web client ID)."
+            missing=1
+          fi
+          if [ -z "$VITE_DROPBOX_APP_KEY" ]; then
+            echo "Missing GitHub Actions secret VITE_DROPBOX_APP_KEY (Dropbox App key)."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "Add those repository secrets, then rebuild. See docs/oauth-setup.md."
+            exit 1
+          fi
+          echo "OAuth client IDs are present (values not printed)."
+
       - name: Web build for the APK
         run: npm run build
         env:
@@ -81,7 +101,8 @@ jobs:
             1. Download `record-book-debug.apk` on the phone.
             2. Open it and allow that one install from unknown sources.
             3. Log calves offline. IndexedDB stays on the device.
-            4. Each install is another ranch. Settings → Sign in with Google or Sign in with Dropbox (YOUR account). Or type YOUR ranch API if you run Docker.
+            4. Uninstall the old Record Book first, then install this APK.
+            5. Each install is another ranch. Settings → Sign in with Google or Sign in with Dropbox (YOUR account). Or type YOUR ranch API if you run Docker.
 
             If YOU run Docker, Settings → Ranch API URL `http://YOUR-NAS:8180/api`. Do not use another ranch’s account or NAS.
 

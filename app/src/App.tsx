@@ -11,6 +11,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { AccountPage } from './pages/AccountPage';
 import { HerdDetailPage, HerdListPage } from './pages/HerdPages';
+import { InteropPage } from './pages/InteropPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
 import { getSettings } from './db/schema';
@@ -45,6 +46,7 @@ function MainApp() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="herd" element={<HerdListPage />} />
+        <Route path="herd/new" element={<HerdDetailPage />} />
         <Route path="herd/:herdId" element={<HerdDetailPage />} />
         <Route path="cow-calf" element={<CowCalfListPage />} />
         <Route path="cow-calf/:id" element={<CowCalfFormPage />} />
@@ -56,6 +58,7 @@ function MainApp() {
         <Route path="sales/:id" element={<SalesFormPage />} />
         <Route path="gestation" element={<GestationPage />} />
         <Route path="account" element={<AccountPage />} />
+        <Route path="import" element={<InteropPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="book" element={<Navigate to="/cow-calf" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

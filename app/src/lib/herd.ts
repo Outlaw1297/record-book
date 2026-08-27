@@ -1,10 +1,12 @@
 import {
   db,
+  type Animal,
   type BreedingService,
   type CowCalfRecord,
   type PastureExposure,
   type PastureExposureAnimal,
   type SaleRecord,
+  type TreatmentRecord,
 } from '../db/schema';
 
 function norm(value: string): string {
@@ -20,12 +22,13 @@ function remember(map: Map<string, string>, raw?: string) {
 
 export async function listHerdIds(): Promise<string[]> {
   const labels = new Map<string, string>();
-  const [animals, cowCalf, breeding, pastureAnimals, sales] = await Promise.all([
+  const [animals, cowCalf, breeding, pastureAnimals, sales, treatments] = await Promise.all([
     db.animals.filter((row) => !row.deletedAt).toArray(),
     db.cowCalf.filter((row) => !row.deletedAt).toArray(),
     db.breeding.filter((row) => !row.deletedAt).toArray(),
     db.pastureAnimals.filter((row) => !row.deletedAt).toArray(),
     db.sales.filter((row) => !row.deletedAt).toArray(),
+    db.treatments.filter((row) => !row.deletedAt).toArray(),
   ]);
 
   for (const animal of animals) remember(labels, animal.herdId);
@@ -40,6 +43,7 @@ export async function listHerdIds(): Promise<string[]> {
   }
   for (const row of pastureAnimals) remember(labels, row.animalHerdId);
   for (const row of sales) remember(labels, row.calfId);
+  for (const row of treatments) remember(labels, row.animalHerdId);
 
   return [...labels.values()].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
@@ -56,7 +60,7 @@ export async function searchHerdIds(query: string): Promise<string[]> {
 export type LifetimeEvent = {
   id: string;
   date?: string;
-  kind: 'calving' | 'dam' | 'breeding' | 'pasture' | 'sale';
+  kind: 'calving' | 'dam' | 'breeding' | 'pasture' | 'sale' | 'treatment';
   title: string;
   detail: string;
   href: string;
@@ -64,11 +68,13 @@ export type LifetimeEvent = {
 
 export type LifetimeRecord = {
   herdId: string;
+  animal?: Animal;
   events: LifetimeEvent[];
   cowCalfAsCalf: CowCalfRecord[];
   cowCalfAsDam: CowCalfRecord[];
   breeding: BreedingService[];
   sales: SaleRecord[];
+  treatments: TreatmentRecord[];
   pastures: Array<PastureExposureAnimal & { pasture?: PastureExposure }>;
 };
 
@@ -76,12 +82,14 @@ export async function getLifetime(herdId: string): Promise<LifetimeRecord> {
   const key = norm(herdId);
   const match = (value?: string) => !!value && norm(value) === key;
 
-  const [cowCalf, breeding, pastureAnimals, sales, pastures] = await Promise.all([
+  const [cowCalf, breeding, pastureAnimals, sales, pastures, treatments, animals] = await Promise.all([
     db.cowCalf.filter((row) => !row.deletedAt).toArray(),
     db.breeding.filter((row) => !row.deletedAt).toArray(),
     db.pastureAnimals.filter((row) => !row.deletedAt).toArray(),
     db.sales.filter((row) => !row.deletedAt).toArray(),
     db.pastures.filter((row) => !row.deletedAt).toArray(),
+    db.treatments.filter((row) => !row.deletedAt).toArray(),
+    db.animals.filter((row) => !row.deletedAt).toArray(),
   ]);
 
   const cowCalfAsCalf = cowCalf.filter((row) => match(row.calfId));
@@ -90,6 +98,7 @@ export async function getLifetime(herdId: string): Promise<LifetimeRecord> {
     (row) => match(row.cowId) || match(row.sireId),
   );
   const saleRows = sales.filter((row) => match(row.calfId));
+  const treatmentRows = treatments.filter((row) => match(row.animalHerdId));
   const pastureRows = pastureAnimals
     .filter((row) => match(row.animalHerdId))
     .map((row) => ({
@@ -153,16 +162,28 @@ export async function getLifetime(herdId: string): Promise<LifetimeRecord> {
       href: `/sales/${row.id}`,
     });
   }
+  for (const row of treatmentRows) {
+    events.push({
+      id: `tx-${row.id}`,
+      date: row.date,
+      kind: 'treatment',
+      title: row.product || 'Treatment',
+      detail: [row.dose, row.route, row.notes].filter(Boolean).join(' · '),
+      href: `/herd/${encodeURIComponent(herdId)}`,
+    });
+  }
 
   events.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return {
     herdId,
+    animal: animals.find((row) => match(row.herdId)),
     events,
     cowCalfAsCalf,
     cowCalfAsDam,
     breeding: breedingRows,
     sales: saleRows,
+    treatments: treatmentRows,
     pastures: pastureRows,
   };
 }

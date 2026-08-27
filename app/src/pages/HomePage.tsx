@@ -73,7 +73,11 @@ export function HomePage() {
       <section className="quick-grid">
         <Link className="quick-card" to="/herd">
           <h2>Look up an animal</h2>
-          <p>Lifetime calving, breeding, pasture, and sales</p>
+          <p>Visual ID, Cow Sense fields, lifetime records</p>
+        </Link>
+        <Link className="quick-card" to="/import">
+          <h2>Cow Sense import / export</h2>
+          <p>Pull Nygaaard.csh or a CSV in, send CSV back to Tools → Import</p>
         </Link>
         <Link className="quick-card" to="/cow-calf">
           <h2>Open the book</h2>

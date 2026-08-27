@@ -9,7 +9,9 @@ export type AnimalStatus =
   | 'open'
   | 'sold'
   | 'dead'
-  | 'flagged';
+  | 'culled'
+  | 'flagged'
+  | 'reference';
 
 export interface Animal {
   id: string;
@@ -21,6 +23,45 @@ export interface Animal {
   status: AnimalStatus;
   notes?: string;
   yearBorn?: number;
+  animalType?: string;
+  birthDate?: string;
+  location?: string;
+  groupName?: string;
+  electronicId?: string;
+  registration?: string;
+  tattoo?: string;
+  tattooLoc?: string;
+  brand?: string;
+  color?: string;
+  breed?: string;
+  horned?: string;
+  birthType?: string;
+  calvingEase?: string;
+  serviceType?: string;
+  disposition?: string;
+  bodyCondition?: string;
+  sireId?: string;
+  damId?: string;
+  birthWeight?: string;
+  weaningWeight?: string;
+  weaningDate?: string;
+  yearlingWeight?: string;
+  yearlingDate?: string;
+  extraJson?: string;
+  updatedAt: string;
+  deletedAt?: string;
+}
+
+export interface TreatmentRecord {
+  id: string;
+  animalHerdId: string;
+  date?: string;
+  product?: string;
+  dose?: string;
+  route?: string;
+  location?: string;
+  withdrawal?: string;
+  notes?: string;
   updatedAt: string;
   deletedAt?: string;
 }
@@ -167,6 +208,7 @@ export interface OutboxChange {
     | 'pastures'
     | 'pastureAnimals'
     | 'sales'
+    | 'treatments'
     | 'settings';
   entityId: string;
   op: 'upsert' | 'delete';
@@ -214,6 +256,7 @@ class RecordBookDB extends Dexie {
   pastures!: EntityTable<PastureExposure, 'id'>;
   pastureAnimals!: EntityTable<PastureExposureAnimal, 'id'>;
   sales!: EntityTable<SaleRecord, 'id'>;
+  treatments!: EntityTable<TreatmentRecord, 'id'>;
   settings!: EntityTable<AppSettings, 'id'>;
   outbox!: EntityTable<OutboxChange, 'id'>;
   syncAuth!: EntityTable<SyncAuth, 'id'>;
@@ -240,6 +283,9 @@ class RecordBookDB extends Dexie {
     });
     this.version(3).stores({
       syncDevices: 'deviceId, lastSeenAt',
+    });
+    this.version(4).stores({
+      treatments: 'id, animalHerdId, date, updatedAt',
     });
   }
 }
@@ -297,31 +343,44 @@ export async function queueChange(
   void import('../sync/scheduler').then((mod) => mod.scheduleSync(300));
 }
 
+function definedFields<T extends object>(extras: Partial<T>): Partial<T> {
+  const next: Partial<T> = {};
+  for (const [key, value] of Object.entries(extras) as Array<[keyof T, T[keyof T]]>) {
+    if (value !== undefined) next[key] = value;
+  }
+  return next;
+}
+
+export async function findAnimalByHerdId(herdId: string): Promise<Animal | undefined> {
+  const key = herdId.trim().toLowerCase();
+  if (!key) return undefined;
+  return db.animals
+    .filter((animal) => !animal.deletedAt && animal.herdId.toLowerCase() === key)
+    .first();
+}
+
 export async function upsertAnimalByHerdId(
   herdId: string,
-  extras: Partial<Pick<Animal, 'sex' | 'status' | 'notes' | 'yearBorn'>> = {},
-): Promise<void> {
+  extras: Partial<Omit<Animal, 'id' | 'herdId' | 'updatedAt' | 'deletedAt'>> = {},
+): Promise<Animal | undefined> {
   const trimmed = herdId.trim();
-  if (!trimmed) return;
-  const existing = await db.animals
-    .filter(
-      (animal) =>
-        !animal.deletedAt &&
-        animal.herdId.toLowerCase() === trimmed.toLowerCase(),
-    )
-    .first();
+  if (!trimmed) return undefined;
+  const existing = await findAnimalByHerdId(trimmed);
   const record: Animal = {
-    id: existing?.id ?? newId(),
+    ...(existing ?? {
+      id: newId(),
+      herdId: trimmed,
+      sex: '',
+      status: 'active',
+      updatedAt: nowIso(),
+    }),
+    ...definedFields(extras),
     herdId: existing?.herdId ?? trimmed,
     sex: extras.sex || existing?.sex || '',
     status: extras.status ?? existing?.status ?? 'active',
-    notes: extras.notes ?? existing?.notes,
-    yearBorn: extras.yearBorn ?? existing?.yearBorn,
-    tagColor: existing?.tagColor,
-    phenotype: existing?.phenotype,
-    name: existing?.name,
     updatedAt: nowIso(),
   };
   await db.animals.put(record);
   await queueChange('animals', record.id, 'upsert', record);
+  return record;
 }

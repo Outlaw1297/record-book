@@ -13,6 +13,7 @@ import {
   pastureNaturalKey,
   pickIdentityWinner,
   saleNaturalKey,
+  treatmentNaturalKey,
 } from './identity';
 import type { ChangeLine } from './types';
 
@@ -33,6 +34,7 @@ const ENTITY_TABLES = [
   'pastures',
   'pastureAnimals',
   'sales',
+  'treatments',
 ] as const;
 
 type RecordEntity = (typeof ENTITY_TABLES)[number];
@@ -55,6 +57,8 @@ function tableFor(entity: RecordEntity) {
       return db.pastureAnimals;
     case 'sales':
       return db.sales;
+    case 'treatments':
+      return db.treatments;
   }
 }
 
@@ -163,6 +167,19 @@ async function findNaturalDuplicate(
       const matches = asMeta(
         await db.sales
           .filter((row) => row.id !== remoteId && saleNaturalKey(row) === key)
+          .toArray(),
+      );
+      return newest(matches);
+    }
+    case 'treatments': {
+      const key = treatmentNaturalKey({
+        animalHerdId: String(payload.animalHerdId ?? ''),
+        date: typeof payload.date === 'string' ? payload.date : '',
+        product: typeof payload.product === 'string' ? payload.product : '',
+      });
+      const matches = asMeta(
+        await db.treatments
+          .filter((row) => row.id !== remoteId && treatmentNaturalKey(row) === key)
           .toArray(),
       );
       return newest(matches);

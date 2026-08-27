@@ -46,6 +46,8 @@ A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/ap
 | GET/PUT/DELETE | `/v1/pasture-animals/:id` | |
 | GET | `/v1/sales` | Query `year=` |
 | GET/PUT/DELETE | `/v1/sales/:id` | |
+| GET | `/v1/treatments` | Query `includeDeleted=true` |
+| GET/PUT/DELETE | `/v1/treatments/:id` | DELETE is a soft-delete |
 | GET | `/v1/devices` | Device roster |
 | PUT | `/v1/devices/:id` | |
 

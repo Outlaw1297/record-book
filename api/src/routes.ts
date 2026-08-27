@@ -12,6 +12,7 @@ import {
   upsertPastureAnimal,
   upsertRanch,
   upsertSale,
+  upsertTreatment,
 } from './apply.js';
 import {
   asCloudProvider,
@@ -32,6 +33,7 @@ import {
   pastureFromDb,
   ranchFromDb,
   saleFromDb,
+  treatmentFromDb,
 } from './maps.js';
 
 type Json = Record<string, unknown>;
@@ -68,6 +70,7 @@ v1.get('/', (c) =>
         '/v1/pastures',
         '/v1/pasture-animals',
         '/v1/sales',
+        '/v1/treatments',
         '/v1/devices',
       ],
     },
@@ -139,6 +142,7 @@ const LOOKUP_TABLES = [
   'pastures',
   'pasture_animals',
   'sales',
+  'treatments',
 ] as const;
 
 type LookupTable = (typeof LOOKUP_TABLES)[number];
@@ -330,6 +334,27 @@ v1.put('/sales/:id', async (c) => {
 });
 
 v1.delete('/sales/:id', (c) => softDelete(c, 'sales', saleFromDb, upsertSale));
+
+v1.get('/treatments', async (c) => {
+  const deleted = includeDeleted(c);
+  const result = await query(
+    `SELECT * FROM treatments ${deleted ? '' : 'WHERE deleted_at IS NULL'} ORDER BY date DESC NULLS LAST, lower(animal_herd_id)`,
+  );
+  return c.json(result.rows.map(treatmentFromDb));
+});
+
+v1.get('/treatments/:id', (c) => getById(c, 'treatments', treatmentFromDb));
+
+v1.put('/treatments/:id', async (c) => {
+  const body = { ...((await c.req.json()) as Json), id: c.req.param('id') };
+  await upsertTreatment(body);
+  const result = await query('SELECT * FROM treatments WHERE id = $1', [c.req.param('id')]);
+  return c.json(treatmentFromDb(result.rows[0]));
+});
+
+v1.delete('/treatments/:id', (c) =>
+  softDelete(c, 'treatments', treatmentFromDb, upsertTreatment),
+);
 
 v1.get('/devices', async (c) => {
   const result = await query('SELECT * FROM devices ORDER BY device_name');

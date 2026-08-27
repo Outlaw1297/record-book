@@ -49,6 +49,14 @@ export function saleNaturalKey(row: { year: number; calfId: string }): string {
   return `sale:${row.year}|${normId(row.calfId)}`;
 }
 
+export function treatmentNaturalKey(row: {
+  animalHerdId: string;
+  date?: string;
+  product?: string;
+}): string {
+  return `treatment:${normId(row.animalHerdId)}|${row.date || ''}|${normId(row.product || '')}`;
+}
+
 export function pickIdentityWinner(
   local: { id: string; updatedAt: string },
   remote: { id: string; updatedAt: string },

@@ -131,6 +131,7 @@ function asHerdSnapshot(body: unknown): HerdSnapshot | null {
     pastures: Array.isArray(record.pastures) ? record.pastures : [],
     pastureAnimals: Array.isArray(record.pastureAnimals) ? record.pastureAnimals : [],
     sales: Array.isArray(record.sales) ? record.sales : [],
+    treatments: Array.isArray(record.treatments) ? record.treatments : [],
     settings,
   };
 }

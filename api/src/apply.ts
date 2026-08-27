@@ -7,6 +7,7 @@ import {
   pastureFromDb,
   ranchFromDb,
   saleFromDb,
+  treatmentFromDb,
 } from './maps.js';
 import { asBool, asInt, asText, iso, newer } from './util.js';
 
@@ -19,6 +20,7 @@ const DATA_TABLES = [
   'pastures',
   'pasture_animals',
   'sales',
+  'treatments',
 ] as const;
 
 type DataTable = (typeof DATA_TABLES)[number];
@@ -48,8 +50,16 @@ export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
   if (local && !newer(updatedAt, local)) return 'kept';
   await query(
     `INSERT INTO animals (
-       id, herd_id, tag_color, phenotype, name, sex, status, notes, year_born, updated_at, deleted_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       id, herd_id, tag_color, phenotype, name, sex, status, notes, year_born,
+       animal_type, birth_date, location, group_name, electronic_id, registration,
+       tattoo, tattoo_loc, brand, color, breed, horned, birth_type, calving_ease,
+       service_type, disposition, body_condition, sire_id, dam_id, birth_weight,
+       weaning_weight, weaning_date, yearling_weight, yearling_date, extra_json,
+       updated_at, deleted_at
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+       $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36
+     )
      ON CONFLICT (id) DO UPDATE SET
        herd_id = EXCLUDED.herd_id,
        tag_color = EXCLUDED.tag_color,
@@ -59,6 +69,31 @@ export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
        status = EXCLUDED.status,
        notes = EXCLUDED.notes,
        year_born = EXCLUDED.year_born,
+       animal_type = EXCLUDED.animal_type,
+       birth_date = EXCLUDED.birth_date,
+       location = EXCLUDED.location,
+       group_name = EXCLUDED.group_name,
+       electronic_id = EXCLUDED.electronic_id,
+       registration = EXCLUDED.registration,
+       tattoo = EXCLUDED.tattoo,
+       tattoo_loc = EXCLUDED.tattoo_loc,
+       brand = EXCLUDED.brand,
+       color = EXCLUDED.color,
+       breed = EXCLUDED.breed,
+       horned = EXCLUDED.horned,
+       birth_type = EXCLUDED.birth_type,
+       calving_ease = EXCLUDED.calving_ease,
+       service_type = EXCLUDED.service_type,
+       disposition = EXCLUDED.disposition,
+       body_condition = EXCLUDED.body_condition,
+       sire_id = EXCLUDED.sire_id,
+       dam_id = EXCLUDED.dam_id,
+       birth_weight = EXCLUDED.birth_weight,
+       weaning_weight = EXCLUDED.weaning_weight,
+       weaning_date = EXCLUDED.weaning_date,
+       yearling_weight = EXCLUDED.yearling_weight,
+       yearling_date = EXCLUDED.yearling_date,
+       extra_json = EXCLUDED.extra_json,
        updated_at = EXCLUDED.updated_at,
        deleted_at = EXCLUDED.deleted_at`,
     [
@@ -71,6 +106,31 @@ export async function upsertAnimal(payload: Json): Promise<'applied' | 'kept'> {
       String(payload.status ?? 'active'),
       asText(payload.notes),
       asInt(payload.yearBorn),
+      asText(payload.animalType),
+      asText(payload.birthDate),
+      asText(payload.location),
+      asText(payload.groupName),
+      asText(payload.electronicId),
+      asText(payload.registration),
+      asText(payload.tattoo),
+      asText(payload.tattooLoc),
+      asText(payload.brand),
+      asText(payload.color),
+      asText(payload.breed),
+      asText(payload.horned),
+      asText(payload.birthType),
+      asText(payload.calvingEase),
+      asText(payload.serviceType),
+      asText(payload.disposition),
+      asText(payload.bodyCondition),
+      asText(payload.sireId),
+      asText(payload.damId),
+      asText(payload.birthWeight),
+      asText(payload.weaningWeight),
+      asText(payload.weaningDate),
+      asText(payload.yearlingWeight),
+      asText(payload.yearlingDate),
+      asText(payload.extraJson),
       updatedAt,
       iso(payload.deletedAt),
     ],
@@ -265,6 +325,44 @@ export async function upsertSale(payload: Json): Promise<'applied' | 'kept'> {
   return 'applied';
 }
 
+export async function upsertTreatment(payload: Json): Promise<'applied' | 'kept'> {
+  const id = String(payload.id || '');
+  if (!id) return 'kept';
+  const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
+  const local = await currentUpdatedAt('treatments', id);
+  if (local && !newer(updatedAt, local)) return 'kept';
+  await query(
+    `INSERT INTO treatments (
+       id, animal_herd_id, date, product, dose, route, location, withdrawal, notes, updated_at, deleted_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT (id) DO UPDATE SET
+       animal_herd_id = EXCLUDED.animal_herd_id,
+       date = EXCLUDED.date,
+       product = EXCLUDED.product,
+       dose = EXCLUDED.dose,
+       route = EXCLUDED.route,
+       location = EXCLUDED.location,
+       withdrawal = EXCLUDED.withdrawal,
+       notes = EXCLUDED.notes,
+       updated_at = EXCLUDED.updated_at,
+       deleted_at = EXCLUDED.deleted_at`,
+    [
+      id,
+      String(payload.animalHerdId ?? ''),
+      asText(payload.date),
+      asText(payload.product),
+      asText(payload.dose),
+      asText(payload.route),
+      asText(payload.location),
+      asText(payload.withdrawal),
+      asText(payload.notes),
+      updatedAt,
+      iso(payload.deletedAt),
+    ],
+  );
+  return 'applied';
+}
+
 export async function upsertRanch(payload: Json): Promise<'applied' | 'kept'> {
   const updatedAt = iso(payload.updatedAt) || new Date().toISOString();
   const local = await query<{ updated_at: Date }>('SELECT updated_at FROM ranch WHERE id = 1');
@@ -328,6 +426,8 @@ export async function applyChange(change: Json): Promise<'applied' | 'kept' | 's
       return upsertPastureAnimal(payload);
     case 'sales':
       return upsertSale(payload);
+    case 'treatments':
+      return upsertTreatment(payload);
     case 'settings':
       return upsertRanch(payload);
     default:
@@ -355,6 +455,7 @@ export async function applySnapshot(snapshot: Json): Promise<{ applied: number; 
   for (const row of asArray(snapshot.pastures)) await bump(await upsertPasture(row));
   for (const row of asArray(snapshot.pastureAnimals)) await bump(await upsertPastureAnimal(row));
   for (const row of asArray(snapshot.sales)) await bump(await upsertSale(row));
+  for (const row of asArray(snapshot.treatments)) await bump(await upsertTreatment(row));
   return { applied, kept };
 }
 
@@ -367,6 +468,7 @@ export async function exportSnapshot() {
     pastures,
     pastureAnimals,
     sales,
+    treatments,
   ] = await Promise.all([
     query('SELECT * FROM ranch WHERE id = 1'),
     query('SELECT * FROM animals ORDER BY lower(herd_id)'),
@@ -375,6 +477,7 @@ export async function exportSnapshot() {
     query('SELECT * FROM pastures ORDER BY year DESC, pasture_name'),
     query('SELECT * FROM pasture_animals ORDER BY exposure_id'),
     query('SELECT * FROM sales ORDER BY year DESC, lower(calf_id)'),
+    query('SELECT * FROM treatments ORDER BY date DESC NULLS LAST, lower(animal_herd_id)'),
   ]);
   return {
     format: 'record-book-snapshot',
@@ -387,5 +490,6 @@ export async function exportSnapshot() {
     pastures: pastures.rows.map(pastureFromDb),
     pastureAnimals: pastureAnimals.rows.map(pastureAnimalFromDb),
     sales: sales.rows.map(saleFromDb),
+    treatments: treatments.rows.map(treatmentFromDb),
   };
 }

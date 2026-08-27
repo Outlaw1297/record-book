@@ -9,10 +9,12 @@ import {
   todayIsoDate,
   upsertAnimalByHerdId,
   queueChange,
+  softDeleteRecord,
   type CowCalfRecord,
   type Sex,
 } from '../db/schema';
 import { listHerdIds } from '../lib/herd';
+import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 
@@ -187,6 +189,17 @@ export function CowCalfFormPage() {
     navigate('/cow-calf');
   }
 
+  async function onDelete() {
+    if (!existing) return;
+    const gone = await softDeleteRecord('cowCalf', existing.id);
+    if (!gone) {
+      toast('Could not delete that row.');
+      return;
+    }
+    toast('Calf row deleted');
+    navigate('/cow-calf');
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -332,6 +345,13 @@ export function CowCalfFormPage() {
           <span>Flagged (circled on paper)</span>
         </label>
 
+        {existing ? (
+          <DeleteRecordButton
+            label="Delete row"
+            confirmText="Delete this calf row from this ranch’s book?"
+            onDelete={onDelete}
+          />
+        ) : null}
         <div className="sticky-actions">
           <Link className="btn ghost" to="/cow-calf">
             Cancel

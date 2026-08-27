@@ -65,6 +65,10 @@ export function AccountPage() {
           <p>{cloudSummary(auths)}</p>
         </div>
         <div className="list-card">
+          <h2>Cow Sense</h2>
+          <p>Import this ranch’s .csh or CSV, then export CSV back to Tools → Import.</p>
+        </div>
+        <div className="list-card">
           <h2>Other devices</h2>
           <p>
             {others.length === 0
@@ -79,7 +83,10 @@ export function AccountPage() {
         </div>
       </div>
 
-      <div className="sticky-actions" style={{ gridTemplateColumns: '1fr' }}>
+      <div className="sticky-actions" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <Link className="btn secondary" to="/import">
+          Cow Sense import
+        </Link>
         <Link className="btn secondary" to="/settings">
           Open settings
         </Link>

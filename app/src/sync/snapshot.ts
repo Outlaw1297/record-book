@@ -11,6 +11,7 @@ export async function buildSnapshot(): Promise<HerdSnapshot> {
     pastures,
     pastureAnimals,
     sales,
+    treatments,
     settings,
   ] = await Promise.all([
     db.animals.toArray(),
@@ -19,6 +20,7 @@ export async function buildSnapshot(): Promise<HerdSnapshot> {
     db.pastures.toArray(),
     db.pastureAnimals.toArray(),
     db.sales.toArray(),
+    db.treatments.toArray(),
     ensureSettings(),
   ]);
 
@@ -32,6 +34,7 @@ export async function buildSnapshot(): Promise<HerdSnapshot> {
     pastures,
     pastureAnimals,
     sales,
+    treatments,
     settings: sanitizeSettingsForSync(settings),
   };
 }
@@ -58,6 +61,7 @@ export async function localHerdIsEmpty(): Promise<boolean> {
     db.pastures.count(),
     db.pastureAnimals.count(),
     db.sales.count(),
+    db.treatments.count(),
   ]);
   return counts.every((count) => count === 0);
 }
@@ -73,7 +77,13 @@ export async function mergeSnapshot(
   let conflicts = 0;
   const batches: Array<
     [
-      'animals' | 'cowCalf' | 'breeding' | 'pastures' | 'pastureAnimals' | 'sales',
+      | 'animals'
+      | 'cowCalf'
+      | 'breeding'
+      | 'pastures'
+      | 'pastureAnimals'
+      | 'sales'
+      | 'treatments',
       unknown[],
     ]
   > = [
@@ -83,6 +93,7 @@ export async function mergeSnapshot(
     ['pastures', asArray(snapshot.pastures)],
     ['pastureAnimals', asArray(snapshot.pastureAnimals)],
     ['sales', asArray(snapshot.sales)],
+    ['treatments', asArray(snapshot.treatments)],
   ];
   for (const [entity, rows] of batches) {
     const result = await applySnapshotRows(entity, rows);
@@ -115,6 +126,7 @@ export async function clearHerdForReplace(): Promise<void> {
       db.pastures,
       db.pastureAnimals,
       db.sales,
+      db.treatments,
       db.outbox,
       db.syncApplied,
       db.syncConflicts,
@@ -126,6 +138,7 @@ export async function clearHerdForReplace(): Promise<void> {
       await db.pastures.clear();
       await db.pastureAnimals.clear();
       await db.sales.clear();
+      await db.treatments.clear();
       await db.syncApplied.clear();
       await db.syncConflicts.clear();
       const pending = await db.outbox.filter((row) => !row.syncedAt).toArray();

@@ -35,6 +35,7 @@ export type HerdSnapshot = {
   pastures: unknown[];
   pastureAnimals: unknown[];
   sales: unknown[];
+  treatments?: unknown[];
   settings: {
     ranchName: string;
     currentYear: number;

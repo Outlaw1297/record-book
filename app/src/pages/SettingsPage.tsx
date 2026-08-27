@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
@@ -263,6 +263,10 @@ export function SettingsPage() {
             Save settings
           </button>
         </div>
+        <p className="hint">
+          Cow Sense herd file? <Link to="/import">Import or export CSV</Link> that
+          Tools → Import can read. JSON backup above is this app’s own copy.
+        </p>
       </form>
 
       <section className="sync-panel form">

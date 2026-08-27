@@ -11,3 +11,4 @@ api/dist/
 *.local
 *.apk
 *.aab
+*.csh

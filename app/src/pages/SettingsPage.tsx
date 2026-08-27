@@ -178,7 +178,13 @@ export function SettingsPage() {
     saveRanchApiKey(ranchApiKey);
     setBusy('ranch');
     const result = await probeRanchServer();
-    toast(result.detail);
+    if (!result.ok) {
+      toast(result.detail);
+      setBusy(null);
+      return;
+    }
+    const copied = await syncNow();
+    toast(copied.detail);
     setBusy(null);
   }
 
@@ -394,7 +400,8 @@ export function SettingsPage() {
         <h2>Ranch database (Docker)</h2>
         <p className="hint">
           Optional Postgres copy of this herd for a future app. On ranch Wi-Fi
-          it copies by itself. Drive and Dropbox stay the phone-to-phone book.
+          it copies by itself, even before Drive or Dropbox is connected. Drive
+          and Dropbox stay the phone-to-phone book.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'Copies on Wi-Fi' : 'Not configured'}
@@ -447,7 +454,7 @@ export function SettingsPage() {
             disabled={busy !== null || !ranchReady}
             onClick={() => void testRanchApi()}
           >
-            {busy === 'ranch' ? 'Checking…' : 'Test connection'}
+            {busy === 'ranch' ? 'Copying…' : 'Copy to ranch'}
           </button>
         </div>
       </section>

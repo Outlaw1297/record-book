@@ -109,6 +109,7 @@ export interface AppSettings {
   currentYear: number;
   syncProvider: SyncProvider;
   lastSyncedAt?: string;
+  ranchSyncedAt?: string;
   deviceId: string;
   deviceName?: string;
   deviceKind?: DeviceKind;

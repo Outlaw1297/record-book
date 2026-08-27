@@ -18,6 +18,7 @@ import {
 } from './identity';
 import { hasRanchServer, pushToRanchServer } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
+import { formatWhen, noneProviderBanner } from './statusCopy';
 import {
   buildSnapshot,
   clearHerdForReplace,
@@ -40,6 +41,7 @@ export type SyncStatus = {
   online: boolean;
   pendingCount: number;
   lastSyncedAt?: string;
+  ranchSyncedAt?: string;
   provider: SyncProvider;
   message: string;
   accountEmail?: string;
@@ -83,16 +85,11 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   } else if (lastError) {
     message = lastError;
   } else if (settings.syncProvider === 'none') {
-    if (pendingCount > 0) {
-      message = `${pendingCount} change(s) on this phone. Connect Drive or Dropbox in Settings to share them.`;
-    } else if (ranchConfigured && settings.lastSyncedAt) {
-      message = `Online — ranch database last copied ${formatWhen(settings.lastSyncedAt)}`;
-    } else if (ranchConfigured) {
-      message =
-        'Online — connect Drive or Dropbox to share phones. Ranch database copies on Wi-Fi.';
-    } else {
-      message = 'Online — connect Drive or Dropbox in Settings';
-    }
+    message = noneProviderBanner({
+      pendingCount,
+      ranchConfigured,
+      ranchSyncedAt: settings.ranchSyncedAt,
+    });
   } else if (isCloudProvider(settings.syncProvider) && !connected) {
     message = ranchConfigured
       ? `Online — reconnect ${label}, or the ranch database still copies itself`
@@ -111,6 +108,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     online,
     pendingCount,
     lastSyncedAt: settings.lastSyncedAt,
+    ranchSyncedAt: settings.ranchSyncedAt,
     provider: settings.syncProvider,
     message,
     accountEmail: auth?.accountEmail,
@@ -119,19 +117,12 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     connected,
     deviceCount,
     bookId: settings.bookId,
-    retryable: Boolean(lastError || needsAuth),
+    retryable: Boolean(
+      lastError ||
+        needsAuth ||
+        (ranchConfigured && pendingCount > 0 && !settings.ranchSyncedAt),
+    ),
   };
-}
-
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 async function markOutboxSynced(ids: string[]): Promise<void> {
@@ -341,10 +332,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
         pushed = options.replace
           ? { pushed: 0 }
           : await pushLocal(carrier, settings.deviceId);
-        await maybeWriteSnapshot(
-          carrier,
-          pulled.pulled > 0 || pushed.pushed > 0 || options.replace === true,
-        );
+        await maybeWriteSnapshot(carrier, true);
         const changeFiles = await carrier.list('changes');
         const roster = await publishRoster(
           carrier,
@@ -379,8 +367,19 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
 
   if (ranchConfigured) {
     const ranch = await pushToRanchServer();
-    if (ranch.ok) parts.push('copied to ranch database');
-    else if (!cloudOk) {
+    if (ranch.ok) {
+      parts.push(ranch.detail);
+      const now = nowIso();
+      await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
+      if (!cloudOk) {
+        const pending = await db.outbox
+          .filter((change) => !change.syncedAt)
+          .toArray();
+        if (pending.length > 0) {
+          await markOutboxSynced(pending.map((change) => change.id));
+        }
+      }
+    } else if (!cloudOk) {
       lastError = ranch.detail;
       emitSyncEvent();
       return {

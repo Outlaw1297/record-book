@@ -174,23 +174,10 @@ export async function refreshNativeSession(provider: CloudProvider): Promise<Nat
   try {
     await ensureNativeAuth();
     if (provider === 'google-drive') {
-      const response = await SocialLogin.login({
-        provider: 'google',
-        options: {
-          scopes: GOOGLE_SCOPES,
-          forceRefreshToken: true,
-        },
-      });
-      if (response.provider !== 'google' || response.result.responseType !== 'online') {
-        return null;
-      }
-      const access = response.result.accessToken;
-      if (!access?.token) return null;
-      return {
-        access_token: access.token,
-        refresh_token: access.refreshToken,
-        expires_in: expiresInFrom(access),
-      };
+      // Online Google Sign-In has no silent refresh on Android. login() would
+      // open Credential Manager during background sync. A stored refresh token
+      // is refreshed over HTTP in refreshTokens instead.
+      return null;
     }
     const response = await SocialLogin.refreshToken({
       provider: 'oauth2',

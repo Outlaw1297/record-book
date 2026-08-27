@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -20,6 +20,7 @@ import {
 import { defaultDeviceName } from '../sync/identity';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
+  discoverRanchIfPresent,
   getRanchApiKey,
   getRanchApiUrl,
   hasEnvRanchApiUrl,
@@ -55,6 +56,7 @@ export function SettingsPage() {
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
+  const ranchApiTouched = useRef(false);
   const [busy, setBusy] = useState<
     'google-drive' | 'dropbox' | 'off' | 'replace' | 'ranch' | null
   >(null);
@@ -75,6 +77,17 @@ export function SettingsPage() {
   }, [settings, hydrated]);
 
   useEffect(() => {
+    let cancelled = false;
+    void discoverRanchIfPresent().then(() => {
+      if (cancelled || ranchApiTouched.current) return;
+      setRanchApiUrl(getRanchApiUrl());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
       toast('Signed in. Syncing…');
       setSearchParams(
@@ -87,11 +100,19 @@ export function SettingsPage() {
     }
   }, [searchParams, setSearchParams, toast]);
 
+  function persistRanchApiFromForm(): string {
+    const url = ranchApiTouched.current
+      ? ranchApiUrl
+      : ranchApiUrl.trim() || getRanchApiUrl();
+    if (url !== ranchApiUrl) setRanchApiUrl(url);
+    saveRanchApiUrl(url);
+    saveRanchApiKey(ranchApiKey);
+    return url;
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!settings) return;
-    saveRanchApiUrl(ranchApiUrl);
-    saveRanchApiKey(ranchApiKey);
     const nextRanch = ranchName.trim() || 'Record Book';
     const nextYear = currentYear;
     const ranchChanged =
@@ -148,18 +169,16 @@ export function SettingsPage() {
   }
 
   async function saveRanchApi() {
-    saveRanchApiUrl(ranchApiUrl);
-    saveRanchApiKey(ranchApiKey);
+    const url = persistRanchApiFromForm();
     toast(
-      ranchApiUrl.trim()
+      url.trim()
         ? 'Ranch API saved on this device. It is not written to Drive or Dropbox.'
         : 'Ranch API cleared on this device.',
     );
   }
 
   async function testRanchApi() {
-    saveRanchApiUrl(ranchApiUrl);
-    saveRanchApiKey(ranchApiKey);
+    persistRanchApiFromForm();
     setBusy('ranch');
     const result = await probeRanchServer();
     if (!result.ok) {
@@ -270,7 +289,10 @@ export function SettingsPage() {
         >
           <input
             value={ranchApiUrl}
-            onChange={(e) => setRanchApiUrl(e.target.value)}
+            onChange={(e) => {
+              ranchApiTouched.current = true;
+              setRanchApiUrl(e.target.value);
+            }}
             placeholder={native ? RANCH_LAN_API_PLACEHOLDER : '/api'}
             autoComplete="off"
             spellCheck={false}

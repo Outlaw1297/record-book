@@ -332,6 +332,13 @@ export async function completeOAuthCallback(
   };
 }
 
+function canRefreshWithoutPrompt(auth: SyncAuth): boolean {
+  if (auth.refreshToken) return true;
+  // Native Dropbox can refresh via the plugin without a stored refresh token.
+  // Native Google cannot; login() would prompt during background sync.
+  return isNativeApp() && auth.provider === 'dropbox';
+}
+
 async function refreshTokens(auth: SyncAuth): Promise<SyncAuth> {
   if (auth.refreshToken) {
     const clientId = clientIdFor(auth.provider);
@@ -353,7 +360,7 @@ async function refreshTokens(auth: SyncAuth): Promise<SyncAuth> {
       return persistAuth(auth.provider, json, auth);
     }
   }
-  if (isNativeApp()) {
+  if (isNativeApp() && auth.provider === 'dropbox') {
     const native = await refreshNativeSession(auth.provider);
     if (native?.access_token) {
       return persistAuth(auth.provider, native, auth);
@@ -366,14 +373,14 @@ export async function hasUsableSession(): Promise<boolean> {
   const auth = await getSyncAuth();
   if (!auth?.accessToken) return false;
   if (Date.now() < auth.expiresAt - 5000) return true;
-  if (auth.refreshToken) return true;
-  return isNativeApp();
+  return canRefreshWithoutPrompt(auth);
 }
 
 export async function getValidAccessToken(): Promise<string | null> {
   const auth = await getSyncAuth();
   if (!auth?.accessToken) return null;
   if (Date.now() < auth.expiresAt - 120_000) return auth.accessToken;
+  if (!canRefreshWithoutPrompt(auth)) return null;
   try {
     const next = await refreshTokens(auth);
     return next.accessToken;

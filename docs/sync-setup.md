@@ -2,10 +2,11 @@
 
 Record Book is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** One ranch’s Drive, Dropbox, or NAS is never used for another ranch’s herd.
 
-Each phone keeps a local IndexedDB copy for offline work. Then pick one sharing path for **this** ranch only:
+Each phone keeps a local IndexedDB copy for offline work.
 
-1. **This ranch runs Docker / Portainer on its own network.** The website uses `/api` on that host. That Postgres database is this ranch’s book. Other ranches who pull the same Docker image get their own empty database.
-2. **This ranch has no server.** On the APK, **Sign in with Google** or **Sign in with Dropbox** using **this ranch’s** account. Other phones on this ranch sign into the same account. Another ranch signs into theirs.
+1. **This ranch runs Docker / Portainer.** That Postgres database is this ranch’s book. Other ranches who pull the same image get their own empty database.
+2. **Spare copy (recommended with Docker).** On the APK, also **Sign in with Google** or **Sign in with Dropbox** using **this ranch’s** account. After the phone copies the ranch database, it writes a spare `RecordBook` folder in that account. If the NAS is off, the phone uses that copy. Another ranch signs into theirs.
+3. **This ranch has no server.** Drive or Dropbox is the book (same sign-in).
 
 See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android APK](android.md).
 
@@ -17,11 +18,12 @@ See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android
 | Device name (“Alex’s phone”) | Animals, cow–calf, breeding, pasture, sales |
 | Drive / Dropbox tokens / ranch API URL | Device roster for this ranch |
 
-## This ranch’s Google Drive or Dropbox (no server)
+## This ranch’s Google Drive or Dropbox
 
-Settings → **Sign in with Google** or **Sign in with Dropbox**. That is native OAuth into **your** account. First-time setup (once, on a computer): [click-by-click walkthrough](oauth-setup.md).
+Settings on the **phone** → **Sign in with Google** or **Sign in with Dropbox**. That is native OAuth into **your** account. First-time setup (once, on a computer): [click-by-click walkthrough](oauth-setup.md).
 
-HTTP LAN Docker sites use this ranch’s database instead.
+- **No Docker:** that account is this ranch’s book.
+- **With Docker:** that account is a spare copy of the ranch database. The Portainer website cannot sign in to Google on `http://NAS` (Google blocks that). Use the APK.
 
 ## This ranch’s server (optional)
 
@@ -32,6 +34,8 @@ The Docker website already uses `/api` on whatever host you deployed. Health che
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row.
-- **Online + this ranch’s API set:** pull/push this ranch’s Postgres by itself (save, every few seconds, and when the app opens). Tap Sync if you want it right now.
+- **Online + this ranch’s API set:** pull/push this ranch’s Postgres (the book).
+- **Online + ranch API + signed in:** same ranch copy, then overwrite the spare Drive/Dropbox snapshot. Does not pull Drive over the ranch book while the NAS is up.
+- **Online + ranch API down + signed in:** Drive or Dropbox is the book until the NAS is back.
 - **Online + no server + signed in:** YOUR Google Drive or Dropbox is this ranch’s book.
 - **Online + neither:** Settings asks you to sign in or set this ranch’s API.

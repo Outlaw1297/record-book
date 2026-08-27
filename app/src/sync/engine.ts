@@ -8,6 +8,7 @@ import {
 import { serializeJsonl } from './apply';
 import { getSyncAuth, getValidAccessToken, hasUsableSession } from './auth';
 import { carrierFor } from './carrier';
+import { cloudSyncRole } from './cloudRole';
 import {
   defaultDeviceName,
   devicesFromChangePaths,
@@ -101,19 +102,26 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     });
   } else if (isCloudProvider(settings.syncProvider) && !connected) {
     message = ranchConfigured
-      ? `Online — reconnect ${label}, or the ranch database still copies itself`
+      ? `Online — ranch database copies itself. Reconnect ${label} in Settings to keep a spare copy.`
       : `Online — reconnect ${label} in Settings`;
   } else if (pendingCount > 0) {
     message = ranchConfigured
-      ? `${pendingCount} change(s) copying themselves to the ranch database…`
+      ? connected
+        ? `${pendingCount} change(s) copying to the ranch database, then a spare copy on ${label}…`
+        : `${pendingCount} change(s) copying themselves to the ranch database…`
       : `${pendingCount} change(s) copying themselves to ${label}…`;
   } else if (others > 0 && settings.lastSyncedAt) {
     message = `Online — this ranch’s book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
-    message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}. Copies by itself.`;
+    message =
+      ranchConfigured && connected
+        ? `Online — ranch database last synced ${formatWhen(settings.lastSyncedAt)}. Spare copy on ${label}.`
+        : `Online — last synced ${formatWhen(settings.lastSyncedAt)}. Copies by itself.`;
   } else {
     message = ranchConfigured
-      ? 'Online — this ranch’s database copies by itself.'
+      ? connected
+        ? `Online — this ranch’s database copies by itself. Spare copy on ${label}.`
+        : 'Online — this ranch’s database copies by itself.'
       : `Online — connected to ${label}. Copies by itself.`;
   }
 
@@ -389,11 +397,11 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     }
   }
 
-  const useCloud = Boolean(cloudProvider) && !ranchOk;
-  if (useCloud && cloudProvider) {
+  const cloudRole = cloudSyncRole(ranchOk, Boolean(cloudProvider));
+  if (cloudRole !== 'off' && cloudProvider) {
     const token = await getValidAccessToken();
     if (!token) {
-      if (!ranchOk) {
+      if (cloudRole === 'book') {
         lastError = 'Sign in with Google or Dropbox in Settings.';
         emitSyncEvent();
         return {
@@ -404,23 +412,26 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           conflicts: 0,
         };
       }
+      parts.push('sign in with Google or Dropbox to keep a spare copy');
     } else {
       try {
-        if (options.replace && !ranchOk && !ranchConfigured) {
+        if (options.replace && cloudRole === 'book' && !ranchConfigured) {
           await clearHerdForReplace();
-        } else if (options.replace && !ranchOk && ranchConfigured) {
+        } else if (options.replace && cloudRole === 'book' && ranchConfigured) {
           /* Herd was already cleared for the ranch attempt. */
         }
         const carrier = carrierFor(cloudProvider);
         await carrier.ensureRoot();
         const book = await ensureBook(carrier);
-        const remote = await pullRemote(carrier);
-        pulled = {
-          pulled: pulled.pulled + remote.pulled,
-          conflicts: pulled.conflicts + remote.conflicts,
-        };
-        const sent = await pushLocal(carrier, settings.deviceId);
-        pushed = { pushed: pushed.pushed + sent.pushed };
+        if (cloudRole === 'book') {
+          const remote = await pullRemote(carrier);
+          pulled = {
+            pulled: pulled.pulled + remote.pulled,
+            conflicts: pulled.conflicts + remote.conflicts,
+          };
+          const sent = await pushLocal(carrier, settings.deviceId);
+          pushed = { pushed: pushed.pushed + sent.pushed };
+        }
         await maybeWriteSnapshot(carrier, true);
         const changeFiles = await carrier.list('changes');
         const roster = await publishRoster(
@@ -428,13 +439,15 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           book.bookId,
           changeFiles.map((file) => file.key),
         );
-        if (roster.devices.length > 1) {
+        if (cloudRole === 'backup') {
+          parts.push(`spare copy on ${cloudLabel}`);
+        } else if (roster.devices.length > 1) {
           parts.push(`${roster.devices.length} devices on ${cloudLabel}`);
         }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : `${cloudLabel ?? 'Cloud'} sync failed.`;
-        if (!ranchOk) {
+        if (cloudRole === 'book') {
           lastError = message;
           emitSyncEvent();
           return {

@@ -202,8 +202,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps this ranch’s book. Sign in to YOUR Google or Dropbox, or use a Docker server YOU run. Other ranches who install this app sign into their own accounts.'
-            : 'This browser keeps this ranch’s book. If you opened it from your own Docker site, that database is yours. Other ranches are not on it.'}
+            ? 'This phone keeps this ranch’s book. If YOU run Docker, that database is the book. Sign in to YOUR Google or Dropbox so a spare copy lives there if the NAS is off.'
+            : 'This browser is the ranch website. The Docker database on this host is the book. Sign in with Google or Dropbox on the phone app so a spare copy of this herd goes to YOUR Drive or Dropbox.'}
         </p>
       </header>
 
@@ -254,10 +254,9 @@ export function SettingsPage() {
       <section className="sync-panel form">
         <h2>Ranch server (optional)</h2>
         <p className="hint">
-          Only if YOU run the Portainer stack on YOUR network. Saves copy by
-          themselves on Wi-Fi after that. Do not point this phone at another
-          ranch’s server. If you have no server, skip this and sign in to your
-          own Google Drive or Dropbox below.
+          Only if YOU run the Portainer stack on YOUR network. That Postgres
+          database is this ranch’s book. Saves copy by themselves on Wi-Fi.
+          Do not point this phone at another ranch’s server.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'This ranch’s server' : 'No server on this ranch'}
@@ -342,12 +341,13 @@ export function SettingsPage() {
       </section>
 
       <section className="sync-panel">
-        <h2>This ranch’s Google Drive or Dropbox</h2>
+        <h2>Spare copy on Google Drive or Dropbox</h2>
         <p className="hint">
-          Sign in to YOUR Google or Dropbox account. That opens Google or
-          Dropbox login, not this phone’s files. The app writes a RecordBook
-          folder in that account. Other ranches who install Record Book sign
-          into their own accounts and do not see your herd.
+          {native
+            ? ranchReady
+              ? 'This ranch’s Docker database is the book. Sign in to YOUR Google or Dropbox so the herd also copies there. If the NAS is off, this phone uses that spare copy. Other ranches sign into their own accounts.'
+              : 'No Docker server on this phone. Sign in to YOUR Google or Dropbox and that account is this ranch’s book. Other ranches sign into their own accounts.'
+            : 'Sign in on the Android app (not this website). The phone copies this Docker herd to YOUR Drive or Dropbox. Google login in this browser usually fails on http://NAS.'}
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -359,39 +359,49 @@ export function SettingsPage() {
             {auth?.accountName ||
               auth?.accountEmail ||
               (ranchReady
-                ? 'Skip this if you already use your own ranch server.'
+                ? 'The ranch database is the book. This account is the spare copy.'
                 : 'Phones and the office on THIS ranch sign into the same Google or Dropbox account, or use this ranch’s API.')}
           </p>
         </div>
 
-        <div className="provider-actions">
-          <button
-            type="button"
-            className="btn primary"
-            disabled={busy !== null}
-            onClick={() => void connect('google-drive')}
-          >
-            {busy === 'google-drive' ? 'Opening Google…' : 'Sign in with Google'}
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            disabled={busy !== null}
-            onClick={() => void connect('dropbox')}
-          >
-            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Sign in with Dropbox'}
-          </button>
-        </div>
-        <div className="provider-actions">
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={busy !== null || !connected}
-            onClick={() => void disconnect()}
-          >
-            Disconnect this account
-          </button>
-        </div>
+        {native || !hasEnvRanchApiUrl() ? (
+          <>
+            <div className="provider-actions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy !== null}
+                onClick={() => void connect('google-drive')}
+              >
+                {busy === 'google-drive' ? 'Opening Google…' : 'Sign in with Google'}
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy !== null}
+                onClick={() => void connect('dropbox')}
+              >
+                {busy === 'dropbox' ? 'Opening Dropbox…' : 'Sign in with Dropbox'}
+              </button>
+            </div>
+            <div className="provider-actions">
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={busy !== null || !connected}
+                onClick={() => void disconnect()}
+              >
+                Disconnect this account
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="hint" style={{ marginTop: '0.75rem' }}>
+            Open Record Book on the phone, set this host as the ranch API, then
+            Sign in with Google or Dropbox there. That is what writes the spare
+            copy.
+          </p>
+        )}
       </section>
 
       <section className="sync-panel">

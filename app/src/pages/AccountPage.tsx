@@ -28,8 +28,8 @@ export function AccountPage() {
         <h1>Account</h1>
         <p className="lede">
           You have a name on this device. Cattle belong to THIS ranch’s book:
-          your Docker database if you run one, otherwise YOUR Google Drive or
-          Dropbox. Other ranches are not on it.
+          your Docker database if you run one. YOUR Google Drive or Dropbox is
+          a spare copy of that book, or the book if you have no server.
         </p>
       </header>
 

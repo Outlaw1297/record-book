@@ -10,10 +10,6 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-ARG GOOGLE_OAUTH_CLIENT_ID=
-ARG DROPBOX_APP_KEY=
-ENV GOOGLE_OAUTH_CLIENT_ID=$GOOGLE_OAUTH_CLIENT_ID
-ENV DROPBOX_APP_KEY=$DROPBOX_APP_KEY
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist

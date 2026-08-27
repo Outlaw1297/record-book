@@ -17,9 +17,9 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 
 Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host). To confirm the API from a browser, open `http://YOUR-HOST:8180/api/health` — it should show `{"ok":true}`. `/api` by itself is not the app.
 
-Settings → Ranch server is already set to `/api` on this Portainer site. That Postgres database is the shared book for **this** install. Phones on ranch Wi-Fi pull and push here. Installs that do not run this stack sign in with Google or Dropbox on the device instead.
+Settings → Ranch server is already set to `/api` on this Portainer site. That Postgres database is the shared book for **this** install. Phones type this host’s API in Settings. Installs that do not run this stack choose a Google Drive or Dropbox folder on the phone instead.
 
-Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. Native Google/Dropbox login works without this stack. On ranch Wi-Fi it also copies to `http://YOUR-HOST:8180/api` when that health check answers.
+Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. Shared-folder sync uses the Android picker (no keys). If this install has Docker, set the ranch API in Settings to `http://YOUR-HOST:8180/api`.
 
 If a previous deploy failed, remove that stack and create it again so it picks up this compose file.
 

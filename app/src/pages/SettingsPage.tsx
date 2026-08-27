@@ -200,8 +200,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps a local copy. Sign in with Google or Dropbox to share the book without a ranch server. If this ranch runs Docker, that database is used when you are on ranch Wi-Fi.'
-            : 'This browser keeps a local copy. Sign in with Google or Dropbox to share, or use the Docker database if this site is on a ranch NAS.'}
+            ? 'This phone keeps a local copy. Choose a Google Drive, Dropbox, or other folder to share the book. If this install also runs Docker, type that ranch API URL.'
+            : 'This browser keeps a local copy. Docker installs share through the ranch database. Other installs choose a shared folder on the device.'}
         </p>
       </header>
 
@@ -279,11 +279,9 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Leave empty unless this ranch has a NAS. On Flying J Wi-Fi the
-              app looks for <code>{RANCH_LAN_API_PLACEHOLDER}</code> by itself.
-              To check in a browser, open{' '}
-              <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it should show{' '}
-              <code>{'{"ok":true}'}</code>.
+              Leave empty unless this install has a ranch server. Example:{' '}
+              <code>{RANCH_LAN_API_PLACEHOLDER}</code>. Health check is that
+              URL plus <code>/health</code>.
             </>
           ) : (
             <>
@@ -335,11 +333,11 @@ export function SettingsPage() {
       </section>
 
       <section className="sync-panel">
-        <h2>Google or Dropbox sign-in</h2>
+        <h2>Shared folder</h2>
         <p className="hint">
-          How phones share the book when there is no ranch server. Tap Sign in
-          like any other app. Client IDs are baked into the APK; you never paste
-          them on the phone.
+          How phones share the book when there is no ranch server. The phone
+          opens the system folder picker — choose Google Drive, Dropbox, or any
+          folder. Every device picks the same folder. No keys to paste.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -351,7 +349,7 @@ export function SettingsPage() {
             {auth?.accountEmail ||
               (ranchReady
                 ? 'The herd still lives in the ranch database if you skip this.'
-                : 'Sign in so other phones and the office share this book.')}
+                : 'Choose a folder so other phones and the office share this book.')}
           </p>
         </div>
 
@@ -362,7 +360,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('google-drive')}
           >
-            {busy === 'google-drive' ? 'Opening Google…' : 'Sign in with Google'}
+            {busy === 'google-drive' ? 'Opening Drive…' : 'Choose Google Drive folder'}
           </button>
           <button
             type="button"
@@ -370,7 +368,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('dropbox')}
           >
-            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Sign in with Dropbox'}
+            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Choose Dropbox folder'}
           </button>
         </div>
         <div className="provider-actions">

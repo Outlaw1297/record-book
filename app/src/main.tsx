@@ -4,16 +4,10 @@ import './index.css';
 import App from './App';
 import { ensureSettings } from './db/schema';
 import { isNativeApp } from './platform';
-import { hydrateOAuthClients } from './sync/credentials';
-import { discoverRanchIfPresent } from './sync/ranchServer';
 import { startSyncScheduler } from './sync/scheduler';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
-void (async () => {
-  await ensureSettings();
-  if (isNativeApp()) await discoverRanchIfPresent();
-  await hydrateOAuthClients();
-})();
+void ensureSettings();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

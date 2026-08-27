@@ -2,9 +2,7 @@
 
 The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device.
 
-Not every install has a ranch server. Sign in with Google or Dropbox on the phone to share the book. If this ranch does run Docker, the APK uses that Postgres database when it can reach it on ranch Wi-Fi.
-
-A PWA “Add to Home Screen” shortcut still needs the website the first time, and HTTP on the LAN is not a secure context, so service-worker offline is unreliable there. Use the APK in the pasture.
+This is the same APK for every ranch. It does not bake a specific NAS address or OAuth keys.
 
 ## Install on a phone
 
@@ -14,31 +12,19 @@ A PWA “Add to Home Screen” shortcut still needs the website the first time, 
 4. Open the APK. Android will ask you to allow that app (Chrome, Files, etc.) to install unknown apps. Allow it for this one install.
 5. Open **Record Book**. Finish onboarding. Log calves. No website required.
 
-This is a **debug** APK for ranch sideload, not a Play Store build. Uninstall the old app first if a previous build used a different signing key.
+This is a **debug** APK for sideload, not a Play Store build.
 
-## Google / Dropbox from the APK
+## Share without a ranch server
 
-Tap **Sign in with Google** or **Sign in with Dropbox**. That is native platform login. It does not call the ranch API.
+Settings → **Choose Google Drive folder** or **Choose Dropbox folder**. The phone opens the Android folder picker. Open Drive or Dropbox (or any folder) and select it. Other phones pick that same folder.
 
-Client IDs are baked from GitHub secrets `VITE_GOOGLE_CLIENT_ID` and `VITE_DROPBOX_APP_KEY`. You do not paste them on the phone.
+No Google Cloud client ID, Dropbox app key, or GitHub secret is required.
 
-Google Cloud also needs an **Android** OAuth client for package `me.flyingjranch.recordbook` with this debug SHA-1:
-
-```text
-CB:80:C1:B3:7A:DA:5E:5D:FE:9D:7B:0B:66:C1:0F:03:D9:76:11:BE
-```
-
-Dropbox needs the redirect URI `me.flyingjranch.recordbook://oauth/callback`.
-
-See [sync setup](sync-setup.md).
-
-## Ranch database from the phone (optional)
+## Ranch database (optional)
 
 The APK does **not** bake `/api`. That path only works inside the Portainer nginx site.
 
-The phone does **not** assume every install is this NAS. On launch it probes `http://192.168.1.56:8180/api/health`. If that answers `{"ok":true}`, Settings gets that ranch URL. If it does not, the phone stays on Google/Dropbox only.
-
-To check from Chrome, open `http://192.168.1.56:8180/api/health`. Change the URL in Settings only if this ranch’s NAS IP is different.
+If this install has a Docker NAS, type that API in Settings, for example `http://YOUR-NAS:8180/api`. Check `http://YOUR-NAS:8180/api/health` in a browser; it should show `{"ok":true}`.
 
 ## Build locally
 

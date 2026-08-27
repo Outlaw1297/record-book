@@ -1,6 +1,6 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). Phones sign in with Google or Dropbox on the device when there is no ranch server. This ranch can also run an optional **Docker / Portainer** stack so Postgres is the shared book on the NAS.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones share a Google Drive or Dropbox folder through the system picker (no keys). Any ranch can also run an optional **Docker / Portainer** stack so Postgres is the shared book.
 
 ## Run locally
 
@@ -54,14 +54,13 @@ Install the **Android APK** for pasture use ([install](docs/android.md)). The Po
 
 - Local **IndexedDB** (Dexie) is the working store offline
 - Every write goes to an **outbox**
-- **If this install has a ranch Docker server** and the phone can reach it, Postgres is the shared book
-- **If there is no ranch server**, sign in with **Google Drive** or **Dropbox** on the device; that folder is the shared book
-- Native login does not call the ranch API. Client IDs are baked at APK/web build time
+- **If this install has a ranch Docker server**, Postgres is the shared book (`/api` on that host)
+- **If there is no ranch server**, choose a **Google Drive / Dropbox / other folder** on the device. The system picker; no keys
 - Your name and device label stay on this device; ranch name, year, and cattle rows are the shared database
-- Tokens and the ranch API key stay on the device; they are never written to the outbox or cloud snapshot
+- The ranch API key stays on the device; it is never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud
 
-Setup: [Drive / Dropbox OAuth](docs/sync-setup.md) · [Docker / Portainer](docs/docker-portainer.md) · [Ranch API](docs/api.md)
+Setup: [Sync setup](docs/sync-setup.md) · [Docker / Portainer](docs/docker-portainer.md) · [Ranch API](docs/api.md)
 
 ## Plan & references
 

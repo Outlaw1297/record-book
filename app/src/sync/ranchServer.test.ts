@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchUnreachableDetail, shouldAdoptLanRanch } from './ranchServer';
-import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
+import { joinRanchApiBase, ranchUnreachableDetail } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -20,14 +19,14 @@ describe('joinRanchApiBase', () => {
   });
 
   it('does not leave a trailing slash that would 404 Hono /v1/', () => {
-    expect(joinRanchApiBase('http://192.168.1.56:8180/api/', 'http://ignored')).toBe(
-      'http://192.168.1.56:8180/api',
+    expect(joinRanchApiBase('http://nas:8180/api/', 'http://ignored')).toBe(
+      'http://nas:8180/api',
     );
   });
 });
 
 describe('ranchUnreachableDetail', () => {
-  const health = 'http://192.168.1.56:8180/api/health';
+  const health = 'http://nas:8180/api/health';
 
   it('turns Failed to fetch into a ranch Wi-Fi check', () => {
     expect(ranchUnreachableDetail(new Error('Failed to fetch'), health)).toContain(
@@ -42,19 +41,5 @@ describe('ranchUnreachableDetail', () => {
     expect(ranchUnreachableDetail(new Error('Ranch API 503'), health)).toBe(
       'Ranch API 503',
     );
-  });
-});
-
-describe('shouldAdoptLanRanch', () => {
-  it('keeps a URL the user already saved', () => {
-    expect(shouldAdoptLanRanch('http://nas:8180/api', false)).toBe('http://nas:8180/api');
-  });
-
-  it('adopts the Flying J LAN URL only when that NAS answers', () => {
-    expect(shouldAdoptLanRanch('', true)).toBe(RANCH_LAN_API_PLACEHOLDER);
-  });
-
-  it('leaves cloud-only installs without a ranch URL', () => {
-    expect(shouldAdoptLanRanch('', false)).toBe('');
   });
 });

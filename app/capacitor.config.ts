@@ -13,27 +13,10 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
-    SocialLogin: {
-      providers: {
-        google: true,
-        facebook: false,
-        apple: false,
-        twitter: false,
-      },
-    },
   },
   server: {
     androidScheme: 'https',
     cleartext: true,
-    allowNavigation: [
-      '192.168.1.56',
-      'accounts.google.com',
-      '*.google.com',
-      '*.googleusercontent.com',
-      'www.dropbox.com',
-      '*.dropbox.com',
-      '*.dropboxapi.com',
-    ],
   },
 };
 

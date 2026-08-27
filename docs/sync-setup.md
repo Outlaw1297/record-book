@@ -1,9 +1,9 @@
 # Sync setup
 
-Each phone keeps a local IndexedDB copy for offline work. **How they share depends on the install:**
+Each phone keeps a local IndexedDB copy for offline work. Sharing is the same for every ranch:
 
-1. **This ranch (Flying J) has the Docker server.** On ranch Wi-Fi, phones pull and push Postgres at `http://YOUR-HOST:8180/api/`. That database is the shared book.
-2. **Other installs may only have the APK or PWA.** Those phones sign in with Google or Dropbox on the device. Drive/Dropbox is then the shared book. No ranch API is required for login or sync.
+1. **This install runs Docker / Portainer.** The PWA uses `/api` on that host. Postgres is the shared book. No Google or Dropbox keys.
+2. **This install is only the APK (or a browser without Docker).** Choose a shared folder on the device. The system picker can open **Google Drive**, **Dropbox**, USB, or any folder. Every phone picks the same folder. No keys to paste, no GitHub secrets, no Google Cloud console.
 
 See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android APK](android.md).
 
@@ -13,54 +13,21 @@ See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android
 |----------------------|--------------------|
 | Your name | Ranch name and working year |
 | Device name (“Dalton’s phone”) | Animals, cow–calf, breeding, pasture, sales |
-| Sign-in tokens | Device roster |
-| Ranch API URL / key (if you have a server) | |
+| Folder permission / ranch API URL | Device roster |
 
-A second phone or the office PC: either open the app on ranch Wi-Fi (server install) or sign in with the same Google/Dropbox account (no-server install). If two people log the same cow while offline, the newer `updatedAt` wins.
+## Shared folder (APK, no ranch server)
 
-## Google / Dropbox sign-in (native, no ranch required)
+Settings → **Choose Google Drive folder** or **Choose Dropbox folder**. Android opens the system folder picker. Open Drive or Dropbox there (or any folder) and pick it. Create a `RecordBook` folder if you want; the app also creates one inside the folder you pick.
 
-Users only tap **Sign in with Google** or **Sign in with Dropbox**. They never paste keys.
+The same picker works on a desktop Chrome PWA over HTTPS. It does not work on HTTP LAN pages; those Docker sites use the ranch database instead.
 
-The app talks to Google and Dropbox directly:
+## Ranch server (optional)
 
-- **Android APK:** Google Sign-In (Drive `drive.file` scope) and Dropbox in Chrome Custom Tabs, returning to `me.flyingjranch.recordbook://oauth/callback`.
-- **Browser / PWA:** in-app PKCE, returning to `{origin}/oauth/callback`.
-
-Client IDs are baked at build time from GitHub Actions secrets (not stored on the phone as Settings fields):
-
-- `VITE_GOOGLE_CLIENT_ID`
-- `VITE_DROPBOX_APP_KEY`
-
-If this ranch also runs Docker, the NAS can still expose those public IDs at `/api/oauth-clients` so a phone on ranch Wi-Fi can pick them up. That is optional. Login must work when the NAS is absent.
-
-### Google Cloud Console
-
-1. Enable the **Google Drive API**.
-2. Create an OAuth **Web** client. Put its ID in `VITE_GOOGLE_CLIENT_ID`.
-3. Create an OAuth **Android** client:
-   - Package: `me.flyingjranch.recordbook`
-   - SHA-1 of the sideload debug keystore: `CB:80:C1:B3:7A:DA:5E:5D:FE:9D:7B:0B:66:C1:0F:03:D9:76:11:BE`
-4. Authorized redirect URIs for the Web client (PWA / office browser):
-
-```text
-http://192.168.1.56:8180/oauth/callback
-http://localhost:5173/oauth/callback
-```
-
-### Dropbox app
-
-Redirect URIs:
-
-```text
-me.flyingjranch.recordbook://oauth/callback
-http://192.168.1.56:8180/oauth/callback
-http://localhost:5173/oauth/callback
-```
+Only if this install runs the Portainer stack. In the APK, type that host’s API, for example `http://YOUR-NAS:8180/api`. The Docker website already uses `/api`. Health check: `http://YOUR-NAS:8180/api/health` should show `{"ok":true}`.
 
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row.
-- **Online + ranch API reachable:** pull the Postgres snapshot, merge, push this device’s herd. Google/Dropbox is an extra copy if signed in.
-- **Online + no ranch (or ranch unreachable) + signed in:** Google Drive or Dropbox is the shared book.
-- **Online + neither:** Settings asks you to sign in, or to set a ranch API if you have a server.
+- **Online + ranch API set:** pull/push Postgres. A shared folder is an extra copy if one is chosen.
+- **Online + no ranch + shared folder:** that folder is the book.
+- **Online + neither:** Settings asks you to choose a folder or set a ranch API.

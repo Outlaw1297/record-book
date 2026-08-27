@@ -1,9 +1,6 @@
-import { GoogleDriveCarrier } from './googleDrive';
-import { DropboxCarrier } from './dropbox';
+import { SharedFolderCarrier } from './sharedFolder';
 import type { CloudCarrier, CloudProvider } from './types';
 
-export function carrierFor(provider: CloudProvider): CloudCarrier {
-  return provider === 'google-drive'
-    ? new GoogleDriveCarrier()
-    : new DropboxCarrier();
+export function carrierFor(_provider: CloudProvider): CloudCarrier {
+  return new SharedFolderCarrier();
 }

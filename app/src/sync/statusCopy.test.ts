@@ -27,6 +27,6 @@ describe('noneProviderBanner', () => {
         pendingCount: 0,
         ranchConfigured: false,
       }),
-    ).toMatch(/sign in with Google or Dropbox/i);
+    ).toMatch(/choose a shared folder/i);
   });
 });

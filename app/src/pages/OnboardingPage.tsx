@@ -49,8 +49,8 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
             </h1>
             <p className="lede">
               Log calves in the pasture with big, simple fields. This phone keeps
-              the book. Sign in with Google or Dropbox to share it, or use a
-              ranch Docker server if this install has one.
+              the book. Choose a shared Drive or Dropbox folder to share it, or
+              use a ranch Docker server if this install has one.
             </p>
             <div className="sticky-actions" style={{ gridTemplateColumns: '1fr' }}>
               <button type="button" className="btn primary" onClick={() => setStep(1)}>
@@ -119,8 +119,8 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
             </h1>
             <p className="lede">
               Same shared herd either way. Phone is tuned for gloves and
-              one-handed calf entry. Sign in with Google or Dropbox, or use the
-              ranch server if this install has one.
+              one-handed calf entry. Choose the same shared folder on every
+              device, or use the ranch server if this install has one.
             </p>
             <Segmented
               ariaLabel="Device"

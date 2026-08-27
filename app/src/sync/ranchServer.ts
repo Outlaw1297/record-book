@@ -1,4 +1,4 @@
-import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
+import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
@@ -31,43 +31,6 @@ export function saveRanchApiKey(value: string): void {
   const trimmed = value.trim();
   if (!trimmed) localStorage.removeItem(API_KEY);
   else localStorage.setItem(API_KEY, trimmed);
-}
-
-export function shouldAdoptLanRanch(existingUrl: string, lanReachable: boolean): string {
-  const existing = existingUrl.trim();
-  if (existing) return existing;
-  return lanReachable ? RANCH_LAN_API_PLACEHOLDER : '';
-}
-
-export async function ranchHealthLooksUp(baseUrl: string, timeoutMs = 1500): Promise<boolean> {
-  const root = baseUrl.trim().replace(/\/$/, '');
-  if (!root) return false;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${root}/health`, { signal: controller.signal });
-    if (!response.ok) return false;
-    const body = (await response.json().catch(() => null)) as { ok?: boolean } | null;
-    return body?.ok === true;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** On the APK, adopt this ranch's NAS only if it answers. Other installs stay cloud-only. */
-export async function discoverRanchIfPresent(): Promise<void> {
-  if (typeof localStorage === 'undefined') return;
-  if (!isNativeApp()) return;
-  if (fromEnv('VITE_RANCH_API_URL')) return;
-  const next = shouldAdoptLanRanch(
-    localStorage.getItem(URL_KEY) || '',
-    await ranchHealthLooksUp(RANCH_LAN_API_PLACEHOLDER),
-  );
-  if (next && !localStorage.getItem(URL_KEY)) {
-    localStorage.setItem(URL_KEY, next);
-  }
 }
 
 export function hasEnvRanchApiUrl(): boolean {

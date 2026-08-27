@@ -385,7 +385,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     const token = await getValidAccessToken();
     if (!token) {
       if (!ranchOk) {
-        lastError = 'Sign in with Google or Dropbox in Settings.';
+        lastError = 'Choose a shared folder in Settings.';
         emitSyncEvent();
         return {
           ok: false,

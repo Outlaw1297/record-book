@@ -53,7 +53,7 @@ function clientIdFor(provider: Provider): string {
 
 export function publicApiBase(c: Context): string {
   const proto = (c.req.header('x-forwarded-proto') || 'http').split(',')[0].trim();
-  const host = (c.req.header('x-forwarded-host') || c.req.header('host') || '192.168.1.56:8180')
+  const host = (c.req.header('x-forwarded-host') || c.req.header('host') || 'localhost:8180')
     .split(',')[0]
     .trim();
   return `${proto}://${host}/api`;

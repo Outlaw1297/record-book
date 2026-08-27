@@ -38,43 +38,37 @@ Use **one Google or Dropbox account** for the ranch. Anyone with that login can 
 
 ## Redirect URI
 
-Whatever origin you open the app on, add this exact callback:
+The Android APK origin is `https://localhost`. The Portainer PWA origin is `http://YOUR-HOST:8180`. Register both when creating the Google/Dropbox app (once, as the ranch developer). Phone users only tap **Connect**.
 
 ```text
-https://YOUR-ORIGIN/oauth/callback
-```
-
-Examples: `http://localhost:5173/oauth/callback`, the hosted PWA origin plus `/oauth/callback`, and for the Android APK:
-
-```text
+http://localhost:5173/oauth/callback
+http://192.168.1.56:8180/oauth/callback
 https://localhost/oauth/callback
 ```
 
-The APK WebView origin is `https://localhost`. Add that JavaScript origin and redirect URI or Drive/Dropbox login from the phone will fail. See [Android APK](android.md).
-
-## Google Drive
+## Google Drive (developer, once)
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/) and create a project (or reuse one).
 2. Enable **Google Drive API**.
-3. Configure the OAuth consent screen. External is fine; add your Gmail as a test user while the app is in testing.
+3. Configure the OAuth consent screen. External is fine; add the ranch Gmail as a test user while the app is in testing.
 4. Create credentials → **OAuth client ID** → **Web application**.
-5. Authorized JavaScript origins: `http://localhost:5173`, the production PWA origin, and `https://localhost` (Android APK).
+5. Authorized JavaScript origins: `http://localhost:5173`, `http://192.168.1.56:8180`, `https://localhost`.
 6. Authorized redirect URIs: each of those plus `/oauth/callback`.
 7. Copy the **Client ID** (not a client secret). This is a public PKCE client.
-8. In the record book: Settings → **App keys** → paste the client ID → **Connect Google Drive**.
+8. Put it in GitHub Actions secret `VITE_GOOGLE_CLIENT_ID`, and/or the stack file `/keys/google_client_id`. Rebuild images / APK. Do not paste it on the phone.
 
-The app requests `drive.file` only: it can see files **it created**, not the rest of your Drive.
+The app requests `drive.file` only: it can see files **it created**, not the rest of your Drive. Settings → **Connect Google Drive** signs in and creates `RecordBook/`.
 
-## Dropbox
-
-Dropbox PKCE is the simpler carrier if you do not want to stand up Google Cloud.
+## Dropbox (developer, once)
 
 1. Open [Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app.
 2. Scoped access. **App folder** is the most private (files live under `Apps/<app name>/RecordBook`).
 3. Permissions: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
-4. Redirect URI: `http://localhost:5173/oauth/callback`, the production PWA callback, and `https://localhost/oauth/callback` (Android APK).
+4. Redirect URIs: `http://localhost:5173/oauth/callback`, `http://192.168.1.56:8180/oauth/callback`, `https://localhost/oauth/callback`.
 5. Copy the **App key**.
-6. In the record book: Settings → **App keys** → paste the app key → **Connect Dropbox**.
+6. Put it in GitHub Actions secret `VITE_DROPBOX_APP_KEY`, and/or `/keys/dropbox_app_key`. Rebuild. Do not paste it on the phone.
+
+Settings → **Connect Dropbox** signs in and creates the folder.
 
 ## Optional env files
 

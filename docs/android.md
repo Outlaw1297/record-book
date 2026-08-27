@@ -18,17 +18,11 @@ This is a **debug** APK for ranch sideload, not a Play Store build.
 
 The APK does **not** bake `/api`. That path only works inside the Portainer nginx site.
 
-On ranch Wi-Fi, Settings → Ranch API URL:
-
-```text
-http://192.168.1.56:8180/api
-```
-
-Then **Copy herd to ranch database**. Change the host if the NAS IP is different.
+On first launch the phone uses `http://192.168.1.56:8180/api` and copies the herd on ranch Wi-Fi by itself. Change the URL in Settings only if the NAS IP is different.
 
 ## Drive / Dropbox from the APK
 
-Add this redirect URI (and JavaScript origin) to the Google and Dropbox consoles:
+Tap **Connect Google Drive** or **Connect Dropbox**. Sign in. The app creates `RecordBook/` and keeps it in sync. Add these redirect URIs when you register the OAuth app (once, as the ranch developer):
 
 ```text
 https://localhost/oauth/callback

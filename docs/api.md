@@ -14,6 +14,7 @@ The stack generates an API key on first boot. The web container attaches it to `
 
 | Method | Path | Notes |
 |--------|------|-------|
+| GET | `/oauth-clients` | Public PKCE client IDs for Drive/Dropbox (may be empty) |
 | GET | `/health` | Process up |
 | GET | `/ready` | Postgres ping |
 | GET | `/v1/` | Catalog |

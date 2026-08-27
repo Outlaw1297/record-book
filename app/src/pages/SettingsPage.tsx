@@ -17,14 +17,6 @@ import {
   getSyncAuth,
   startOAuth,
 } from '../sync/auth';
-import {
-  getDropboxAppKey,
-  getGoogleClientId,
-  hasEnvDropboxAppKey,
-  hasEnvGoogleClientId,
-  saveDropboxAppKey,
-  saveGoogleClientId,
-} from '../sync/credentials';
 import { defaultDeviceName } from '../sync/identity';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
@@ -60,13 +52,11 @@ export function SettingsPage() {
   const [operatorName, setOperatorName] = useState('');
   const [deviceName, setDeviceName] = useState('');
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [googleClientId, setGoogleClientId] = useState('');
-  const [dropboxAppKey, setDropboxAppKey] = useState('');
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [busy, setBusy] = useState<
-    'google-drive' | 'dropbox' | 'sync' | 'off' | 'replace' | 'ranch' | null
+    'google-drive' | 'dropbox' | 'off' | 'replace' | 'ranch' | null
   >(null);
 
   useEffect(() => {
@@ -78,8 +68,6 @@ export function SettingsPage() {
           defaultDeviceName(settings.deviceKind, settings.operatorName),
       );
       setCurrentYear(settings.currentYear);
-      setGoogleClientId(getGoogleClientId());
-      setDropboxAppKey(getDropboxAppKey());
       setRanchApiUrl(getRanchApiUrl());
       setRanchApiKey(getRanchApiKey());
       setHydrated(true);
@@ -102,8 +90,6 @@ export function SettingsPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!settings) return;
-    saveGoogleClientId(googleClientId);
-    saveDropboxAppKey(dropboxAppKey);
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
     const nextRanch = ranchName.trim() || 'Record Book';
@@ -128,8 +114,6 @@ export function SettingsPage() {
   }
 
   async function connect(provider: CloudProvider) {
-    saveGoogleClientId(googleClientId);
-    saveDropboxAppKey(dropboxAppKey);
     setBusy(provider);
     try {
       await startOAuth(provider);
@@ -143,13 +127,6 @@ export function SettingsPage() {
     setBusy('off');
     await disconnectCloud();
     toast('Disconnected. Herd stays on this device.');
-    setBusy(null);
-  }
-
-  async function runSync() {
-    setBusy('sync');
-    const result = await syncNow();
-    toast(result.detail);
     setBusy(null);
   }
 
@@ -172,15 +149,6 @@ export function SettingsPage() {
         ? 'Ranch API saved on this device. It is not written to Drive or Dropbox.'
         : 'Ranch API cleared on this device.',
     );
-  }
-
-  async function copyToRanch() {
-    saveRanchApiUrl(ranchApiUrl);
-    saveRanchApiKey(ranchApiKey);
-    setBusy('sync');
-    const result = await syncNow();
-    toast(result.detail);
-    setBusy(null);
   }
 
   async function testRanchApi() {
@@ -206,7 +174,6 @@ export function SettingsPage() {
   const connected = Boolean(auth?.accessToken);
   const native = isNativeApp();
   const ranchReady = Boolean(ranchApiUrl.trim()) || hasRanchServer();
-  const canSync = connected || ranchReady;
   const providerName =
     auth?.provider === 'dropbox'
       ? 'Dropbox'
@@ -221,8 +188,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This Android app keeps the book on the phone. No website needed. Drive, Dropbox, or the ranch API run when you have signal.'
-            : 'One private Drive or Dropbox folder is the shared book for phones. An optional ranch database in Docker holds the same herd for other apps.'}
+            ? 'This phone keeps the book. Sign in with Google or Dropbox once; the RecordBook folder is created for you and syncs by itself when you have signal.'
+            : 'Sign in with Google or Dropbox. The shared RecordBook folder is created for you. Sync runs in the background.'}
         </p>
       </header>
 
@@ -274,8 +241,9 @@ export function SettingsPage() {
         <h2>Shared cloud folder</h2>
         <p className="hint">
           Sign this device and every other device into the <strong>same</strong>{' '}
-          Google or Dropbox account. Files live in <code>RecordBook</code>. That
-          folder is still the phone-to-phone book. No public link.
+          Google or Dropbox account. The app creates a private{' '}
+          <code>RecordBook</code> folder and keeps it up to date. No keys to
+          paste.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -285,7 +253,7 @@ export function SettingsPage() {
           </p>
           <p className="hint">
             {auth?.accountEmail ||
-              'Connect once at the house. The field app keeps working offline.'}
+              'Connect once at the house. Changes sync by themselves when you have signal.'}
           </p>
           <p className="hint">
             Pending changes: {pending ?? 0}
@@ -314,14 +282,6 @@ export function SettingsPage() {
         <div className="provider-actions">
           <button
             type="button"
-            className="btn secondary"
-            disabled={busy !== null || !canSync}
-            onClick={() => void runSync()}
-          >
-            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
-          </button>
-          <button
-            type="button"
             className="btn ghost"
             disabled={busy !== null || !connected}
             onClick={() => void disconnect()}
@@ -339,64 +299,19 @@ export function SettingsPage() {
           {busy === 'replace' ? 'Replacing…' : 'Replace this device from the shared book'}
         </button>
 
-        <details className="sync-advanced form">
-          <summary>App keys (once per ranch)</summary>
-          <p className="hint">
-            Create a Google OAuth client and/or Dropbox app, then paste the
-            public IDs. Redirect URI must be this origin plus{' '}
-            <code>/oauth/callback</code>.
-            {native ? (
-              <>
-                {' '}
-                The Android app uses <code>https://localhost/oauth/callback</code>.
-              </>
-            ) : null}{' '}
-            See <code>docs/sync-setup.md</code>.
-          </p>
-          <Field
-            label={
-              hasEnvGoogleClientId()
-                ? 'Google client ID (env already set; paste to override)'
-                : 'Google client ID'
-            }
-          >
-            <input
-              value={googleClientId}
-              onChange={(e) => setGoogleClientId(e.target.value)}
-              placeholder="….apps.googleusercontent.com"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field
-            label={
-              hasEnvDropboxAppKey()
-                ? 'Dropbox app key (env already set; paste to override)'
-                : 'Dropbox app key'
-            }
-          >
-            <input
-              value={dropboxAppKey}
-              onChange={(e) => setDropboxAppKey(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <p className="hint">
-            This device ID: <code>{settings?.deviceId}</code>
-          </p>
-        </details>
+        <p className="hint" style={{ marginTop: '0.55rem' }}>
+          This device ID: <code>{settings?.deviceId}</code>
+        </p>
       </section>
 
       <section className="sync-panel form">
         <h2>Ranch database (Docker)</h2>
         <p className="hint">
-          Optional Postgres copy of this herd for a future app. Drive and Dropbox
-          stay the offline book. The Portainer stack creates the keys; you do not
-          paste them.
+          Optional Postgres copy of this herd for a future app. On ranch Wi-Fi
+          it copies by itself. Drive and Dropbox stay the phone-to-phone book.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
-          {ranchReady ? 'Configured on this device' : 'Not configured'}
+          {ranchReady ? 'Copies on Wi-Fi' : 'Not configured'}
         </p>
         <Field
           label={
@@ -418,28 +333,17 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Cattle stay on this phone with no website. On ranch Wi-Fi, paste{' '}
-              <code>{RANCH_LAN_API_PLACEHOLDER}</code> to copy the herd into
-              Postgres. Do not use <code>/api</code> here — that only works inside
-              the Portainer site.
+              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code> so this phone
+              can reach the NAS. You should not need to tap copy.
             </>
           ) : (
             <>
               Opened from Portainer at <code>http://YOUR-HOST:8180/</code>, leave
-              this as <code>/api</code>. No API key field — nginx sends the
-              generated key.
+              this as <code>/api</code>.
             </>
           )}
         </p>
         <div className="provider-actions">
-          <button
-            type="button"
-            className="btn primary"
-            disabled={busy !== null || !ranchReady}
-            onClick={() => void copyToRanch()}
-          >
-            {busy === 'sync' ? 'Copying…' : 'Copy herd to ranch database'}
-          </button>
           <button
             type="button"
             className="btn secondary"
@@ -448,8 +352,6 @@ export function SettingsPage() {
           >
             Save ranch API
           </button>
-        </div>
-        <div className="provider-actions">
           <button
             type="button"
             className="btn ghost"

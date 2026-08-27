@@ -21,7 +21,7 @@ type TokenResponse = {
 
 function readSession(): OauthSession | null {
   try {
-    const raw = sessionStorage.getItem(OAUTH_SESSION_KEY);
+    const raw = localStorage.getItem(OAUTH_SESSION_KEY);
     return raw ? (JSON.parse(raw) as OauthSession) : null;
   } catch {
     return null;
@@ -49,15 +49,15 @@ export async function startOAuth(provider: CloudProvider): Promise<void> {
   if (!clientId) {
     throw new Error(
       provider === 'google-drive'
-        ? 'Add a Google client ID in Settings first.'
-        : 'Add a Dropbox app key in Settings first.',
+        ? 'Google sign-in is not set up on this ranch yet.'
+        : 'Dropbox sign-in is not set up on this ranch yet.',
     );
   }
 
   const { verifier, challenge } = await createPkce();
   const state = randomUrlSafe(16);
   const redirectUri = oauthRedirectUri();
-  sessionStorage.setItem(
+  localStorage.setItem(
     OAUTH_SESSION_KEY,
     JSON.stringify({ provider, verifier, state } satisfies OauthSession),
   );
@@ -213,14 +213,14 @@ export async function completeOAuthCallback(
 ): Promise<{ ok: boolean; detail: string }> {
   const error = params.get('error_description') || params.get('error');
   if (error) {
-    sessionStorage.removeItem(OAUTH_SESSION_KEY);
+    localStorage.removeItem(OAUTH_SESSION_KEY);
     return { ok: false, detail: error };
   }
 
   const session = readSession();
   const code = params.get('code');
   const state = params.get('state');
-  sessionStorage.removeItem(OAUTH_SESSION_KEY);
+  localStorage.removeItem(OAUTH_SESSION_KEY);
 
   if (!session || !code) {
     return {
@@ -235,6 +235,21 @@ export async function completeOAuthCallback(
   const previous = await db.syncAuth.get(1);
   const tokens = await exchangeCode(session.provider, code, session.verifier);
   await persistAuth(session.provider, tokens, previous, { connect: true });
+  try {
+    const { syncNow } = await import('./engine');
+    const synced = await syncNow();
+    if (synced.ok) {
+      return {
+        ok: true,
+        detail:
+          session.provider === 'google-drive'
+            ? 'Google Drive connected. RecordBook folder is ready.'
+            : 'Dropbox connected. RecordBook folder is ready.',
+      };
+    }
+  } catch {
+    /* Login succeeded; background sync will retry. */
+  }
   return {
     ok: true,
     detail:

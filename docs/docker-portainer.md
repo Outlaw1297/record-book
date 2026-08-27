@@ -17,9 +17,9 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 
 Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host).
 
-Settings → Ranch database is already set to `/api`. Use **Copy herd to ranch database** when you have signal.
+Settings → Ranch database is already set to `/api`. The herd copies on its own when a device has signal.
 
-Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. On ranch Wi-Fi, paste `http://YOUR-HOST:8180/api` in the APK Settings to copy the herd here.
+Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. On ranch Wi-Fi it copies to `http://YOUR-HOST:8180/api` by itself.
 
 If a previous deploy failed, remove that stack and create it again so it picks up this compose file.
 

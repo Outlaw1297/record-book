@@ -36,8 +36,8 @@ export function startSyncScheduler(): void {
 
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', () => emitSyncEvent());
-  window.addEventListener(OUTBOX_EVENT, () => scheduleSync());
+  window.addEventListener(OUTBOX_EVENT, () => scheduleSync(600));
   document.addEventListener('visibilitychange', onVisible);
-  window.setInterval(() => scheduleSync(0), 120_000);
+  window.setInterval(() => scheduleSync(0), 30_000);
   scheduleSync(1500);
 }

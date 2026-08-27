@@ -43,6 +43,8 @@ jobs:
           push: true
           build-args: |
             VITE_RANCH_API_URL=/api
+            VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+            VITE_DROPBOX_APP_KEY=${{ secrets.VITE_DROPBOX_APP_KEY }}
           tags: ghcr.io/outlaw1297/record-book-web:latest
           labels: org.opencontainers.image.source=https://github.com/Outlaw1297/record-book
 

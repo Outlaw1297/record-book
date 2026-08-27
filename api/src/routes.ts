@@ -39,7 +39,7 @@ function yearFilter(c: { req: { query: (name: string) => string | undefined } })
   return Number.isFinite(year) ? year : null;
 }
 
-export const v1 = new Hono();
+export const v1 = new Hono({ strict: false });
 
 v1.get('/', (c) =>
   c.json({

@@ -1,4 +1,5 @@
 import type { CloudProvider } from './types';
+import { ranchUrl } from './ranchServer';
 
 const GOOGLE_KEY = 'record-book.googleClientId';
 const DROPBOX_KEY = 'record-book.dropboxAppKey';
@@ -19,11 +20,15 @@ export function getDropboxAppKey(): string {
 }
 
 export function saveGoogleClientId(value: string): void {
-  localStorage.setItem(GOOGLE_KEY, value.trim());
+  const trimmed = value.trim();
+  if (!trimmed) localStorage.removeItem(GOOGLE_KEY);
+  else localStorage.setItem(GOOGLE_KEY, trimmed);
 }
 
 export function saveDropboxAppKey(value: string): void {
-  localStorage.setItem(DROPBOX_KEY, value.trim());
+  const trimmed = value.trim();
+  if (!trimmed) localStorage.removeItem(DROPBOX_KEY);
+  else localStorage.setItem(DROPBOX_KEY, trimmed);
 }
 
 export function clientIdFor(provider: CloudProvider): string {
@@ -36,4 +41,28 @@ export function hasEnvGoogleClientId(): boolean {
 
 export function hasEnvDropboxAppKey(): boolean {
   return Boolean(fromEnv('VITE_DROPBOX_APP_KEY'));
+}
+
+/** Pull public PKCE client IDs from the ranch API so the phone never pastes them. */
+export async function hydrateOAuthClients(): Promise<void> {
+  if (typeof localStorage === 'undefined') return;
+  if (getGoogleClientId() && getDropboxAppKey()) return;
+  const url = ranchUrl('/oauth-clients');
+  if (!url) return;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return;
+    const body = (await response.json()) as {
+      googleClientId?: string;
+      dropboxAppKey?: string;
+    };
+    if (!getGoogleClientId() && body.googleClientId?.trim()) {
+      saveGoogleClientId(body.googleClientId);
+    }
+    if (!getDropboxAppKey() && body.dropboxAppKey?.trim()) {
+      saveDropboxAppKey(body.dropboxAppKey);
+    }
+  } catch {
+    /* Ranch may be offline; Connect still works if IDs were baked into the APK. */
+  }
 }

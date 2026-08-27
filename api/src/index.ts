@@ -5,7 +5,7 @@ import { apiKeyAuth, corsOrigin } from './auth.js';
 import { migrate, ping, pool } from './db.js';
 import { v1 } from './routes.js';
 
-const app = new Hono();
+const app = new Hono({ strict: false });
 const origin = corsOrigin();
 
 app.use(
@@ -14,6 +14,13 @@ app.use(
     origin: origin === '*' ? '*' : origin.split(',').map((value) => value.trim()),
     allowHeaders: ['Authorization', 'Content-Type', 'X-Api-Key'],
     allowMethods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+  }),
+);
+
+app.get('/oauth-clients', (c) =>
+  c.json({
+    googleClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
+    dropboxAppKey: (process.env.DROPBOX_APP_KEY || '').trim(),
   }),
 );
 
@@ -31,6 +38,7 @@ app.get('/ready', async (c) => {
   }
 });
 
+app.use('/v1', apiKeyAuth());
 app.use('/v1/*', apiKeyAuth());
 app.route('/v1', v1);
 

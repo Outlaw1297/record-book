@@ -45,7 +45,10 @@ jobs:
 
       - name: Web build for the APK
         run: npm run build
-        # Do not set VITE_RANCH_API_URL. /api only works inside Portainer nginx.
+        env:
+          # Do not set VITE_RANCH_API_URL. /api only works inside Portainer nginx.
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_DROPBOX_APP_KEY: ${{ secrets.VITE_DROPBOX_APP_KEY }}
 
       - run: npx cap sync android
 

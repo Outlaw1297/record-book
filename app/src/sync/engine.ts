@@ -48,6 +48,7 @@ export type SyncStatus = {
   connected: boolean;
   deviceCount: number;
   bookId?: string;
+  retryable: boolean;
 };
 
 let inflight: Promise<SyncRunResult> | null = null;
@@ -87,22 +88,22 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     } else if (ranchConfigured && settings.lastSyncedAt) {
       message = `Online — ranch database last copied ${formatWhen(settings.lastSyncedAt)}`;
     } else if (ranchConfigured) {
-      message = 'Online — ranch database configured';
+      message = 'Online — copies to the ranch database by itself on Wi-Fi';
     } else {
-      message = 'Online — connect Drive, Dropbox, or a ranch API in Settings';
+      message = 'Online — connect Drive or Dropbox in Settings';
     }
   } else if (isCloudProvider(settings.syncProvider) && !connected) {
     message = ranchConfigured
-      ? `Online — reconnect ${label}, or sync the ranch database`
+      ? `Online — reconnect ${label}, or the ranch database still copies itself`
       : `Online — reconnect ${label} in Settings`;
   } else if (pendingCount > 0) {
-    message = `${pendingCount} change(s) waiting to sync to ${label}`;
+    message = `${pendingCount} change(s) syncing to ${label}…`;
   } else if (others > 0 && settings.lastSyncedAt) {
     message = `Online — shared book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
     message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else {
-    message = `Online — connected to ${label}`;
+    message = `Online — connected to ${label}. Syncs by itself.`;
   }
 
   return {
@@ -117,6 +118,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     connected,
     deviceCount,
     bookId: settings.bookId,
+    retryable: Boolean(lastError || needsAuth),
   };
 }
 

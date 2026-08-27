@@ -35,20 +35,22 @@ export function SyncBanner() {
       role="status"
     >
       <span>{status.message}</span>
-      <button
-        type="button"
-        className="btn ghost"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          const result = await syncNow();
-          toast(result.detail);
-          await refresh();
-          setBusy(false);
-        }}
-      >
-        {busy ? 'Syncing…' : 'Sync now'}
-      </button>
+      {status.retryable ? (
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const result = await syncNow();
+            toast(result.detail);
+            await refresh();
+            setBusy(false);
+          }}
+        >
+          {busy ? 'Syncing…' : 'Retry'}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -21,7 +21,6 @@ import { applyRemoteFile } from './remoteApply';
 import { formatWhen, noneProviderBanner } from './statusCopy';
 import {
   buildSnapshot,
-  clearHerdForReplace,
   localHerdIsEmpty,
   mergeSnapshot,
   parseSnapshot,
@@ -308,8 +307,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
   let ranchOk = false;
 
   if (ranchConfigured) {
-    if (options.replace) await clearHerdForReplace();
-    const incoming = await pullFromRanchServer();
+    const incoming = await pullFromRanchServer({ replace: options.replace });
     if (!incoming.ok) {
       lastError = incoming.detail;
       emitSyncEvent();

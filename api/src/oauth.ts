@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
+import { query } from './db.js';
 
 type Provider = 'google-drive' | 'dropbox';
 
@@ -44,18 +45,50 @@ function asProvider(value: string): Provider | null {
   return null;
 }
 
-function clientIdFor(provider: Provider): string {
-  if (provider === 'google-drive') {
-    return (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+export type OauthClients = {
+  googleClientId: string;
+  dropboxAppKey: string;
+};
+
+export async function readOauthClients(): Promise<OauthClients> {
+  const fromEnv: OauthClients = {
+    googleClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
+    dropboxAppKey: (process.env.DROPBOX_APP_KEY || '').trim(),
+  };
+  try {
+    const result = await query<{
+      google_client_id: string;
+      dropbox_app_key: string;
+    }>('SELECT google_client_id, dropbox_app_key FROM oauth_clients WHERE id = 1');
+    const row = result.rows[0];
+    return {
+      googleClientId: fromEnv.googleClientId || (row?.google_client_id || '').trim(),
+      dropboxAppKey: fromEnv.dropboxAppKey || (row?.dropbox_app_key || '').trim(),
+    };
+  } catch {
+    return fromEnv;
   }
-  return (process.env.DROPBOX_APP_KEY || '').trim();
+}
+
+async function clientIdFor(provider: Provider): Promise<string> {
+  const clients = await readOauthClients();
+  return provider === 'google-drive' ? clients.googleClientId : clients.dropboxAppKey;
 }
 
 export function publicApiBase(c: Context): string {
   const proto = (c.req.header('x-forwarded-proto') || 'http').split(',')[0].trim();
-  const host = (c.req.header('x-forwarded-host') || c.req.header('host') || '192.168.1.56:8180')
+  let host = (c.req.header('x-forwarded-host') || c.req.header('host') || '192.168.1.56:8180')
     .split(',')[0]
     .trim();
+  // Nginx `$host` is hostname-only. Keep :8180 so Google/Dropbox match the registered URI.
+  if (host && !host.includes(':')) {
+    const forwardedPort = (c.req.header('x-forwarded-port') || '').split(',')[0].trim();
+    if (forwardedPort && forwardedPort !== '80' && forwardedPort !== '443') {
+      host = `${host}:${forwardedPort}`;
+    } else if (proto === 'http') {
+      host = `${host}:8180`;
+    }
+  }
   return `${proto}://${host}/api`;
 }
 
@@ -88,10 +121,10 @@ function putHandshake(id: string, row: Handshake): void {
 
 export const oauth = new Hono();
 
-oauth.get('/ready/:provider', (c) => {
+oauth.get('/ready/:provider', async (c) => {
   const provider = asProvider(c.req.param('provider'));
   if (!provider) return c.json({ ok: false, error: 'Unknown provider.' }, 400);
-  const clientId = clientIdFor(provider);
+  const clientId = await clientIdFor(provider);
   if (!clientId) {
     return c.json(
       {
@@ -107,11 +140,11 @@ oauth.get('/ready/:provider', (c) => {
   return c.json({ ok: true, provider });
 });
 
-oauth.get('/start/:provider', (c) => {
+oauth.get('/start/:provider', async (c) => {
   sweep();
   const provider = asProvider(c.req.param('provider'));
   if (!provider) return c.json({ error: 'Unknown provider.' }, 400);
-  const clientId = clientIdFor(provider);
+  const clientId = await clientIdFor(provider);
   if (!clientId) {
     return c.json(
       {
@@ -175,7 +208,7 @@ oauth.get('/callback', async (c) => {
   if (!session || !code) {
     return c.json({ error: 'Sign-in expired. Start again from the app.' }, 400);
   }
-  const clientId = clientIdFor(session.provider);
+  const clientId = await clientIdFor(session.provider);
   const redirectUri = `${publicApiBase(c)}/oauth/callback`;
   const tokenUrl =
     session.provider === 'google-drive'

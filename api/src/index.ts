@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { apiKeyAuth, corsOrigin } from './auth.js';
 import { migrate, ping, pool, query } from './db.js';
-import { oauth } from './oauth.js';
+import { oauth, readOauthClients } from './oauth.js';
 import { v1 } from './routes.js';
 
 const app = new Hono({ strict: false });
@@ -17,31 +17,6 @@ app.use(
     allowMethods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
   }),
 );
-
-type OauthClients = {
-  googleClientId: string;
-  dropboxAppKey: string;
-};
-
-async function readOauthClients(): Promise<OauthClients> {
-  const fromEnv: OauthClients = {
-    googleClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
-    dropboxAppKey: (process.env.DROPBOX_APP_KEY || '').trim(),
-  };
-  try {
-    const result = await query<{
-      google_client_id: string;
-      dropbox_app_key: string;
-    }>('SELECT google_client_id, dropbox_app_key FROM oauth_clients WHERE id = 1');
-    const row = result.rows[0];
-    return {
-      googleClientId: fromEnv.googleClientId || (row?.google_client_id || '').trim(),
-      dropboxAppKey: fromEnv.dropboxAppKey || (row?.dropbox_app_key || '').trim(),
-    };
-  } catch {
-    return fromEnv;
-  }
-}
 
 app.route('/oauth', oauth);
 

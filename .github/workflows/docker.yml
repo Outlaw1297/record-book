@@ -34,9 +34,6 @@ jobs:
         with:
           context: ./api
           push: true
-          build-args: |
-            GOOGLE_OAUTH_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-            DROPBOX_APP_KEY=${{ secrets.VITE_DROPBOX_APP_KEY }}
           tags: ghcr.io/outlaw1297/record-book-api:latest
           labels: org.opencontainers.image.source=https://github.com/Outlaw1297/record-book
 

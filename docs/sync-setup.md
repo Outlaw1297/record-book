@@ -18,22 +18,16 @@ A second phone or the office PC: open the app on ranch Wi-Fi. The next sync join
 
 ## Google / Dropbox sign-in (optional)
 
-Users only tap **Sign in with Google** or **Sign in with Dropbox**. They never paste keys.
+Paste the public Google client ID and Dropbox app key in Settings → **Save app IDs**, then **Connect**. Those IDs stay on the phone and are PUT to the ranch so other devices can hydrate them. Do not bake them into the APK or API image.
 
-The ranch API holds the OAuth client ID and runs the login. Put these GitHub Actions secrets once (as the app developer), then rebuild images:
-
-- `VITE_GOOGLE_CLIENT_ID`
-- `VITE_DROPBOX_APP_KEY`
-
-Or write the same values into the stack files `/keys/google_client_id` and `/keys/dropbox_app_key`.
-
-Register one redirect URI on the Google/Dropbox app:
+Redirect URIs (exact match):
 
 ```text
-http://192.168.1.56:8180/api/oauth/callback
+https://localhost/oauth/callback
+http://192.168.1.56:8180/oauth/callback
 ```
 
-Authorized JavaScript origins are not required for this server-side flow.
+Optional: GitHub Actions secrets `VITE_GOOGLE_CLIENT_ID` / `VITE_DROPBOX_APP_KEY` for a local or web build, or `/keys/google_client_id` and `/keys/dropbox_app_key` on the stack. Settings still wins on the device.
 
 ## How sync behaves
 

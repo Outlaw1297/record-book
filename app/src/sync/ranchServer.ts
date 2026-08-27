@@ -1,5 +1,5 @@
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
-import { buildSnapshot, mergeSnapshot } from './snapshot';
+import { buildSnapshot, clearHerdForReplace, mergeSnapshot } from './snapshot';
 import type { HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
 
@@ -122,7 +122,9 @@ function asHerdSnapshot(body: unknown): HerdSnapshot | null {
   };
 }
 
-export async function pullFromRanchServer(): Promise<{
+export async function pullFromRanchServer(
+  options: { replace?: boolean } = {},
+): Promise<{
   ok: boolean;
   applied: number;
   conflicts: number;
@@ -144,6 +146,7 @@ export async function pullFromRanchServer(): Promise<{
       };
     }
     const snapshot = asHerdSnapshot(await response.json().catch(() => null));
+    if (options.replace) await clearHerdForReplace();
     if (!snapshot) {
       return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
     }

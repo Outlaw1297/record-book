@@ -22,7 +22,15 @@ On first launch the phone uses `http://192.168.1.56:8180/api`. That address is f
 
 ## Google / Dropbox from the APK
 
-Optional. Tap **Sign in with Google** or **Sign in with Dropbox**. The ranch API holds the app keys and finishes login. You do not paste keys on the phone. See [sync setup](sync-setup.md).
+Create the Google/Dropbox app once (see [sync setup](sync-setup.md)). In Settings, paste the Google client ID and/or Dropbox app key, tap **Save app IDs**, then **Connect**.
+
+Redirect URI for the APK:
+
+```text
+https://localhost/oauth/callback
+```
+
+Also register `http://192.168.1.56:8180/oauth/callback` for the office PWA. The Capacitor WebView is a secure `https://localhost` origin.
 
 ## Build locally
 

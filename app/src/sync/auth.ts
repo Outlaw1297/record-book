@@ -46,32 +46,12 @@ export async function disconnectCloud(): Promise<void> {
 }
 
 export async function startOAuth(provider: CloudProvider): Promise<void> {
-  const readyUrl = ranchUrl(`/oauth/ready/${provider}`);
-  if (readyUrl) {
-    try {
-      const ready = await fetch(readyUrl);
-      const body = (await ready.json().catch(() => ({}))) as { error?: string };
-      if (ready.ok) {
-        const start = ranchUrl(
-          `/oauth/start/${provider}?return_origin=${encodeURIComponent(window.location.origin)}`,
-        );
-        window.location.assign(start);
-        return;
-      }
-      if (ready.status !== 503) {
-        throw new Error(body.error || 'Could not start ranch sign-in.');
-      }
-    } catch (error) {
-      if (error instanceof Error && !/failed to fetch|not fetched|networkerror/i.test(error.message)) {
-        throw error;
-      }
-    }
-  }
-
   const clientId = clientIdFor(provider);
   if (!clientId) {
     throw new Error(
-      'Sign in is not set up on this ranch yet. Add the Google/Dropbox app on the NAS (or GitHub secrets), then tap Connect again. You do not paste keys on the phone.',
+      provider === 'google-drive'
+        ? 'Paste the Google client ID in Settings, then tap Sign in with Google.'
+        : 'Paste the Dropbox app key in Settings, then tap Sign in with Dropbox.',
     );
   }
 

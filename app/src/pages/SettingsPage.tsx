@@ -333,13 +333,16 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code> so this phone
-              can reach the NAS. You should not need to tap copy.
+              Default is <code>{RANCH_LAN_API_PLACEHOLDER}</code>. That is for
+              the app, not a web page. To check in a browser, open{' '}
+              <code>{RANCH_LAN_API_PLACEHOLDER}/health</code> — it should show{' '}
+              <code>{'{"ok":true}'}</code>.
             </>
           ) : (
             <>
               Opened from Portainer at <code>http://YOUR-HOST:8180/</code>, leave
-              this as <code>/api</code>.
+              this as <code>/api</code>. A browser check is{' '}
+              <code>/api/health</code>, not the app itself.
             </>
           )}
         </p>

@@ -8,12 +8,15 @@ The PWA does **not** require this API. Drive/Dropbox still carry phones.
 
 The stack generates an API key on first boot. The web container attaches it to `/api/` requests, so a browser or future app calling `http://YOUR-HOST:8180/api/...` does not send a key.
 
-`GET /health` has no auth. Direct calls to the `api` container still need `Authorization: Bearer` with the generated key (`cat /keys/api_key` in that container).
+`GET /` and `GET /health` have no auth. Direct calls to the `api` container still need `Authorization: Bearer` with the generated key (`cat /keys/api_key` in that container).
+
+A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/api` with no path used to 404.
 
 ## Endpoints
 
 | Method | Path | Notes |
 |--------|------|-------|
+| GET | `/` | Same as health (so `/api` and `/api/` are not 404) |
 | GET | `/oauth-clients` | Public PKCE client IDs for Drive/Dropbox (may be empty) |
 | GET | `/health` | Process up |
 | GET | `/ready` | Postgres ping |

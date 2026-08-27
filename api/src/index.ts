@@ -24,7 +24,12 @@ app.get('/oauth-clients', (c) =>
   }),
 );
 
-app.get('/health', (c) => c.json({ ok: true, service: 'record-book-api' }));
+function healthPayload() {
+  return { ok: true as const, service: 'record-book-api' as const };
+}
+
+app.get('/', (c) => c.json(healthPayload()));
+app.get('/health', (c) => c.json(healthPayload()));
 
 app.get('/ready', async (c) => {
   try {

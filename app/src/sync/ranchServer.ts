@@ -75,6 +75,20 @@ export function ranchUrl(path: string): string {
   return `${base}${suffix}`;
 }
 
+export function ranchUnreachableDetail(error: unknown, healthUrl: string): string {
+  const check = healthUrl || `${RANCH_LAN_API_PLACEHOLDER}/health`;
+  const raw = error instanceof Error ? error.message.trim() : '';
+  const blocked =
+    !raw ||
+    /failed to fetch|networkerror|load failed|not fetched|err_cleartext|err_failed|err_connection/i.test(
+      raw,
+    );
+  if (blocked) {
+    return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
+  }
+  return raw;
+}
+
 export async function probeRanchServer(): Promise<{ ok: boolean; detail: string }> {
   if (!hasRanchServer()) {
     return { ok: false, detail: 'Enter the ranch API URL first.' };
@@ -100,10 +114,7 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
   } catch (error) {
     return {
       ok: false,
-      detail:
-        error instanceof Error
-          ? error.message
-          : 'Could not reach the ranch API. Check the URL and that Docker is running.',
+      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
     };
   }
 }
@@ -155,8 +166,7 @@ export async function pushToRanchServer(): Promise<{
     return {
       ok: false,
       skipped: false,
-      detail:
-        error instanceof Error ? error.message : 'Could not reach the ranch API.',
+      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
     };
   }
 }

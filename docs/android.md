@@ -18,7 +18,7 @@ This is a **debug** APK for ranch sideload, not a Play Store build.
 
 The APK does **not** bake `/api`. That path only works inside the Portainer nginx site.
 
-On first launch the phone uses `http://192.168.1.56:8180/api` and copies the herd on ranch Wi-Fi by itself. Change the URL in Settings only if the NAS IP is different.
+On first launch the phone uses `http://192.168.1.56:8180/api`. That address is for the app, not a web page. To check from Chrome, open `http://192.168.1.56:8180/api/health` — it should show `{"ok":true}`. Change the URL in Settings only if the NAS IP is different.
 
 ## Drive / Dropbox from the APK
 

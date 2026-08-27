@@ -15,7 +15,7 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 5. Leave **Build** **off**
 6. Deploy. Do not add env vars.
 
-Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host).
+Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host). To confirm the API from a browser, open `http://YOUR-HOST:8180/api/health` — it should show `{"ok":true}`. `/api` by itself is not the app.
 
 Settings → Ranch database is already set to `/api`. The herd copies on its own when a device has signal.
 

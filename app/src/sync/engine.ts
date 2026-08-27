@@ -23,7 +23,7 @@ import {
   pushToRanchServer,
 } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
-import { formatWhen, noneProviderBanner, noSharedBookDetail } from './statusCopy';
+import { formatWhen, isSyncOnline, noneProviderBanner, noSharedBookDetail } from './statusCopy';
 import { assertCloudFolder } from './folderUri';
 import {
   buildSnapshot,
@@ -56,6 +56,7 @@ export type SyncStatus = {
   connected: boolean;
   deviceCount: number;
   bookId?: string;
+  canSync: boolean;
   retryable: boolean;
 };
 
@@ -77,13 +78,16 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const pendingCount = await db.outbox.filter((change) => !change.syncedAt).count();
   const conflictCount = await db.syncConflicts.count();
   const deviceCount = await db.syncDevices.count();
-  const online = typeof navigator !== 'undefined' ? navigator.onLine : false;
   const auth = await getSyncAuth();
   const connected = await hasUsableSession();
   const ranchConfigured = hasRanchServer();
   const needsAuth = !connected && !ranchConfigured;
   const label = providerLabel(settings.syncProvider);
   const others = Math.max(0, deviceCount - 1);
+  const online = isSyncOnline(
+    typeof navigator !== 'undefined' ? navigator.onLine : false,
+    ranchConfigured,
+  );
 
   let message = 'Offline — changes saved on this device';
   if (!online) {
@@ -102,14 +106,16 @@ export async function getSyncStatus(): Promise<SyncStatus> {
       : `Online — reconnect ${label} in Settings`;
   } else if (pendingCount > 0) {
     message = ranchConfigured
-      ? `${pendingCount} change(s) syncing to the ranch database…`
-      : `${pendingCount} change(s) syncing to ${label}…`;
+      ? `${pendingCount} change(s) copying themselves to the ranch database…`
+      : `${pendingCount} change(s) copying themselves to ${label}…`;
   } else if (others > 0 && settings.lastSyncedAt) {
     message = `Online — this ranch’s book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
-    message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}`;
+    message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}. Copies by itself.`;
   } else {
-    message = `Online — connected to ${label}. Syncs by itself.`;
+    message = ranchConfigured
+      ? 'Online — this ranch’s database copies by itself.'
+      : `Online — connected to ${label}. Copies by itself.`;
   }
 
   return {
@@ -125,10 +131,13 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     connected,
     deviceCount,
     bookId: settings.bookId,
+    canSync: connected || ranchConfigured,
     retryable: Boolean(
       lastError ||
         needsAuth ||
-        (ranchConfigured && pendingCount > 0 && !settings.ranchSyncedAt),
+        pendingCount > 0 ||
+        connected ||
+        ranchConfigured,
     ),
   };
 }

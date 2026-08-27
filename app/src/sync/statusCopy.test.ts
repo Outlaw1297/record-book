@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { noneProviderBanner } from './statusCopy';
+import { isSyncOnline, noneProviderBanner } from './statusCopy';
+
+describe('isSyncOnline', () => {
+  it('treats a ranch API as reachable even when the WebView says offline', () => {
+    expect(isSyncOnline(false, true)).toBe(true);
+    expect(isSyncOnline(false, false)).toBe(false);
+    expect(isSyncOnline(true, false)).toBe(true);
+  });
+});
 
 describe('noneProviderBanner', () => {
   it('treats the ranch database as this ranch’s book after a copy', () => {

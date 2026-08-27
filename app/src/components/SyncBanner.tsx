@@ -48,7 +48,7 @@ export function SyncBanner() {
             setBusy(false);
           }}
         >
-          {busy ? 'Syncing…' : 'Retry'}
+          {busy ? 'Syncing…' : 'Sync'}
         </button>
       ) : null}
     </div>

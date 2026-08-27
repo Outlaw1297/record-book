@@ -294,6 +294,7 @@ export async function queueChange(
     updatedAt: nowIso(),
   });
   emitOutboxEvent();
+  void import('../sync/scheduler').then((mod) => mod.scheduleSync(300));
 }
 
 export async function upsertAnimalByHerdId(

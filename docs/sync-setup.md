@@ -36,6 +36,6 @@ The Docker website already uses `/api` on whatever host you deployed. Health che
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row.
-- **Online + this ranch’s API set:** pull/push this ranch’s Postgres.
+- **Online + this ranch’s API set:** pull/push this ranch’s Postgres by itself (save, every few seconds, and when the app opens). Tap Sync if you want it right now.
 - **Online + no server + this ranch’s folder:** that folder is this ranch’s book.
 - **Online + neither:** Settings asks you to choose this ranch’s folder or this ranch’s API.

@@ -19,6 +19,7 @@ import {
 } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
+import { scheduleSync } from '../sync/scheduler';
 import {
   getRanchApiKey,
   getRanchApiUrl,
@@ -152,9 +153,10 @@ export function SettingsPage() {
     saveRanchApiKey(ranchApiKey);
     toast(
       ranchApiUrl.trim()
-        ? 'Ranch API saved on this device. It stays on this phone and is not written into Drive or Dropbox.'
+        ? 'Ranch API saved on this device. Changes copy by themselves when you have Wi-Fi.'
         : 'Ranch API cleared on this device.',
     );
+    if (ranchApiUrl.trim()) scheduleSync(400);
   }
 
   async function testRanchApi() {
@@ -252,10 +254,10 @@ export function SettingsPage() {
       <section className="sync-panel form">
         <h2>Ranch server (optional)</h2>
         <p className="hint">
-          Only if YOU run the Portainer stack on YOUR network. That Postgres
-          database is then this ranch’s book on Wi-Fi. Do not point this phone
-          at another ranch’s server. If you have no server, skip this and use
-          your own Drive or Dropbox folder below.
+          Only if YOU run the Portainer stack on YOUR network. Saves copy by
+          themselves on Wi-Fi after that. Do not point this phone at another
+          ranch’s server. If you have no server, skip this and use your own
+          Google Drive folder below.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'This ranch’s server' : 'No server on this ranch'}
@@ -272,6 +274,11 @@ export function SettingsPage() {
           <input
             value={ranchApiUrl}
             onChange={(e) => setRanchApiUrl(e.target.value)}
+            onBlur={() => {
+              saveRanchApiUrl(ranchApiUrl);
+              saveRanchApiKey(ranchApiKey);
+              if (ranchApiUrl.trim()) scheduleSync(400);
+            }}
             placeholder={native ? RANCH_LAN_API_PLACEHOLDER : '/api'}
             autoComplete="off"
             spellCheck={false}

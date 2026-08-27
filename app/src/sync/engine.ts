@@ -86,7 +86,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   const others = Math.max(0, deviceCount - 1);
 
   let message = 'Offline — changes saved on this device';
-  if (!online) {
+  if (!online && !ranchConfigured) {
     message = 'Offline — changes saved on this device';
   } else if (lastError) {
     message = lastError;
@@ -398,17 +398,17 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       }
     } else {
       try {
-        if (options.replace && !ranchOk && !ranchConfigured) {
-          await clearHerdForReplace();
-        } else if (options.replace && !ranchOk && ranchConfigured) {
-          /* Herd was already cleared for the ranch attempt. */
-        }
         const carrier = carrierFor(cloudProvider);
         const folderAuth = await getSyncAuth();
         assertCloudFolder(
           folderAuth?.rootFolderId || folderAuth?.accessToken || '',
           cloudProvider,
         );
+        if (options.replace && !ranchOk && !ranchConfigured) {
+          await clearHerdForReplace();
+        } else if (options.replace && !ranchOk && ranchConfigured) {
+          /* Herd was already cleared for the ranch attempt. */
+        }
         await carrier.ensureRoot();
         const book = await ensureBook(carrier);
         const remote = await pullRemote(carrier);

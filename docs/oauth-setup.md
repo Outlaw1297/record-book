@@ -55,7 +55,9 @@ While the app is in Testing, Google only lets listed accounts sign in. `drive.fi
 3. Type your Gmail. Click **Save**.
 4. If anyone else on this ranch will test Google login, add their Gmail the same way.
 
-You do **not** need to click Publish to Production for your own phones.
+You do **not** need to click **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
+
+If you Publish, Google blocks Drive until a long review (privacy policy website, demo video). Do not do that for this ranch tool.
 
 ### 1E. Tell Google you only need this app’s Drive files
 
@@ -104,6 +106,41 @@ This proves the sideload APK is allowed to talk to Google. You never paste this 
 6. Click **Create**. You can close the dialog. You do **not** need this Client ID for GitHub.
 
 Google can take a few minutes (sometimes a couple of hours) to notice a new Android client.
+
+### Walkthrough 1H — If Google says it needs verification
+
+You do **not** send Record Book through Google’s paid/review verification. Keep it in Testing. Official: [exceptions to verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements) (personal use, and apps left in Testing).
+
+This does **not** put other ranches on your Drive. Each person still signs into **their** Gmail. You only add their address so Google will show them the Allow screen.
+
+**A. Stay in Testing. Do not Publish.**
+
+1. On a computer, open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
+2. Find **Publishing status**.
+3. It must say **Testing**.
+4. If it says **In production**, look for **Back to testing** / unpublish. Click that. Confirm. Do **not** click **Publish app**.
+
+**B. Add the Gmail that is on the phone**
+
+1. Still on Audience, under **Test users**, click **Add users**.
+2. Type the **same Gmail** you tap on the phone (the account you want Record Book to use). Click **Save**.
+3. If the ranch uses a second Gmail on another phone, add that too (limit 100).
+4. Wait one or two minutes.
+
+**C. Sign in again**
+
+1. On the phone, Settings → **Sign in with Google**. Pick that same Gmail.
+2. If you see **Google hasn’t verified this app**:
+   1. Tap **Advanced** (small text, sometimes at the bottom).
+   2. Tap **Go to Record Book (unsafe)** or **Continue**.
+   3. Then Allow Drive access.
+3. If you still see **Access blocked**, the Gmail on the phone is not in Test users, or you are still In production. Repeat A and B. Sign out of extra Google accounts on the phone and try the listed Gmail only.
+
+**D. What you are not doing**
+
+- You are not opening your Drive to the world.
+- You are not connecting other ranches to your account.
+- You are not starting Google’s verification video/privacy-policy review. That path is only if you Publish for every Google user on earth.
 
 ---
 
@@ -182,10 +219,10 @@ Adding secrets does not change the APK already on the phone. You have to build a
 7. On the phone: Settings → Apps → Record Book → Uninstall (old debug builds can refuse to update).
 8. Open the downloaded APK and allow that one install.
 9. Open **Record Book** → **Settings**.
-10. Tap **Sign in with Google**. Pick **your** Google account and allow Drive. You should **not** see the phone’s file picker.
+10. Tap **Sign in with Google**. Pick **your** Google account.
+    - If the screen says **Google hasn’t verified this app** or **this app isn’t verified**, that is the Testing warning, not a failure. Tap **Advanced** (you may need to scroll), then **Go to Record Book (unsafe)**. That only means Google has not reviewed the product listing. It still writes into **your** Drive only.
+    - If the screen says **Access blocked** / **has not completed the Google verification process**, skip Publish. Follow [Walkthrough 1H](#walkthrough-1h--if-google-says-it-needs-verification) above.
 11. Or tap **Sign in with Dropbox**. Sign into **your** Dropbox. You should return to Record Book, not a folder list of internal storage.
-
-If Google says the app is not verified, that is normal in Testing. Tap **Continue**. If it says the user is not allowed, go back to walk 1D and add that Gmail as a test user, wait a few minutes, try again.
 
 ---
 
@@ -201,7 +238,8 @@ If Google says the app is not verified, that is normal in Testing. Tap **Continu
 |---------------|----------------|
 | “not baked into this APK yet” | Secrets missing, wrong names, or you did not install the **new** APK after the rebuild |
 | Phone file picker (“Open from”, Dalton’s Z Fold5) | Old APK. Uninstall and install the latest `record-book-debug.apk` |
-| Google error 28444 / “developer console is not set up” | Web ID was used incorrectly, or the Android client package / SHA-1 does not match |
+| Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to Record Book. Still **your** Drive. |
+| Google “Access blocked” / verification | Publishing is Testing and this Gmail is a test user. See walk 1H. Do not Publish. |
 | Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
 
 Another ranch installs the **same** APK and signs into **their** Google or Dropbox. They never get your herd.
@@ -218,4 +256,5 @@ Google renamed some menus to **Google Auth Platform**. If **Clients** is missing
 - [Capgo Google Login on Android](https://capgo.app/docs/plugins/social-login/google/android/)
 - [Dropbox OAuth Guide](https://developers.dropbox.com/oauth-guide)
 - [Dropbox HTTP OAuth](https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize)
+- [Exceptions to Google verification (Testing / personal use)](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
 - [GitHub Actions secrets](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)

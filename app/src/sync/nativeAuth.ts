@@ -34,6 +34,16 @@ function asError(error: unknown, fallback: string): Error {
   if (error instanceof Error && error.message.trim()) {
     const message = error.message.trim();
     if (/cancel/i.test(message)) return new Error('Sign-in was cancelled.');
+    if (
+      /verif/i.test(message) ||
+      /access blocked/i.test(message) ||
+      /access_denied/i.test(message) ||
+      /403/.test(message)
+    ) {
+      return new Error(
+        'Google is not asking you to pay for verification. Keep Record Book in Testing. On a computer open console.cloud.google.com → Google Auth Platform → Audience. Publishing status must say Testing (do not Publish). Add THIS Gmail under Test users, wait a minute, try Sign in again. If Google shows “this app isn’t verified,” tap Advanced, then Go to Record Book.',
+      );
+    }
     return new Error(message);
   }
   return new Error(fallback);

@@ -13,6 +13,15 @@ import {
   upsertRanch,
   upsertSale,
 } from './apply.js';
+import {
+  asCloudProvider,
+  backupAllToCloud,
+  credentialsFromBody,
+  deleteCloudAccount,
+  listCloudAccounts,
+  restoreNasFromCloud,
+  saveCloudAccount,
+} from './cloudBackup.js';
 import { query } from './db.js';
 import {
   animalFromDb,
@@ -50,6 +59,7 @@ v1.get('/', (c) =>
       export: 'GET /v1/export',
       snapshot: 'POST /v1/sync/snapshot',
       changes: 'POST /v1/sync/changes',
+      cloudBackup: 'GET/PUT/DELETE /v1/cloud-backup, POST /v1/cloud-backup/now',
       collections: [
         '/v1/ranch',
         '/v1/animals',
@@ -66,6 +76,35 @@ v1.get('/', (c) =>
 );
 
 v1.get('/export', async (c) => c.json(await exportSnapshot()));
+
+v1.get('/cloud-backup', async (c) => c.json({ accounts: await listCloudAccounts() }));
+
+v1.put('/cloud-backup/:provider', async (c) => {
+  const provider = asCloudProvider(c.req.param('provider'));
+  if (!provider) return c.json({ error: 'Use google-drive or dropbox.' }, 400);
+  const parsed = credentialsFromBody(await c.req.json().catch(() => null));
+  if (typeof parsed === 'string') return c.json({ error: parsed }, 400);
+  const saved = await saveCloudAccount(provider, parsed);
+  void backupAllToCloud();
+  return c.json(saved);
+});
+
+v1.delete('/cloud-backup/:provider', async (c) => {
+  const provider = asCloudProvider(c.req.param('provider'));
+  if (!provider) return c.json({ error: 'Use google-drive or dropbox.' }, 400);
+  await deleteCloudAccount(provider);
+  return c.json({ ok: true });
+});
+
+v1.post('/cloud-backup/now', async (c) => {
+  const result = await backupAllToCloud();
+  return c.json(result, result.ok ? 200 : 502);
+});
+
+v1.post('/cloud-backup/restore', async (c) => {
+  const result = await restoreNasFromCloud();
+  return c.json({ ok: true, ...result });
+});
 
 v1.get('/ranch', async (c) => {
   const result = await query('SELECT * FROM ranch WHERE id = 1');
@@ -307,6 +346,7 @@ v1.put('/devices/:id', async (c) => {
 v1.post('/sync/snapshot', async (c) => {
   const body = (await c.req.json()) as Json;
   const result = await applySnapshot(body);
+  void backupAllToCloud();
   return c.json({ ok: true, ...result });
 });
 
@@ -335,5 +375,6 @@ v1.post('/sync/changes', async (c) => {
     else if (result === 'kept') kept += 1;
     else skipped += 1;
   }
+  if (applied > 0) void backupAllToCloud();
   return c.json({ ok: true, applied, kept, skipped });
 });

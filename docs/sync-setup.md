@@ -34,8 +34,7 @@ The Docker website already uses `/api` on whatever host you deployed. Health che
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row.
-- **Online + this ranch’s API set:** pull/push this ranch’s Postgres (the book).
-- **Online + ranch API + signed in:** same ranch copy, then overwrite the spare Drive/Dropbox snapshot. Does not pull Drive over the ranch book while the NAS is up.
-- **Online + ranch API down + signed in:** Drive or Dropbox is the book until the NAS is back.
+- **Online + this ranch’s API set:** pull/push this ranch’s Postgres (the book). If the phone is also signed in, it pulls Dropbox/Drive and writes newer rows back onto the NAS. Then the NAS copies the herd to Dropbox/Drive (not the phone).
+- **Online + ranch API down + signed in:** Drive or Dropbox is the book until the NAS is back. Next ranch sync puts those rows onto the NAS.
 - **Online + no server + signed in:** YOUR Google Drive or Dropbox is this ranch’s book.
 - **Online + neither:** Settings asks you to sign in or set this ranch’s API.

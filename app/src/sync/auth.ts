@@ -2,6 +2,11 @@ import { db, ensureSettings, type SyncAuth } from '../db/schema';
 import { isNativeApp } from '../platform';
 import { clientIdFor, missingClientIdMessage } from './credentials';
 import {
+  hasRanchServer,
+  removeNasCloudLogin,
+  shareCloudLoginWithNas,
+} from './ranchServer';
+import {
   loginWithNativePlatform,
   logoutNativePlatform,
   refreshNativeSession,
@@ -90,6 +95,7 @@ export async function disconnectCloud(provider?: CloudProvider): Promise<void> {
         updatedAt: new Date().toISOString(),
       });
     });
+    await removeNasCloudLogin(provider);
     return;
   }
   await logoutNativePlatform();
@@ -102,6 +108,8 @@ export async function disconnectCloud(provider?: CloudProvider): Promise<void> {
       updatedAt: new Date().toISOString(),
     });
   });
+  await removeNasCloudLogin('google-drive');
+  await removeNasCloudLogin('dropbox');
 }
 
 function signedInDetail(provider: CloudProvider): string {
@@ -287,6 +295,17 @@ async function persistAuth(
       ...settings,
       syncProvider: provider,
       updatedAt: new Date().toISOString(),
+    });
+  }
+  if (hasRanchServer()) {
+    void shareCloudLoginWithNas({
+      provider,
+      accessToken: auth.accessToken,
+      refreshToken: auth.refreshToken,
+      expiresAt: auth.expiresAt,
+      accountEmail: auth.accountEmail,
+      accountName: auth.accountName,
+      clientId: clientIdFor(provider),
     });
   }
   return auth;

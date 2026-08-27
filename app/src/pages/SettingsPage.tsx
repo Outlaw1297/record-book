@@ -25,9 +25,11 @@ import {
   getRanchApiUrl,
   hasEnvRanchApiUrl,
   hasRanchServer,
+  listNasCloudBackup,
   probeRanchServer,
   saveRanchApiKey,
   saveRanchApiUrl,
+  type NasCloudAccount,
 } from '../sync/ranchServer';
 import type { CloudProvider } from '../sync/types';
 import { Field } from '../ui/Field';
@@ -59,6 +61,7 @@ export function SettingsPage() {
   const [busy, setBusy] = useState<
     'google-drive' | 'dropbox' | 'off' | 'replace' | 'ranch' | null
   >(null);
+  const [nasAccounts, setNasAccounts] = useState<NasCloudAccount[]>([]);
 
   useEffect(() => {
     if (settings && !hydrated) {
@@ -87,6 +90,15 @@ export function SettingsPage() {
       void syncNow().then((result) => toast(result.detail));
     }
   }, [searchParams, setSearchParams, toast]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!(ranchApiUrl.trim() || hasRanchServer() || hasEnvRanchApiUrl())) {
+      setNasAccounts([]);
+      return;
+    }
+    void listNasCloudBackup().then(setNasAccounts);
+  }, [hydrated, ranchApiUrl]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -204,8 +216,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps this ranch’s book. If YOU run Docker, that database is the book. Sign in to YOUR Google or Dropbox so a spare copy lives there if the NAS is off.'
-            : 'This browser is the ranch website. The Docker database on this host is the book. Sign in with Google or Dropbox on the phone app so a spare copy of this herd goes to YOUR Drive or Dropbox.'}
+            ? 'This phone keeps this ranch’s book. If YOU run Docker, that NAS is the book and it copies the herd to YOUR Dropbox or Drive. The phone can read the NAS or that cloud copy.'
+            : 'This website is the ranch NAS. After a phone signs in to Dropbox or Google, this host copies the herd there by itself. The phone can grab from this NAS or from Dropbox/Drive.'}
         </p>
       </header>
 
@@ -343,13 +355,13 @@ export function SettingsPage() {
       </section>
 
       <section className="sync-panel">
-        <h2>Spare copy on Google Drive or Dropbox</h2>
+        <h2>NAS copy on Google Drive or Dropbox</h2>
         <p className="hint">
           {native
             ? ranchReady
-              ? 'This ranch’s Docker database is the book. Sign in to YOUR Google, YOUR Dropbox, or both. Spare copies go to each account you connect. If the NAS is off, the last one you signed into is the book. Other ranches use their own accounts.'
-              : 'No Docker server on this phone. Sign in to YOUR Google, YOUR Dropbox, or both. Each connected account gets the herd. Other ranches use their own accounts.'
-            : 'Sign in on the Android app (not this website). The phone copies this Docker herd to YOUR Drive or Dropbox. Google login in this browser usually fails on http://NAS.'}
+              ? 'Sign in on this phone once. The NAS stores that login and copies the herd to YOUR Dropbox or Drive. This phone can then pull from the NAS or from that cloud copy. If the NAS is off, use Dropbox or Drive. When the NAS is back, cloud changes copy onto it.'
+              : 'No Docker server on this phone. Sign in to YOUR Google or Dropbox. That account is this ranch’s book until you add a NAS.'
+            : 'Sign in on the Android app (not this website). That gives this NAS permission to copy the herd to YOUR Dropbox or Drive. Google login in this browser usually fails on http://NAS.'}
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -364,6 +376,22 @@ export function SettingsPage() {
             {dropboxAuth?.accountEmail || dropboxAuth?.accountName || 'Not signed in'}
           </p>
         </div>
+        {nasAccounts.length > 0 ? (
+          nasAccounts.map((account) => (
+            <p className="hint" key={account.provider} style={{ marginTop: '0.55rem' }}>
+              NAS copies to {account.provider === 'dropbox' ? 'Dropbox' : 'Google Drive'}
+              {account.accountEmail ? ` (${account.accountEmail})` : ''}
+              {account.lastBackupAt
+                ? ` · last copy ${new Date(account.lastBackupAt).toLocaleString()}`
+                : ' · waiting for first copy'}
+              {account.lastError ? ` · ${account.lastError}` : ''}
+            </p>
+          ))
+        ) : ranchReady || hasEnvRanchApiUrl() ? (
+          <p className="hint" style={{ marginTop: '0.55rem' }}>
+            This NAS has no Dropbox or Drive login yet. Sign in on the phone once.
+          </p>
+        ) : null}
 
         {native || !hasEnvRanchApiUrl() ? (
           <>
@@ -407,8 +435,8 @@ export function SettingsPage() {
         ) : (
           <p className="hint" style={{ marginTop: '0.75rem' }}>
             Open Record Book on the phone, set this host as the ranch API, then
-            Sign in with Google or Dropbox there. That is what writes the spare
-            copy.
+            Sign in with Google or Dropbox there. After that, this NAS copies
+            the herd to that account by itself.
           </p>
         )}
       </section>

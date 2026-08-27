@@ -23,6 +23,7 @@ import {
   loadRanchDevices,
   pullFromRanchServer,
   pushToRanchServer,
+  requestNasBackup,
 } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
 import { formatWhen, isSyncOnline, noneProviderBanner, noSharedBookDetail } from './statusCopy';
@@ -379,6 +380,27 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       if (incoming.applied) parts.push(`received ${incoming.applied} from ranch`);
       if (incoming.conflicts) parts.push(`${incoming.conflicts} overlap(s) logged`);
 
+      for (const provider of connectedClouds) {
+        try {
+          const carrier = carrierFor(provider);
+          await carrier.ensureRoot();
+          const remote = await pullRemote(carrier);
+          pulled = {
+            pulled: pulled.pulled + remote.pulled,
+            conflicts: pulled.conflicts + remote.conflicts,
+          };
+          if (remote.pulled) {
+            parts.push(`received ${remote.pulled} from ${providerLabel(provider)}`);
+          }
+        } catch (error) {
+          parts.push(
+            error instanceof Error
+              ? error.message
+              : `Could not read ${providerLabel(provider)}.`,
+          );
+        }
+      }
+
       const ranch = await pushToRanchServer();
       if (ranch.ok) {
         ranchOk = true;
@@ -407,6 +429,10 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
             },
             settings.deviceId,
           );
+        }
+        const nas = await requestNasBackup();
+        if (!/no dropbox or google login stored/i.test(nas.detail)) {
+          parts.push(nas.detail);
         }
       } else if (connectedClouds.length === 0) {
         lastError = ranch.detail;
@@ -485,23 +511,6 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           pushed: 0,
           conflicts: 0,
         };
-      }
-    } else if (cloudRole === 'backup') {
-      const copied: string[] = [];
-      for (const provider of connectedClouds) {
-        try {
-          await copySnapshotTo(provider);
-          copied.push(providerLabel(provider));
-        } catch (error) {
-          parts.push(
-            error instanceof Error ? error.message : `${providerLabel(provider)} spare copy failed.`,
-          );
-        }
-      }
-      if (copied.length > 0) {
-        parts.push(`spare copy on ${copied.join(' and ')}`);
-      } else if (connectedClouds.length === 0) {
-        parts.push('sign in with Google or Dropbox to keep a spare copy');
       }
     }
   }

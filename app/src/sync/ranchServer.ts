@@ -1,6 +1,6 @@
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
-import type { HerdSnapshot } from './types';
+import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
 
 const URL_KEY = 'record-book.ranchApiUrl';
@@ -46,7 +46,7 @@ export function joinRanchApiBase(raw: string, origin: string): string {
   return trimmed;
 }
 
-function ranchHeaders(method: 'GET' | 'POST' | 'PUT' = 'GET'): Record<string, string> {
+function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record<string, string> {
   const headers: Record<string, string> = {
     'Cache-Control': 'no-store',
     Pragma: 'no-cache',
@@ -57,12 +57,12 @@ function ranchHeaders(method: 'GET' | 'POST' | 'PUT' = 'GET'): Record<string, st
   return headers;
 }
 
-function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: string) {
+function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: string) {
   return fetch(ranchUrl(path), ranchRequestInit(method, body));
 }
 
 export function ranchRequestInit(
-  method: 'GET' | 'POST' | 'PUT' = 'GET',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   body?: string,
 ): RequestInit {
   return {
@@ -273,6 +273,104 @@ export async function pushToRanchServer(): Promise<{
     return {
       ok: false,
       skipped: false,
+      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+    };
+  }
+}
+
+export type NasCloudAccount = {
+  provider: CloudProvider;
+  accountEmail?: string;
+  accountName?: string;
+  lastBackupAt?: string;
+  lastError?: string;
+};
+
+export async function listNasCloudBackup(): Promise<NasCloudAccount[]> {
+  if (!hasRanchServer()) return [];
+  try {
+    const response = await ranchFetch('/v1/cloud-backup');
+    if (!response.ok) return [];
+    const body = (await response.json()) as { accounts?: NasCloudAccount[] };
+    return Array.isArray(body.accounts) ? body.accounts : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function shareCloudLoginWithNas(input: {
+  provider: CloudProvider;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  accountEmail?: string;
+  accountName?: string;
+  clientId: string;
+}): Promise<{ ok: boolean; detail: string }> {
+  if (!hasRanchServer()) {
+    return { ok: false, detail: 'Ranch server not configured.' };
+  }
+  try {
+    const response = await ranchFetch(
+      `/v1/cloud-backup/${encodeURIComponent(input.provider)}`,
+      'PUT',
+      JSON.stringify({
+        accessToken: input.accessToken,
+        refreshToken: input.refreshToken,
+        expiresAt: input.expiresAt,
+        accountEmail: input.accountEmail,
+        accountName: input.accountName,
+        clientId: input.clientId,
+      }),
+    );
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, detail: body.error || `Ranch API ${response.status}` };
+    }
+    return { ok: true, detail: 'This NAS will copy the herd to that account.' };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+    };
+  }
+}
+
+export async function removeNasCloudLogin(provider: CloudProvider): Promise<void> {
+  if (!hasRanchServer()) return;
+  await ranchFetch(
+    `/v1/cloud-backup/${encodeURIComponent(provider)}`,
+    'DELETE',
+  ).catch(() => undefined);
+}
+
+export async function requestNasBackup(): Promise<{ ok: boolean; detail: string }> {
+  if (!hasRanchServer()) {
+    return { ok: false, detail: 'Ranch server not configured.' };
+  }
+  try {
+    const response = await ranchFetch('/v1/cloud-backup/now', 'POST');
+    const body = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      detail?: string;
+    };
+    if (!response.ok) {
+      if (response.status === 404) {
+        return {
+          ok: false,
+          detail:
+            'Redeploy the Portainer stack so this NAS can copy the herd to Dropbox or Drive.',
+        };
+      }
+      return {
+        ok: false,
+        detail: body.detail || `Ranch API ${response.status}`,
+      };
+    }
+    return { ok: true, detail: body.detail || 'NAS copied the herd to Dropbox or Drive.' };
+  } catch (error) {
+    return {
+      ok: false,
       detail: ranchUnreachableDetail(error, ranchUrl('/health')),
     };
   }

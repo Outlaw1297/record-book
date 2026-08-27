@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { apiKeyAuth, corsOrigin } from './auth.js';
 import { migrate, ping, pool, query } from './db.js';
+import { startCloudBackupLoop } from './cloudBackup.js';
 import { oauth } from './oauth.js';
 import { v1 } from './routes.js';
 
@@ -101,6 +102,7 @@ const port = Number(process.env.PORT || 8080);
 const hostname = process.env.HOST || '0.0.0.0';
 
 await migrate();
+startCloudBackupLoop();
 console.log(`record-book-api listening on ${hostname}:${port}`);
 
 const server = serve({ fetch: app.fetch, port, hostname });

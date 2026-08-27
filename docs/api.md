@@ -27,8 +27,12 @@ A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/ap
 | GET | `/ready` | Postgres ping |
 | GET | `/v1/` | Catalog |
 | GET | `/v1/export` | Full snapshot JSON |
-| POST | `/v1/sync/snapshot` | Upsert a PWA snapshot (last `updatedAt` wins) |
+| POST | `/v1/sync/snapshot` | Upsert a PWA snapshot (last `updatedAt` wins), then the NAS copies to Dropbox/Drive |
 | POST | `/v1/sync/changes` | Apply outbox-style change lines |
+| GET | `/v1/cloud-backup` | NAS Dropbox/Drive backup status (no tokens) |
+| PUT/DELETE | `/v1/cloud-backup/:provider` | Phone stores a Dropbox or Google login on this NAS (`google-drive` or `dropbox`) |
+| POST | `/v1/cloud-backup/now` | NAS copies the herd to those accounts |
+| POST | `/v1/cloud-backup/restore` | NAS applies the latest Dropbox/Drive snapshot |
 | GET/PUT | `/v1/ranch` | Ranch name + working year |
 | GET | `/v1/animals` | Query `includeDeleted=true` to include soft-deletes |
 | GET/PUT/DELETE | `/v1/animals/:id` | DELETE is a soft-delete |

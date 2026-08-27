@@ -15,6 +15,7 @@ import {
 import {
   disconnectCloud,
   getSyncAuth,
+  isUsableFolderSession,
   startOAuth,
 } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
@@ -183,7 +184,7 @@ export function SettingsPage() {
     toast('Backup downloaded');
   }
 
-  const connected = Boolean(auth?.accessToken);
+  const connected = isUsableFolderSession(auth);
   const native = isNativeApp();
   const ranchReady = Boolean(ranchApiUrl.trim()) || hasRanchServer();
   const providerName =

@@ -45,15 +45,25 @@ export async function completeOAuthCallback(
   };
 }
 
+function isSharedFolderId(value: string | undefined): boolean {
+  const id = (value || '').trim();
+  return id === 'fsa' || id.startsWith('content://');
+}
+
+export function isUsableFolderSession(auth: SyncAuth | undefined): boolean {
+  return isSharedFolderId(auth?.rootFolderId) || isSharedFolderId(auth?.accessToken);
+}
+
 export async function hasUsableSession(): Promise<boolean> {
-  const auth = await getSyncAuth();
-  return Boolean(auth?.rootFolderId || auth?.accessToken);
+  return isUsableFolderSession(await getSyncAuth());
 }
 
 export async function getValidAccessToken(): Promise<string | null> {
   const auth = await getSyncAuth();
-  const token = auth?.rootFolderId || auth?.accessToken;
-  return token || null;
+  const root = (auth?.rootFolderId || '').trim();
+  if (isSharedFolderId(root)) return root;
+  const token = (auth?.accessToken || '').trim();
+  return isSharedFolderId(token) ? token : null;
 }
 
 export async function requireAccessToken(): Promise<{

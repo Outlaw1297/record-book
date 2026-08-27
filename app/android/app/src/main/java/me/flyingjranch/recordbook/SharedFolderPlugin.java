@@ -37,24 +37,28 @@ public class SharedFolderPlugin extends Plugin {
     @ActivityCallback
     private void folderPicked(PluginCall call, ActivityResult result) {
         if (call == null) return;
-        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
-            call.reject("Folder pick was cancelled.");
-            return;
-        }
-        Uri uri = result.getData().getData();
-        if (uri == null) {
-            call.reject("No folder was returned.");
-            return;
-        }
-        int flags =
-            Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-        getContext().getContentResolver().takePersistableUriPermission(uri, flags);
+        try {
+            if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                call.reject("Folder pick was cancelled.");
+                return;
+            }
+            Uri uri = result.getData().getData();
+            if (uri == null) {
+                call.reject("No folder was returned.");
+                return;
+            }
+            int flags =
+                Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+            getContext().getContentResolver().takePersistableUriPermission(uri, flags);
 
-        DocumentFile tree = DocumentFile.fromTreeUri(getContext(), uri);
-        JSObject out = new JSObject();
-        out.put("id", uri.toString());
-        out.put("name", tree != null && tree.getName() != null ? tree.getName() : "Shared folder");
-        call.resolve(out);
+            DocumentFile tree = DocumentFile.fromTreeUri(getContext(), uri);
+            JSObject out = new JSObject();
+            out.put("id", uri.toString());
+            out.put("name", tree != null && tree.getName() != null ? tree.getName() : "Shared folder");
+            call.resolve(out);
+        } catch (Exception error) {
+            call.reject(error.getMessage());
+        }
     }
 
     @PluginMethod
@@ -194,7 +198,7 @@ public class SharedFolderPlugin extends Plugin {
         if (file != null && file.isDirectory()) {
             throw new Exception(name + " is a folder.");
         }
-        DocumentFile created = parent.createFile("text/plain", name);
+        DocumentFile created = parent.createFile(mimeForName(name), name);
         if (created == null) throw new Exception("Could not create " + name);
         return created;
     }
@@ -208,12 +212,22 @@ public class SharedFolderPlugin extends Plugin {
             if (next == null) {
                 if (!create) return null;
                 boolean last = i == parts.size() - 1;
-                next = last ? current.createFile("text/plain", parts.get(i)) : current.createDirectory(parts.get(i));
+                next = last
+                    ? current.createFile(mimeForName(parts.get(i)), parts.get(i))
+                    : current.createDirectory(parts.get(i));
                 if (next == null) return null;
             }
             current = next;
         }
         return current;
+    }
+
+    private static String mimeForName(String name) {
+        int dot = name.lastIndexOf('.');
+        String ext = dot >= 0 ? name.substring(dot + 1) : "";
+        if (ext.equalsIgnoreCase("json")) return "application/json";
+        if (ext.equalsIgnoreCase("jsonl")) return "application/jsonl";
+        return "application/octet-stream";
     }
 
     private DocumentFile childNamed(DocumentFile parent, String name) {

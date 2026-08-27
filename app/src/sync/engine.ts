@@ -110,13 +110,12 @@ export async function getSyncStatus(): Promise<SyncStatus> {
         ? `${pendingCount} change(s) copying to the ranch database, then a spare copy on ${label}…`
         : `${pendingCount} change(s) copying themselves to the ranch database…`
       : `${pendingCount} change(s) copying themselves to ${label}…`;
+  } else if (ranchConfigured && connected && settings.ranchSyncedAt) {
+    message = `Online — ranch database last synced ${formatWhen(settings.ranchSyncedAt)}. Spare copy on ${label}.`;
   } else if (others > 0 && settings.lastSyncedAt) {
     message = `Online — this ranch’s book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
-    message =
-      ranchConfigured && connected
-        ? `Online — ranch database last synced ${formatWhen(settings.lastSyncedAt)}. Spare copy on ${label}.`
-        : `Online — last synced ${formatWhen(settings.lastSyncedAt)}. Copies by itself.`;
+    message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}. Copies by itself.`;
   } else {
     message = ranchConfigured
       ? connected
@@ -197,6 +196,7 @@ async function publishRoster(
   carrier: CloudCarrier,
   bookId: string,
   changeKeys: string[],
+  cacheLocal = true,
 ): Promise<DeviceRoster> {
   const settings = await ensureSettings();
   const raw = await carrier.readText(DEVICES_PATH);
@@ -216,7 +216,7 @@ async function publishRoster(
     JSON.stringify(withFolders, null, 2),
     'overwrite',
   );
-  await cacheRoster(withFolders, settings.deviceId);
+  if (cacheLocal) await cacheRoster(withFolders, settings.deviceId);
   return withFolders;
 }
 
@@ -438,6 +438,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           carrier,
           book.bookId,
           changeFiles.map((file) => file.key),
+          cloudRole !== 'backup',
         );
         if (cloudRole === 'backup') {
           parts.push(`spare copy on ${cloudLabel}`);

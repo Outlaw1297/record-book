@@ -55,7 +55,7 @@ https://localhost/oauth/callback
 5. Authorized JavaScript origins: `http://localhost:5173`, `http://192.168.1.56:8180`, `https://localhost`.
 6. Authorized redirect URIs: each of those plus `/oauth/callback`.
 7. Copy the **Client ID** (not a client secret). This is a public PKCE client.
-8. Put it in GitHub Actions secret `VITE_GOOGLE_CLIENT_ID`, and/or the stack file `/keys/google_client_id`. Rebuild images / APK. Do not paste it on the phone.
+8. Paste it in the app: Settings → Google client ID → Save app IDs. Optionally also put it in GitHub Actions secret `VITE_GOOGLE_CLIENT_ID` or `/keys/google_client_id` so images bake it in.
 
 The app requests `drive.file` only: it can see files **it created**, not the rest of your Drive. Settings → **Connect Google Drive** signs in and creates `RecordBook/`.
 
@@ -66,7 +66,7 @@ The app requests `drive.file` only: it can see files **it created**, not the res
 3. Permissions: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
 4. Redirect URIs: `http://localhost:5173/oauth/callback`, `http://192.168.1.56:8180/oauth/callback`, `https://localhost/oauth/callback`.
 5. Copy the **App key**.
-6. Put it in GitHub Actions secret `VITE_DROPBOX_APP_KEY`, and/or `/keys/dropbox_app_key`. Rebuild. Do not paste it on the phone.
+6. Paste it in the app: Settings → Dropbox app key → Save app IDs. Optionally also put it in GitHub Actions secret `VITE_DROPBOX_APP_KEY` or `/keys/dropbox_app_key`.
 
 Settings → **Connect Dropbox** signs in and creates the folder.
 

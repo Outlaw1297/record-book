@@ -22,13 +22,15 @@ On first launch the phone uses `http://192.168.1.56:8180/api`. That address is f
 
 ## Drive / Dropbox from the APK
 
-Tap **Connect Google Drive** or **Connect Dropbox**. Sign in. The app creates `RecordBook/` and keeps it in sync. Add these redirect URIs when you register the OAuth app (once, as the ranch developer):
+Create the Google/Dropbox app once (see [sync setup](sync-setup.md)). In Settings, paste the Google client ID and/or Dropbox app key, tap **Save app IDs**, then **Connect**. The app creates `RecordBook/` and keeps it in sync.
+
+Redirect URI for the APK:
 
 ```text
 https://localhost/oauth/callback
 ```
 
-The Capacitor WebView is a secure `https://localhost` origin. Paste the same client ID / app key you use on the office PWA.
+Also register `http://192.168.1.56:8180/oauth/callback` for the office PWA. The Capacitor WebView is a secure `https://localhost` origin.
 
 ## Build locally
 

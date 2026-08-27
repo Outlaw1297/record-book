@@ -43,7 +43,7 @@ export function hasEnvDropboxAppKey(): boolean {
   return Boolean(fromEnv('VITE_DROPBOX_APP_KEY'));
 }
 
-/** Pull public PKCE client IDs from the ranch API so the phone never pastes them. */
+/** Pull public PKCE client IDs from the ranch API when this phone does not have them yet. */
 export async function hydrateOAuthClients(): Promise<void> {
   if (typeof localStorage === 'undefined') return;
   if (getGoogleClientId() && getDropboxAppKey()) return;
@@ -63,6 +63,27 @@ export async function hydrateOAuthClients(): Promise<void> {
       saveDropboxAppKey(body.dropboxAppKey);
     }
   } catch {
-    /* Ranch may be offline; Connect still works if IDs were baked into the APK. */
+    /* Ranch may be offline; Connect still works after pasting IDs in Settings. */
+  }
+}
+
+/** Share public IDs with other devices via the ranch API. Local copies stay even if this fails. */
+export async function publishOAuthClients(): Promise<void> {
+  const url = ranchUrl('/oauth-clients');
+  if (!url) return;
+  const googleClientId = getGoogleClientId();
+  const dropboxAppKey = getDropboxAppKey();
+  if (!googleClientId && !dropboxAppKey) return;
+  try {
+    await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(googleClientId ? { googleClientId } : {}),
+        ...(dropboxAppKey ? { dropboxAppKey } : {}),
+      }),
+    });
+  } catch {
+    /* This phone can still Connect with the pasted IDs. */
   }
 }

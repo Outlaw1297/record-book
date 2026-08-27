@@ -18,6 +18,7 @@ A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/ap
 |--------|------|-------|
 | GET | `/` | Same as health (so `/api` and `/api/` are not 404) |
 | GET | `/oauth-clients` | Public PKCE client IDs for Drive/Dropbox (may be empty) |
+| PUT | `/oauth-clients` | Save those public IDs so other devices can hydrate them |
 | GET | `/health` | Process up |
 | GET | `/ready` | Postgres ping |
 | GET | `/v1/` | Catalog |

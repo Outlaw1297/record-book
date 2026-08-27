@@ -83,12 +83,13 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   } else if (lastError) {
     message = lastError;
   } else if (settings.syncProvider === 'none') {
-    if (ranchConfigured && pendingCount > 0) {
-      message = `${pendingCount} change(s) waiting to copy to the ranch database`;
+    if (pendingCount > 0) {
+      message = `${pendingCount} change(s) on this phone. Connect Drive or Dropbox in Settings to share them.`;
     } else if (ranchConfigured && settings.lastSyncedAt) {
       message = `Online — ranch database last copied ${formatWhen(settings.lastSyncedAt)}`;
     } else if (ranchConfigured) {
-      message = 'Online — copies to the ranch database by itself on Wi-Fi';
+      message =
+        'Online — connect Drive or Dropbox to share phones. Ranch database copies on Wi-Fi.';
     } else {
       message = 'Online — connect Drive or Dropbox in Settings';
     }

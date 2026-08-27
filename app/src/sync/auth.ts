@@ -49,8 +49,8 @@ export async function startOAuth(provider: CloudProvider): Promise<void> {
   if (!clientId) {
     throw new Error(
       provider === 'google-drive'
-        ? 'Google sign-in is not set up on this ranch yet.'
-        : 'Dropbox sign-in is not set up on this ranch yet.',
+        ? 'Paste the Google client ID under Shared cloud folder, then tap Connect Google Drive.'
+        : 'Paste the Dropbox app key under Shared cloud folder, then tap Connect Dropbox.',
     );
   }
 

@@ -20,6 +20,14 @@ import {
 import { defaultDeviceName } from '../sync/identity';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
+  getDropboxAppKey,
+  getGoogleClientId,
+  hydrateOAuthClients,
+  publishOAuthClients,
+  saveDropboxAppKey,
+  saveGoogleClientId,
+} from '../sync/credentials';
+import {
   getRanchApiKey,
   getRanchApiUrl,
   hasEnvRanchApiUrl,
@@ -54,6 +62,8 @@ export function SettingsPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [dropboxAppKey, setDropboxAppKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [busy, setBusy] = useState<
     'google-drive' | 'dropbox' | 'off' | 'replace' | 'ranch' | null
@@ -70,9 +80,18 @@ export function SettingsPage() {
       setCurrentYear(settings.currentYear);
       setRanchApiUrl(getRanchApiUrl());
       setRanchApiKey(getRanchApiKey());
+      setGoogleClientId(getGoogleClientId());
+      setDropboxAppKey(getDropboxAppKey());
       setHydrated(true);
     }
   }, [settings, hydrated]);
+
+  useEffect(() => {
+    void hydrateOAuthClients().then(() => {
+      setGoogleClientId((current) => current.trim() || getGoogleClientId());
+      setDropboxAppKey((current) => current.trim() || getDropboxAppKey());
+    });
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
@@ -114,6 +133,9 @@ export function SettingsPage() {
   }
 
   async function connect(provider: CloudProvider) {
+    saveGoogleClientId(googleClientId);
+    saveDropboxAppKey(dropboxAppKey);
+    void publishOAuthClients();
     setBusy(provider);
     try {
       await startOAuth(provider);
@@ -241,9 +263,9 @@ export function SettingsPage() {
         <h2>Shared cloud folder</h2>
         <p className="hint">
           Sign this device and every other device into the <strong>same</strong>{' '}
-          Google or Dropbox account. The app creates a private{' '}
-          <code>RecordBook</code> folder and keeps it up to date. No keys to
-          paste.
+          Google or Dropbox account. Create the app IDs once (not your
+          password), paste them here, then Connect. The app creates a private{' '}
+          <code>RecordBook</code> folder and keeps it up to date.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -259,6 +281,70 @@ export function SettingsPage() {
             Pending changes: {pending ?? 0}
             {settings?.bookId ? ` · Book ${settings.bookId.slice(0, 8)}` : ''}
           </p>
+        </div>
+
+        <div className="form" style={{ marginTop: '0.85rem' }}>
+          <Field label="Google client ID">
+            <input
+              value={googleClientId}
+              onChange={(e) => setGoogleClientId(e.target.value)}
+              placeholder="….apps.googleusercontent.com"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+          <Field label="Dropbox app key">
+            <input
+              value={dropboxAppKey}
+              onChange={(e) => setDropboxAppKey(e.target.value)}
+              placeholder="From dropbox.com/developers/apps"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+          <p className="hint">
+            One-time, as the ranch owner.{' '}
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
+              Google: Web client
+            </a>
+            {' · '}
+            <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noreferrer">
+              Dropbox: Create app
+            </a>
+            . Add this redirect URI:{' '}
+            <code>{`${window.location.origin}/oauth/callback`}</code>
+            {native ? (
+              <>
+                {' '}
+                and <code>http://192.168.1.56:8180/oauth/callback</code> for the office
+                browser.
+              </>
+            ) : (
+              <>
+                {' '}
+                and <code>https://localhost/oauth/callback</code> for the phone app.
+              </>
+            )}
+          </p>
+          <div className="provider-actions">
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={busy !== null}
+              onClick={() => {
+                saveGoogleClientId(googleClientId);
+                saveDropboxAppKey(dropboxAppKey);
+                void publishOAuthClients();
+                toast(
+                  googleClientId.trim() || dropboxAppKey.trim()
+                    ? 'App IDs saved on this phone. Tap Connect next.'
+                    : 'App IDs cleared on this phone.',
+                );
+              }}
+            >
+              Save app IDs
+            </button>
+          </div>
         </div>
 
         <div className="provider-actions">

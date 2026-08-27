@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { apiKeyAuth, corsOrigin } from './auth.js';
-import { migrate, ping, pool } from './db.js';
+import { migrate, ping, pool, query } from './db.js';
 import { v1 } from './routes.js';
 
 const app = new Hono({ strict: false });
@@ -17,12 +17,59 @@ app.use(
   }),
 );
 
-app.get('/oauth-clients', (c) =>
-  c.json({
+type OauthClients = {
+  googleClientId: string;
+  dropboxAppKey: string;
+};
+
+async function readOauthClients(): Promise<OauthClients> {
+  const fromEnv: OauthClients = {
     googleClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
     dropboxAppKey: (process.env.DROPBOX_APP_KEY || '').trim(),
-  }),
-);
+  };
+  try {
+    const result = await query<{
+      google_client_id: string;
+      dropbox_app_key: string;
+    }>('SELECT google_client_id, dropbox_app_key FROM oauth_clients WHERE id = 1');
+    const row = result.rows[0];
+    return {
+      googleClientId: fromEnv.googleClientId || (row?.google_client_id || '').trim(),
+      dropboxAppKey: fromEnv.dropboxAppKey || (row?.dropbox_app_key || '').trim(),
+    };
+  } catch {
+    return fromEnv;
+  }
+}
+
+app.get('/oauth-clients', async (c) => c.json(await readOauthClients()));
+
+app.put('/oauth-clients', apiKeyAuth(), async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    googleClientId?: unknown;
+    dropboxAppKey?: unknown;
+  };
+  const google =
+    typeof body.googleClientId === 'string' ? body.googleClientId.trim() : undefined;
+  const dropbox =
+    typeof body.dropboxAppKey === 'string' ? body.dropboxAppKey.trim() : undefined;
+  if (google === undefined && dropbox === undefined) {
+    return c.json({ error: 'Send googleClientId and/or dropboxAppKey.' }, 400);
+  }
+  if (google !== undefined) {
+    await query(
+      'UPDATE oauth_clients SET google_client_id = $1, updated_at = NOW() WHERE id = 1',
+      [google],
+    );
+  }
+  if (dropbox !== undefined) {
+    await query(
+      'UPDATE oauth_clients SET dropbox_app_key = $1, updated_at = NOW() WHERE id = 1',
+      [dropbox],
+    );
+  }
+  return c.json(await readOauthClients());
+});
 
 function healthPayload() {
   return { ok: true as const, service: 'record-book-api' as const };

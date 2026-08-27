@@ -46,6 +46,10 @@ Google will not let you create login IDs until this is filled in.
 7. **Contact information:** type the same email again. Click **Next**.
 8. Check **I agree to the Google API Services: User Data Policy**. Click **Continue**, then **Create**.
 
+On Branding, leave **App home page**, **Privacy policy**, **Terms of service**, and **Authorized domains** blank.
+
+If you see the gray box that says a domain “must be pre-registered here” and to check **Google Search Console**, skip it. That text only applies if you type a website (because you are Publishing). Record Book is a phone app. You do **not** register a domain and you do **not** open Search Console.
+
 ### 1D. Add yourself as a test user
 
 While the app is in Testing, Google only lets listed accounts sign in. `drive.file` counts as extra access, so you **must** add your Gmail.
@@ -141,6 +145,7 @@ This does **not** put other ranches on your Drive. Each person still signs into 
 - You are not opening your Drive to the world.
 - You are not connecting other ranches to your account.
 - You are not starting Google’s verification video/privacy-policy review. That path is only if you Publish for every Google user on earth.
+- You are not adding Authorized domains or using Google Search Console. Leave those fields empty.
 
 ---
 
@@ -240,6 +245,7 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | Phone file picker (“Open from”, Dalton’s Z Fold5) | Old APK. Uninstall and install the latest `record-book-debug.apk` |
 | Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to Record Book. Still **your** Drive. |
 | Google “Access blocked” / verification | Publishing is Testing and this Gmail is a test user. See walk 1H. Do not Publish. |
+| Google Search Console / authorized domains | Ignore. Leave domains empty. That box is only if you typed a website. |
 | Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
 
 Another ranch installs the **same** APK and signs into **their** Google or Dropbox. They never get your herd.

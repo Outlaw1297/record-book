@@ -30,15 +30,17 @@ export type NativeAccount = {
 
 let initializedFor = '';
 
-function asError(error: unknown, fallback: string): Error {
+function asError(error: unknown, fallback: string, provider: CloudProvider): Error {
   if (error instanceof Error && error.message.trim()) {
     const message = error.message.trim();
     if (/cancel/i.test(message)) return new Error('Sign-in was cancelled.');
     if (
-      /verif/i.test(message) ||
-      /access blocked/i.test(message) ||
-      /access_denied/i.test(message) ||
-      /403/.test(message)
+      provider === 'google-drive' &&
+      (/access blocked/i.test(message) ||
+        /hasn['’]?t verified/i.test(message) ||
+        /isn['’]?t verified/i.test(message) ||
+        /google verification/i.test(message) ||
+        /currently being tested/i.test(message))
     ) {
       return new Error(
         'Google is not asking you to pay for verification. Keep Record Book in Testing. On a computer open console.cloud.google.com → Google Auth Platform → Audience. Publishing status must say Testing (do not Publish). Add THIS Gmail under Test users, wait a minute, try Sign in again. If Google shows “this app isn’t verified,” tap Advanced, then Go to Record Book.',
@@ -174,6 +176,7 @@ export async function loginWithNativePlatform(provider: CloudProvider): Promise<
       provider === 'google-drive'
         ? 'Google sign-in failed.'
         : 'Dropbox sign-in failed.',
+      provider,
     );
   }
 }

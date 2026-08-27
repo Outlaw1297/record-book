@@ -66,9 +66,9 @@ function isCloudProvider(value: SyncProvider): value is CloudProvider {
 }
 
 function providerLabel(provider: SyncProvider): string {
-  if (provider === 'google-drive') return 'Google Drive';
-  if (provider === 'dropbox') return 'Dropbox';
-  return 'cloud';
+  if (provider === 'google-drive') return 'this ranch’s Google Drive';
+  if (provider === 'dropbox') return 'this ranch’s Dropbox';
+  return 'this ranch’s book';
 }
 
 export async function getSyncStatus(): Promise<SyncStatus> {
@@ -104,7 +104,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
       ? `${pendingCount} change(s) syncing to the ranch database…`
       : `${pendingCount} change(s) syncing to ${label}…`;
   } else if (others > 0 && settings.lastSyncedAt) {
-    message = `Online — shared book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
+    message = `Online — this ranch’s book, ${others + 1} devices, last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else if (settings.lastSyncedAt) {
     message = `Online — last synced ${formatWhen(settings.lastSyncedAt)}`;
   } else {
@@ -385,7 +385,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     const token = await getValidAccessToken();
     if (!token) {
       if (!ranchOk) {
-        lastError = 'Choose a shared folder in Settings.';
+        lastError = 'Choose this ranch’s folder in Settings.';
         emitSyncEvent();
         return {
           ok: false,

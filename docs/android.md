@@ -2,7 +2,7 @@
 
 The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device.
 
-This is the same APK for every ranch. It does not bake a specific NAS address or OAuth keys.
+This is the same APK for every ranch. It does not bake a NAS address, OAuth keys, or anyone else’s Drive or Dropbox. Each install is another ranch using the tool. Cattle stay on that ranch.
 
 ## Install on a phone
 
@@ -16,15 +16,15 @@ This is a **debug** APK for sideload, not a Play Store build.
 
 ## Share without a ranch server
 
-Settings → **Choose Google Drive folder** or **Choose Dropbox folder**. The phone opens the Android folder picker. Open Drive or Dropbox (or any folder) and select it. Other phones pick that same folder.
+Settings → **Use my Google Drive folder** or **Use my Dropbox folder**. The phone opens the Android folder picker on **your** account. Pick a folder **you** own. Other phones on **this** ranch pick that same folder. Another ranch picks a folder in **their** account.
 
-No Google Cloud client ID, Dropbox app key, or GitHub secret is required.
+Do not pick someone else’s Drive or Dropbox. There is no product Dropbox. No Google Cloud client ID, Dropbox app key, or GitHub secret is required.
 
 ## Ranch database (optional)
 
-The APK does **not** bake `/api`. That path only works inside the Portainer nginx site.
+The APK does **not** bake `/api`. That path only works inside a Portainer site **you** run.
 
-If this install has a Docker NAS, type that API in Settings, for example `http://YOUR-NAS:8180/api`. Check `http://YOUR-NAS:8180/api/health` in a browser; it should show `{"ok":true}`.
+If **you** run Docker on **your** network, type **your** API in Settings, for example `http://YOUR-NAS:8180/api`. Do not type another ranch’s address. Check `http://YOUR-NAS:8180/api/health` in a browser; it should show `{"ok":true}`.
 
 ## Build locally
 

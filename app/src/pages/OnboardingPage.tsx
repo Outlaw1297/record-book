@@ -49,8 +49,8 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
             </h1>
             <p className="lede">
               Log calves in the pasture with big, simple fields. This phone keeps
-              the book. Choose a shared Drive or Dropbox folder to share it, or
-              use a ranch Docker server if this install has one.
+              YOUR ranch’s book. Other ranches who install Record Book keep
+              theirs separately.
             </p>
             <div className="sticky-actions" style={{ gridTemplateColumns: '1fr' }}>
               <button type="button" className="btn primary" onClick={() => setStep(1)}>
@@ -80,7 +80,7 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
               <input
                 value={ranchName}
                 onChange={(e) => setRanchName(e.target.value)}
-                placeholder="Flying J"
+                placeholder="Spring Creek"
                 autoComplete="organization"
                 autoFocus
               />
@@ -89,7 +89,7 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
               <input
                 value={operatorName}
                 onChange={(e) => setOperatorName(e.target.value)}
-                placeholder="Dalton"
+                placeholder="Alex"
                 autoComplete="name"
               />
             </Field>
@@ -118,9 +118,9 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
               How you will use it
             </h1>
             <p className="lede">
-              Same shared herd either way. Phone is tuned for gloves and
-              one-handed calf entry. Choose the same shared folder on every
-              device, or use the ranch server if this install has one.
+              Phone is for gloves and one-handed calf entry. To share this
+              ranch’s herd, pick a folder in YOUR Drive or Dropbox, or run YOUR
+              own Docker server. Do not use another ranch’s account or NAS.
             </p>
             <Segmented
               ariaLabel="Device"

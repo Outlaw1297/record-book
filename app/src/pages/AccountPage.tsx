@@ -27,9 +27,9 @@ export function AccountPage() {
       <header className="page-header">
         <h1>Account</h1>
         <p className="lede">
-          You have a name on this device. The herd is the shared book — the
-          ranch Docker database if this install has one, otherwise Google Drive
-          or Dropbox.
+          You have a name on this device. Cattle belong to THIS ranch’s book:
+          your Docker database if you run one, otherwise a folder in YOUR
+          Drive or Dropbox. Other ranches are not on it.
         </p>
       </header>
 
@@ -49,7 +49,7 @@ export function AccountPage() {
           <p>{settings?.currentYear}</p>
         </div>
         <div className="list-card">
-          <h2>Shared folder</h2>
+          <h2>This ranch’s folder</h2>
           <p>
             {providerLabel(auth?.provider)}
             {auth?.accountEmail ? ` · ${auth.accountEmail}` : ''}
@@ -59,7 +59,7 @@ export function AccountPage() {
           <h2>Other devices</h2>
           <p>
             {others.length === 0
-              ? 'None yet. Sign in on another phone or the office, or sync with a ranch server if you have one.'
+              ? 'None yet. Connect another phone or the office to this ranch’s folder or this ranch’s server.'
               : others
                   .map(
                     (device) =>

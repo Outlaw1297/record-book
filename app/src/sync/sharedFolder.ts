@@ -36,7 +36,7 @@ async function requireFolderId(): Promise<string> {
   const auth = await db.syncAuth.get(1);
   const folderId = folderIdFrom(auth);
   if (!folderId) {
-    throw new Error('Choose a shared folder in Settings.');
+    throw new Error('Choose this ranch’s folder in Settings.');
   }
   return folderId;
 }

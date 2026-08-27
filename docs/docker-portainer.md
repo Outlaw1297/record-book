@@ -1,8 +1,8 @@
 # Docker / Portainer ranch database
 
-The phone app still keeps cattle on the device and still uses Drive or Dropbox offline. This stack is an extra Postgres copy of the herd so a future project can call an API.
+The phone app still keeps cattle on the device. This stack is an extra Postgres copy of **this ranch’s** herd on **this ranch’s** network. The same Docker image on another ranch is a different empty database. There is no product server.
 
-No environment variables. On first boot the stack writes random keys into a Docker volume and nginx attaches the API key for you.
+No environment variables. On first boot **this** stack writes random keys into a Docker volume and nginx attaches the API key for you.
 
 Portainer does **not** build from this repo (that is what caused `path "/data/compose/.../api" not found`). It pulls ready-made images from `ghcr.io`.
 
@@ -17,9 +17,9 @@ Portainer does **not** build from this repo (that is what caused `path "/data/co
 
 Wait until `web` is healthy, then open `http://YOUR-HOST:8180/` (ports 80 and 8080 are left for the host). To confirm the API from a browser, open `http://YOUR-HOST:8180/api/health` — it should show `{"ok":true}`. `/api` by itself is not the app.
 
-Settings → Ranch server is already set to `/api` on this Portainer site. That Postgres database is the shared book for **this** install. Phones type this host’s API in Settings. Installs that do not run this stack choose a Google Drive or Dropbox folder on the phone instead.
+Settings → Ranch server is already set to `/api` on this Portainer site. That Postgres database is **this ranch’s** book. Phones on **this** ranch type **this** host’s API in Settings. Another ranch who pulls the same image deploys on **their** NAS and types **their** address. Installs that do not run this stack choose a folder in **their** Drive or Dropbox instead.
 
-Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. Shared-folder sync uses the Android picker (no keys). If this install has Docker, set the ranch API in Settings to `http://YOUR-HOST:8180/api`.
+Pasture logging should use the [Android APK](android.md), not this site. The APK keeps the book on the phone with the NAS off. Folder sync uses the Android picker on that ranch’s account (no keys). If **you** run Docker, set the ranch API in Settings to `http://YOUR-HOST:8180/api`.
 
 If a previous deploy failed, remove that stack and create it again so it picks up this compose file.
 

@@ -76,7 +76,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
-      toast('Signed in. Syncing…');
+      toast('Folder connected. Syncing…');
       setSearchParams(
         {},
         {
@@ -118,11 +118,11 @@ export function SettingsPage() {
     try {
       const result = await startOAuth(provider);
       if (!result.navigated) {
-        toast(result.detail || 'Signed in.');
+        toast(result.detail || 'Folder connected.');
         setBusy(null);
       }
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not start login.');
+      toast(error instanceof Error ? error.message : 'Could not open the folder picker.');
       setBusy(null);
     }
   }
@@ -138,7 +138,7 @@ export function SettingsPage() {
     const ok = window.confirm(
       ranchReady
         ? 'Replace the herd on THIS device with the ranch database? Unsynced rows on this device will be dropped. Other devices are not changed.'
-        : 'Replace the herd on THIS device from Google Drive or Dropbox? Unsynced rows on this device will be dropped.',
+        : 'Replace the herd on THIS device from this ranch’s folder? Unsynced rows on this device will be dropped.',
     );
     if (!ok) return;
     setBusy('replace');
@@ -152,7 +152,7 @@ export function SettingsPage() {
     saveRanchApiKey(ranchApiKey);
     toast(
       ranchApiUrl.trim()
-        ? 'Ranch API saved on this device. It is not written to Drive or Dropbox.'
+        ? 'Ranch API saved on this device. It stays on this phone and is not written into Drive or Dropbox.'
         : 'Ranch API cleared on this device.',
     );
   }
@@ -200,8 +200,8 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps a local copy. Choose a Google Drive, Dropbox, or other folder to share the book. If this install also runs Docker, type that ranch API URL.'
-            : 'This browser keeps a local copy. Docker installs share through the ranch database. Other installs choose a shared folder on the device.'}
+            ? 'This phone keeps this ranch’s book. Share it with a folder in YOUR Drive or Dropbox, or with a Docker server YOU run. Other ranches who install this app have their own books.'
+            : 'This browser keeps this ranch’s book. If you opened it from your own Docker site, that database is yours. Other ranches are not on it.'}
         </p>
       </header>
 
@@ -224,7 +224,7 @@ export function SettingsPage() {
           <input
             value={deviceName}
             onChange={(e) => setDeviceName(e.target.value)}
-            placeholder="Dalton's phone"
+            placeholder="Field phone"
           />
         </Field>
         <Field label="Working year">
@@ -236,8 +236,8 @@ export function SettingsPage() {
           />
         </Field>
         <p className="hint">
-          Ranch name and year are shared. Your name and this device label stay
-          with you so two people can use the same book.
+          Ranch name and year stay with this ranch’s book. Your name and this
+          device label stay with you so two people on the same ranch can share.
         </p>
         <div className="sticky-actions">
           <button type="button" className="btn secondary" onClick={downloadBackup}>
@@ -252,12 +252,13 @@ export function SettingsPage() {
       <section className="sync-panel form">
         <h2>Ranch server (optional)</h2>
         <p className="hint">
-          Only if this ranch runs the Portainer stack. This Docker Postgres
-          database is then the shared book on ranch Wi-Fi. Installs without a
-          server skip this and sign in with Google or Dropbox instead.
+          Only if YOU run the Portainer stack on YOUR network. That Postgres
+          database is then this ranch’s book on Wi-Fi. Do not point this phone
+          at another ranch’s server. If you have no server, skip this and use
+          your own Drive or Dropbox folder below.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
-          {ranchReady ? 'Shared book on Wi-Fi' : 'Not configured'}
+          {ranchReady ? 'This ranch’s server' : 'No server on this ranch'}
         </p>
         <Field
           label={
@@ -279,9 +280,10 @@ export function SettingsPage() {
         <p className="hint">
           {native ? (
             <>
-              Leave empty unless this install has a ranch server. Example:{' '}
+              Leave empty unless you run a ranch server. Example:{' '}
               <code>{RANCH_LAN_API_PLACEHOLDER}</code>. Health check is that
-              URL plus <code>/health</code>.
+              URL plus <code>/health</code>. That host is yours, not a shared
+              product server.
             </>
           ) : (
             <>
@@ -319,7 +321,7 @@ export function SettingsPage() {
             ? 'Replacing…'
             : ranchReady
               ? 'Replace this device from the ranch database'
-              : 'Replace this device from Google Drive or Dropbox'}
+              : 'Replace this device from this ranch’s folder'}
         </button>
         <p className="hint" style={{ marginTop: '0.55rem' }}>
           Pending changes: {pending ?? 0}
@@ -333,23 +335,25 @@ export function SettingsPage() {
       </section>
 
       <section className="sync-panel">
-        <h2>Shared folder</h2>
+        <h2>This ranch’s folder</h2>
         <p className="hint">
-          How phones share the book when there is no ranch server. The phone
-          opens the system folder picker — choose Google Drive, Dropbox, or any
-          folder. Every device picks the same folder. No keys to paste.
+          Use this when you do not run a ranch server. The picker opens YOUR
+          Google Drive or Dropbox (or any folder you own). That is this ranch’s
+          book. Other ranches who install Record Book do not see it and do not
+          write to your account.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
-          <p className="due-kicker">{connected ? 'Signed in' : 'Not signed in'}</p>
+          <p className="due-kicker">{connected ? 'This ranch’s folder' : 'No folder yet'}</p>
           <p className="due-date" style={{ fontSize: '1.35rem' }}>
-            {providerName ?? 'Google or Dropbox'}
+            {providerName ?? 'Your Drive or Dropbox'}
           </p>
           <p className="hint">
-            {auth?.accountEmail ||
+            {auth?.accountName ||
+              auth?.accountEmail ||
               (ranchReady
-                ? 'The herd still lives in the ranch database if you skip this.'
-                : 'Choose a folder so other phones and the office share this book.')}
+                ? 'Skip this if you already use your own ranch server.'
+                : 'Phones and the office on THIS ranch pick the same folder in your account.')}
           </p>
         </div>
 
@@ -360,7 +364,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('google-drive')}
           >
-            {busy === 'google-drive' ? 'Opening Drive…' : 'Choose Google Drive folder'}
+            {busy === 'google-drive' ? 'Opening Drive…' : 'Use my Google Drive folder'}
           </button>
           <button
             type="button"
@@ -368,7 +372,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('dropbox')}
           >
-            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Choose Dropbox folder'}
+            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Use my Dropbox folder'}
           </button>
         </div>
         <div className="provider-actions">
@@ -378,16 +382,16 @@ export function SettingsPage() {
             disabled={busy !== null || !connected}
             onClick={() => void disconnect()}
           >
-            Sign out
+            Disconnect this folder
           </button>
         </div>
       </section>
 
       <section className="sync-panel">
-        <h2>Devices on this book</h2>
+        <h2>Devices on this ranch’s book</h2>
         <p className="hint">
-          Each browser or phone is a device. Users keep their own names; the
-          cattle rows are the same database.
+          Phones and office PCs that sync THIS ranch’s folder or THIS ranch’s
+          server. Another ranch’s install does not show up here.
         </p>
         <div className="card-list" style={{ marginTop: '0.75rem' }}>
           {(devices ?? []).length === 0 ? (
@@ -422,8 +426,8 @@ export function SettingsPage() {
         </div>
         {others.length === 0 && (devices ?? []).length > 0 ? (
           <p className="hint" style={{ marginTop: '0.6rem' }}>
-            Connect the office PC or another phone with the same Drive or
-            Dropbox account to share this book.
+            Connect another phone or the office to this ranch’s folder or this
+            ranch’s server. Do not use another ranch’s Drive, Dropbox, or NAS.
           </p>
         ) : null}
       </section>

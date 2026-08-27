@@ -21,7 +21,7 @@ export async function disconnectCloud(): Promise<void> {
 export async function startOAuth(
   provider: CloudProvider,
 ): Promise<{ navigated: boolean; detail?: string }> {
-  const folder = await connectSharedFolder(provider);
+  await connectSharedFolder(provider);
   try {
     const { syncNow } = await import('./engine');
     const synced = await syncNow();
@@ -29,10 +29,10 @@ export async function startOAuth(
   } catch {
     /* Folder is connected; background sync will retry. */
   }
-  const label = provider === 'dropbox' ? 'Dropbox' : 'Google Drive';
+  const label = provider === 'dropbox' ? 'your Dropbox' : 'your Google Drive';
   return {
     navigated: false,
-    detail: `${label} folder connected (${folder.name}).`,
+    detail: `${label} folder is connected for this ranch only.`,
   };
 }
 
@@ -41,7 +41,7 @@ export async function completeOAuthCallback(
 ): Promise<{ ok: boolean; detail: string }> {
   return {
     ok: false,
-    detail: 'Use Choose folder in Settings. Sign-in no longer uses a browser callback.',
+    detail: 'Use this ranch’s folder picker in Settings. There is no product sign-in.',
   };
 }
 
@@ -63,7 +63,7 @@ export async function requireAccessToken(): Promise<{
   const token = await getValidAccessToken();
   const auth = await getSyncAuth();
   if (!token || !auth) {
-    throw new Error('Choose a shared folder in Settings.');
+    throw new Error('Choose this ranch’s folder in Settings.');
   }
   return { token, auth };
 }

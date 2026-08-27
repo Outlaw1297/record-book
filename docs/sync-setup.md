@@ -1,33 +1,39 @@
 # Sync setup
 
-Each phone keeps a local IndexedDB copy for offline work. Sharing is the same for every ranch:
+Record Book is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** One ranch’s Drive, Dropbox, or NAS is never used for another ranch’s herd.
 
-1. **This install runs Docker / Portainer.** The PWA uses `/api` on that host. Postgres is the shared book. No Google or Dropbox keys.
-2. **This install is only the APK (or a browser without Docker).** Choose a shared folder on the device. The system picker can open **Google Drive**, **Dropbox**, USB, or any folder. Every phone picks the same folder. No keys to paste, no GitHub secrets, no Google Cloud console.
+Each phone keeps a local IndexedDB copy for offline work. Then pick one sharing path for **this** ranch only:
+
+1. **This ranch runs Docker / Portainer on its own network.** The website uses `/api` on that host. That Postgres database is this ranch’s book. Other ranches who pull the same Docker image get their own empty database.
+2. **This ranch has no server.** On the APK, choose a folder in **this ranch’s** Google Drive, Dropbox, or other storage. Other phones on **this** ranch pick that same folder. Another ranch picks a folder in **their** account.
 
 See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android APK](android.md).
 
 ## What stays on this device
 
-| Stays on this device | Shared in the book |
-|----------------------|--------------------|
+| Stays on this device | Shared in this ranch’s book |
+|----------------------|-----------------------------|
 | Your name | Ranch name and working year |
-| Device name (“Dalton’s phone”) | Animals, cow–calf, breeding, pasture, sales |
-| Folder permission / ranch API URL | Device roster |
+| Device name (“Alex’s phone”) | Animals, cow–calf, breeding, pasture, sales |
+| Folder permission / ranch API URL | Device roster for this ranch |
 
-## Shared folder (APK, no ranch server)
+## This ranch’s folder (no server)
 
-Settings → **Choose Google Drive folder** or **Choose Dropbox folder**. Android opens the system folder picker. Open Drive or Dropbox there (or any folder) and pick it. Create a `RecordBook` folder if you want; the app also creates one inside the folder you pick.
+Settings → **Use my Google Drive folder** or **Use my Dropbox folder**. Android opens the system picker on **your** account. Pick a folder you own. The app writes a `RecordBook` directory inside it.
 
-The same picker works on a desktop Chrome PWA over HTTPS. It does not work on HTTP LAN pages; those Docker sites use the ranch database instead.
+That folder is this ranch only. Do not pick a folder that belongs to another ranch.
 
-## Ranch server (optional)
+Desktop Chrome over HTTPS can pick a folder the same way. HTTP LAN Docker sites use this ranch’s database instead.
 
-Only if this install runs the Portainer stack. In the APK, type that host’s API, for example `http://YOUR-NAS:8180/api`. The Docker website already uses `/api`. Health check: `http://YOUR-NAS:8180/api/health` should show `{"ok":true}`.
+## This ranch’s server (optional)
+
+Only if **you** run the Portainer stack on **your** network. In the APK, type **your** host’s API, for example `http://YOUR-NAS:8180/api`. Do not type another ranch’s address.
+
+The Docker website already uses `/api` on whatever host you deployed. Health check: `http://YOUR-NAS:8180/api/health` should show `{"ok":true}`.
 
 ## How sync behaves
 
 - **Offline:** every save writes IndexedDB + an outbox row.
-- **Online + ranch API set:** pull/push Postgres. A shared folder is an extra copy if one is chosen.
-- **Online + no ranch + shared folder:** that folder is the book.
-- **Online + neither:** Settings asks you to choose a folder or set a ranch API.
+- **Online + this ranch’s API set:** pull/push this ranch’s Postgres.
+- **Online + no server + this ranch’s folder:** that folder is this ranch’s book.
+- **Online + neither:** Settings asks you to choose this ranch’s folder or this ranch’s API.

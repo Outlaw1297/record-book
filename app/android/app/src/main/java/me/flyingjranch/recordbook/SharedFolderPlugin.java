@@ -53,7 +53,7 @@ public class SharedFolderPlugin extends Plugin {
         DocumentFile tree = DocumentFile.fromTreeUri(getContext(), uri);
         JSObject out = new JSObject();
         out.put("id", uri.toString());
-        out.put("name", tree != null && tree.getName() != null ? tree.getName() : "Shared folder");
+        out.put("name", tree != null && tree.getName() != null ? tree.getName() : "Ranch folder");
         call.resolve(out);
     }
 
@@ -151,12 +151,12 @@ public class SharedFolderPlugin extends Plugin {
 
     private DocumentFile root(String folderId) throws Exception {
         if (folderId == null || folderId.isEmpty()) {
-            throw new Exception("Choose a shared folder in Settings.");
+            throw new Exception("Choose this ranch's folder in Settings.");
         }
         Uri uri = Uri.parse(folderId);
         DocumentFile tree = DocumentFile.fromTreeUri(getContext(), uri);
         if (tree == null || !tree.exists()) {
-            throw new Exception("The shared folder is not available. Choose it again in Settings.");
+            throw new Exception("This ranch's folder is not available. Choose it again in Settings.");
         }
         return tree;
     }

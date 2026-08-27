@@ -119,18 +119,18 @@ class SharedFolderWeb extends WebPlugin implements SharedFolderApi {
     const picker = window as DirectoryPickerWindow;
     if (typeof picker.showDirectoryPicker !== 'function') {
       throw new Error(
-        'This browser cannot pick a Drive or Dropbox folder. Use the Android app, or set a ranch server if you run Docker.',
+        'This browser cannot pick a folder. Use the Android app, or point it at a ranch server YOU run.'
       );
     }
     const handle = await picker.showDirectoryPicker({ mode: 'readwrite' });
     await saveWebHandle(handle);
-    return { id: WEB_FOLDER_ID, name: handle.name || 'Shared folder' };
+    return { id: WEB_FOLDER_ID, name: handle.name || 'Ranch folder' };
   }
 
   private async root(folderId: string): Promise<FileSystemDirectoryHandle> {
     const handle = folderId === WEB_FOLDER_ID ? await loadWebHandle() : await loadWebHandle();
     if (!handle) {
-      throw new Error('Choose a shared folder in Settings.');
+      throw new Error('Choose this ranch’s folder in Settings.');
     }
     if (!(await queryPermission(handle))) {
       throw new Error('Allow folder access when the browser asks, then try again.');

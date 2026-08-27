@@ -127,10 +127,10 @@ Office PC (IndexedDB + outbox)─┘     config, devices.json, changes/, snapsho
 ```
 
 - **Local IndexedDB** is always the working database (works with no signal).
-- Cloud folder is the **shared book** for every device signed into that account.
-- Each device keeps its own operator name; ranch name, year, and cattle rows sync.
+- A folder in **this ranch’s** Drive/Dropbox (or **this ranch’s** Docker Postgres) is the book for devices on **this** ranch only. The same APK or Docker image on another ranch is a different book.
+- Each device keeps its own operator name; ranch name, year, and cattle rows stay in this ranch’s book.
 - Same cow/calf logged on two devices merges by herd I.D. (last `updatedAt` wins).
-- OAuth tokens live only in the local `syncAuth` table. They are never queued or uploaded.
+- Folder permission and ranch API URL live only on the device. They are never queued or uploaded.
 
 Folder layout:
 

@@ -25,14 +25,14 @@ export function noneProviderBanner(opts: {
       : `Online — ranch database last synced ${when}`;
   }
   if (ranchConfigured) {
-    return 'Online — ranch database is the shared book. Copies on Wi-Fi.';
+    return 'Online — this ranch’s database copies on your Wi-Fi.';
   }
   if (pendingCount > 0) {
-    return `${pendingCount} change(s) on this phone. Choose a shared folder, or set a ranch API if you have a server.`;
+    return `${pendingCount} change(s) on this phone. Choose this ranch’s folder, or set this ranch’s API if you run a server.`;
   }
-  return 'Online — choose a shared folder, or set a ranch API if you have a server';
+  return 'Online — choose this ranch’s folder, or set this ranch’s API if you run a server';
 }
 
 export function noSharedBookDetail(): string {
-  return 'Choose a shared folder in Settings, or set a ranch API if this install has a Docker server.';
+  return 'Choose a folder in YOUR Drive or Dropbox, or set the API for a Docker server YOU run. Other ranches are not on this book.';
 }

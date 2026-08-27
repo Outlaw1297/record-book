@@ -4,7 +4,7 @@ import { completeOAuthCallback } from '../sync/auth';
 
 export function OAuthCallbackPage() {
   const [params] = useSearchParams();
-  const [detail, setDetail] = useState('Finishing cloud login…');
+  const [detail, setDetail] = useState('Opening this ranch’s folder…');
   const [ok, setOk] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function OAuthCallbackPage() {
         setDetail(
           error instanceof Error
             ? error.message
-            : 'Cloud login failed. Try again from Settings.',
+            : 'Folder connect failed. Try again from Settings.',
         );
       }
     })();

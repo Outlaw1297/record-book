@@ -1,6 +1,8 @@
 # record-book
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones share a Google Drive or Dropbox folder through the system picker (no keys). Any ranch can also run an optional **Docker / Portainer** stack so Postgres is the shared book.
+Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. This is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** The same APK or Docker image on another ranch is a different book. There is no product Drive, Dropbox, or server.
+
+Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones on **this** ranch pick a folder in **this ranch’s** Google Drive or Dropbox (system picker, no keys). A ranch can also run **its own** optional **Docker / Portainer** stack so Postgres on **that** NAS is **that** ranch’s book.
 
 ## Run locally
 
@@ -15,7 +17,7 @@ Open the printed URL. Works offline in the browser after first load (data is sto
 ```bash
 cd app && npm run build   # production build
 cd app && npm run lint    # oxlint
-cd app && npm test        # last-write-wins / shared-book identity
+cd app && npm test        # last-write-wins / per-ranch identity
 ```
 
 ## Docker / Portainer
@@ -44,8 +46,8 @@ Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, 
 | **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |
 | **Sales** | Calf ID, sex, sold to, date, price, cull notes, circled / x marks |
 | **Gestation** | Service date + 283 days = due date |
-| **Account** | You on this device, other devices on the shared book |
-| **Settings** | Ranch (shared), your name/device, Drive/Dropbox, device roster, overlap log |
+| **Account** | You on this device, other devices on this ranch’s book |
+| **Settings** | This ranch, your name/device, this ranch’s folder or server, device roster, overlap log |
 | **Onboarding** | First-run ranch name and field vs desk |
 
 Install the **Android APK** for pasture use ([install](docs/android.md)). The Portainer PWA is for the office browser.
@@ -54,9 +56,9 @@ Install the **Android APK** for pasture use ([install](docs/android.md)). The Po
 
 - Local **IndexedDB** (Dexie) is the working store offline
 - Every write goes to an **outbox**
-- **If this install has a ranch Docker server**, Postgres is the shared book (`/api` on that host)
-- **If there is no ranch server**, choose a **Google Drive / Dropbox / other folder** on the device. The system picker; no keys
-- Your name and device label stay on this device; ranch name, year, and cattle rows are the shared database
+- **If this ranch runs its own Docker server**, Postgres on that host is this ranch’s book (`/api` on that host). Other ranches who pull the same image get their own empty database
+- **If this ranch has no server**, choose a **Google Drive / Dropbox / other folder this ranch owns**. The system picker; no keys. Another ranch picks a folder in their account
+- Your name and device label stay on this device; ranch name, year, and cattle rows stay in this ranch’s book
 - The ranch API key stays on the device; it is never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud
 

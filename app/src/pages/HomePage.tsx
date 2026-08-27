@@ -85,7 +85,7 @@ export function HomePage() {
         </Link>
         <Link className="quick-card" to="/account">
           <h2>Account</h2>
-          <p>Ranch, operator, Drive or Dropbox folder</p>
+          <p>This ranch, you, this ranch’s folder</p>
         </Link>
       </section>
     </div>

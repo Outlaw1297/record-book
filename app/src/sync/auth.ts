@@ -1,4 +1,6 @@
+import { Browser } from '@capacitor/browser';
 import { db, ensureSettings, type SyncAuth } from '../db/schema';
+import { isNativeApp } from '../platform';
 import { clientIdFor } from './credentials';
 import { createPkce, oauthRedirectUri, randomUrlSafe, toFormBody } from './pkce';
 import type { CloudProvider } from './types';
@@ -21,11 +23,19 @@ type TokenResponse = {
 
 function readSession(): OauthSession | null {
   try {
-    const raw = sessionStorage.getItem(OAUTH_SESSION_KEY);
+    const raw = localStorage.getItem(OAUTH_SESSION_KEY);
     return raw ? (JSON.parse(raw) as OauthSession) : null;
   } catch {
     return null;
   }
+}
+
+function writeSession(session: OauthSession): void {
+  localStorage.setItem(OAUTH_SESSION_KEY, JSON.stringify(session));
+}
+
+function clearSession(): void {
+  localStorage.removeItem(OAUTH_SESSION_KEY);
 }
 
 export async function getSyncAuth(): Promise<SyncAuth | undefined> {
@@ -57,10 +67,7 @@ export async function startOAuth(provider: CloudProvider): Promise<void> {
   const { verifier, challenge } = await createPkce();
   const state = randomUrlSafe(16);
   const redirectUri = oauthRedirectUri();
-  sessionStorage.setItem(
-    OAUTH_SESSION_KEY,
-    JSON.stringify({ provider, verifier, state } satisfies OauthSession),
-  );
+  writeSession({ provider, verifier, state });
 
   const url = new URL(
     provider === 'google-drive'
@@ -83,6 +90,11 @@ export async function startOAuth(provider: CloudProvider): Promise<void> {
     url.searchParams.set('token_access_type', 'offline');
   }
 
+  // Custom Tabs (Chrome UA). Google rejects the Capacitor WebView (`disallowed_useragent`).
+  if (isNativeApp()) {
+    await Browser.open({ url: url.toString() });
+    return;
+  }
   window.location.assign(url.toString());
 }
 
@@ -213,14 +225,14 @@ export async function completeOAuthCallback(
 ): Promise<{ ok: boolean; detail: string }> {
   const error = params.get('error_description') || params.get('error');
   if (error) {
-    sessionStorage.removeItem(OAUTH_SESSION_KEY);
+    clearSession();
     return { ok: false, detail: error };
   }
 
   const session = readSession();
   const code = params.get('code');
   const state = params.get('state');
-  sessionStorage.removeItem(OAUTH_SESSION_KEY);
+  clearSession();
 
   if (!session || !code) {
     return {

@@ -1,3 +1,5 @@
+import { isNativeApp } from '../platform';
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) {
@@ -22,7 +24,13 @@ export async function createPkce(): Promise<{
   return { verifier, challenge: bytesToBase64Url(new Uint8Array(digest)) };
 }
 
+/** Loopback URI Chrome Custom Tabs can reach; keep in sync with OauthLoopbackServer.PORT. */
+export const NATIVE_OAUTH_CALLBACK = 'http://127.0.0.1:18763/oauth/callback';
+
 export function oauthRedirectUri(): string {
+  if (isNativeApp()) {
+    return NATIVE_OAUTH_CALLBACK;
+  }
   return `${window.location.origin}/oauth/callback`;
 }
 

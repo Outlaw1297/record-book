@@ -26,6 +26,7 @@ import {
   saveGoogleClientId,
 } from '../sync/credentials';
 import { defaultDeviceName } from '../sync/identity';
+import { oauthRedirectUri } from '../sync/pkce';
 import { RANCH_LAN_API_PLACEHOLDER, isNativeApp } from '../platform';
 import {
   getRanchApiKey,
@@ -348,7 +349,7 @@ export function SettingsPage() {
             {native ? (
               <>
                 {' '}
-                The Android app uses <code>https://localhost/oauth/callback</code>.
+                The Android app uses <code>{oauthRedirectUri()}</code>.
               </>
             ) : null}{' '}
             See <code>docs/sync-setup.md</code>.

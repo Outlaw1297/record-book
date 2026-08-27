@@ -44,13 +44,13 @@ Whatever origin you open the app on, add this exact callback:
 https://YOUR-ORIGIN/oauth/callback
 ```
 
-Examples: `http://localhost:5173/oauth/callback`, the hosted PWA origin plus `/oauth/callback`, and for the Android APK:
+Examples: `http://localhost:5173/oauth/callback`, the hosted PWA origin plus `/oauth/callback`. For the Android APK add the WebView JavaScript origin `https://localhost` and this redirect URI:
 
 ```text
-https://localhost/oauth/callback
+http://127.0.0.1:18763/oauth/callback
 ```
 
-The APK WebView origin is `https://localhost`. Add that JavaScript origin and redirect URI or Drive/Dropbox login from the phone will fail. See [Android APK](android.md).
+Login on the phone runs in Chrome Custom Tabs and returns through that loopback address. See [Android APK](android.md).
 
 ## Google Drive
 
@@ -58,8 +58,8 @@ The APK WebView origin is `https://localhost`. Add that JavaScript origin and re
 2. Enable **Google Drive API**.
 3. Configure the OAuth consent screen. External is fine; add your Gmail as a test user while the app is in testing.
 4. Create credentials → **OAuth client ID** → **Web application**.
-5. Authorized JavaScript origins: `http://localhost:5173`, the production PWA origin, and `https://localhost` (Android APK).
-6. Authorized redirect URIs: each of those plus `/oauth/callback`.
+5. Authorized JavaScript origins: `http://localhost:5173`, the production PWA origin, and `https://localhost` (Android APK WebView).
+6. Authorized redirect URIs: each web origin plus `/oauth/callback`, and `http://127.0.0.1:18763/oauth/callback` for the APK.
 7. Copy the **Client ID** (not a client secret). This is a public PKCE client.
 8. In the record book: Settings → **App keys** → paste the client ID → **Connect Google Drive**.
 
@@ -72,7 +72,7 @@ Dropbox PKCE is the simpler carrier if you do not want to stand up Google Cloud.
 1. Open [Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app.
 2. Scoped access. **App folder** is the most private (files live under `Apps/<app name>/RecordBook`).
 3. Permissions: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
-4. Redirect URI: `http://localhost:5173/oauth/callback`, the production PWA callback, and `https://localhost/oauth/callback` (Android APK).
+4. Redirect URI: `http://localhost:5173/oauth/callback`, the production PWA callback, and `http://127.0.0.1:18763/oauth/callback` (Android APK).
 5. Copy the **App key**.
 6. In the record book: Settings → **App keys** → paste the app key → **Connect Dropbox**.
 

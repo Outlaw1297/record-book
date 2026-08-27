@@ -80,6 +80,6 @@ jobs:
 
             On ranch Wi-Fi, Settings → Ranch API URL: `http://192.168.1.56:8180/api` to copy the herd into Postgres.
 
-            Drive/Dropbox: add `https://localhost/oauth/callback` as a redirect URI.
+            Drive/Dropbox: add `http://127.0.0.1:18763/oauth/callback` as a redirect URI and `https://localhost` as a JavaScript origin.
 
             See [docs/android.md](https://github.com/Outlaw1297/record-book/blob/main/docs/android.md).

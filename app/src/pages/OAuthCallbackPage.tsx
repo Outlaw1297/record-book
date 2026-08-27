@@ -1,5 +1,7 @@
+import { Browser } from '@capacitor/browser';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { isNativeApp } from '../platform';
 import { completeOAuthCallback } from '../sync/auth';
 
 export function OAuthCallbackPage() {
@@ -8,6 +10,9 @@ export function OAuthCallbackPage() {
   const [ok, setOk] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (isNativeApp()) {
+      void Browser.close().catch(() => {});
+    }
     let cancelled = false;
     void (async () => {
       try {

@@ -12,7 +12,7 @@ A PWA “Add to Home Screen” shortcut still needs the website the first time, 
 4. Open the APK. Android will ask you to allow that app (Chrome, Files, etc.) to install unknown apps. Allow it for this one install.
 5. Open **Record Book**. Finish onboarding. Log calves. No website required.
 
-This is a **debug** APK for ranch sideload, not a Play Store build.
+This is a **debug** APK for ranch sideload, not a Play Store build. It is signed with the repo `debug.keystore`, so a newer GitHub APK installs over the previous one without wiping IndexedDB.
 
 ## Ranch database from the phone
 
@@ -28,13 +28,21 @@ Then **Copy herd to ranch database**. Change the host if the NAS IP is different
 
 ## Drive / Dropbox from the APK
 
-Add this redirect URI (and JavaScript origin) to the Google and Dropbox consoles:
+Login opens in Chrome Custom Tabs. Google blocks OAuth inside the app WebView (`403 disallowed_useragent`).
+
+Add this JavaScript origin (Google):
 
 ```text
-https://localhost/oauth/callback
+https://localhost
 ```
 
-The Capacitor WebView is a secure `https://localhost` origin. Paste the same client ID / app key you use on the office PWA.
+And this redirect URI (Google and Dropbox):
+
+```text
+http://127.0.0.1:18763/oauth/callback
+```
+
+The Capacitor WebView origin is still `https://localhost`. The loopback redirect is how Chrome hands the login code back to the APK. Paste the same client ID / app key you use on the office PWA.
 
 ## Build locally
 

@@ -12,14 +12,6 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    allowNavigation: [
-      'accounts.google.com',
-      '*.google.com',
-      '*.googleusercontent.com',
-      'www.dropbox.com',
-      '*.dropbox.com',
-      '*.dropboxapi.com',
-    ],
   },
 };
 

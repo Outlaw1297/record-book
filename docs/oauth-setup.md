@@ -55,13 +55,22 @@ If you see the gray box that says a domain “must be pre-registered here” and
 While the app is in Testing, Google only lets listed accounts sign in. `drive.file` counts as extra access, so you **must** add your Gmail.
 
 1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
-2. Under **Test users**, click **Add users**.
-3. Type your Gmail. Click **Save**.
-4. If anyone else on this ranch will test Google login, add their Gmail the same way.
+2. Publishing status should say **Testing**. If **Publish app** is greyed out, leave it. That is what we want.
+3. If a yellow box says **Your app's OAuth configuration is incomplete** with **Go to Branding**:
+   1. Click **Go to Branding**.
+   2. **App name:** `Record Book`
+   3. **User support email:** pick your Gmail.
+   4. **Developer contact information:** the same email.
+   5. Click **Save**. Leave home page, privacy, terms, and Authorized domains blank (same as 1C).
+   6. Come back to [Audience](https://console.cloud.google.com/auth/audience).
+4. Under **Test users**, click **Add users**.
+5. Type the **same Gmail that is on the phone**. Click **Save**.
+6. The table must show that Gmail. **No rows to display** means Drive login will fail.
+7. If anyone else on this ranch will test Google login, add their Gmail the same way.
 
-You do **not** need to click **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
+You do **not** need **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
 
-If you Publish, Google blocks Drive until a long review (privacy policy website, demo video). Do not do that for this ranch tool.
+If you Publish, Google blocks Drive until a long review (privacy policy website, demo video). Do not do that for this ranch tool. The 100-user cap on Audience is normal in Testing.
 
 ### 1E. Tell Google you only need this app’s Drive files
 
@@ -122,7 +131,8 @@ This does **not** put other ranches on your Drive. Each person still signs into 
 1. On a computer, open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
 2. Find **Publishing status**.
 3. It must say **Testing**.
-4. If it says **In production**, look for **Back to testing** / unpublish. Click that. Confirm. Do **not** click **Publish app**.
+4. Grey **Publish app** is fine. Incomplete-branding yellow box is fine. Do not try to un-grey Publish.
+5. If it says **In production**, look for **Back to testing** / unpublish. Click that. Confirm. Do **not** click **Publish app**.
 
 **B. Add the Gmail that is on the phone**
 
@@ -245,6 +255,8 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | Phone file picker (“Open from”, Dalton’s Z Fold5) | Old APK. Uninstall and install the latest `record-book-debug.apk` |
 | Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to Record Book. Still **your** Drive. |
 | Google “Access blocked” / verification | Publishing is Testing and this Gmail is a test user. See walk 1H. Do not Publish. |
+| Audience yellow “OAuth configuration is incomplete” | Click Go to Branding, save App name + your Gmail, leave domains blank. Then **Add users**. Grey Publish is fine. |
+| Audience “No rows to display” under Test users | Drive will fail. Add the phone’s Gmail. |
 | Google Search Console / authorized domains | Ignore. Leave domains empty. That box is only if you typed a website. |
 | Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
 

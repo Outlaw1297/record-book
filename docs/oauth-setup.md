@@ -268,7 +268,7 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to Record Book. Still **your** Drive. |
 | Google “Access blocked” / verification | Publishing is Testing and this Gmail is a test user. See walk 1H. Do not Publish. |
 | Audience yellow “OAuth configuration is incomplete” | Click Go to Branding, save App name + your Gmail, leave domains blank. Then **Add users**. Grey Publish is fine. |
-| Audience “No rows to display” under Test users | Drive will fail. Add the phone’s Gmail. |
+| Audience “No rows to display” under Test users | Drive will fail **for you** until your Gmail is listed. Unknown ranches are not added here. |
 | Google Search Console / authorized domains | Ignore. Leave domains empty. That box is only if you typed a website. |
 | Audience User type External / grey Make internal | Correct on a personal Gmail. Leave External. Still each ranch’s own Google. |
 | Grey Publish app / homepage + privacy policy required | Ignore. That is only to leave Testing. Do not add those URLs. |

@@ -24,6 +24,7 @@ import {
 } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
 import { formatWhen, noneProviderBanner, noSharedBookDetail } from './statusCopy';
+import { assertCloudFolder } from './folderUri';
 import {
   buildSnapshot,
   clearHerdForReplace,
@@ -299,7 +300,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       conflicts: 0,
     };
   }
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+  if (typeof navigator !== 'undefined' && !navigator.onLine && !ranchConfigured) {
     return {
       ok: false,
       detail: 'No network — try again when you have service.',
@@ -380,7 +381,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     }
   }
 
-  const useCloud = Boolean(cloudProvider) && (!options.replace || !ranchOk);
+  const useCloud = Boolean(cloudProvider) && !ranchOk;
   if (useCloud && cloudProvider) {
     const token = await getValidAccessToken();
     if (!token) {
@@ -403,6 +404,11 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           /* Herd was already cleared for the ranch attempt. */
         }
         const carrier = carrierFor(cloudProvider);
+        const folderAuth = await getSyncAuth();
+        assertCloudFolder(
+          folderAuth?.rootFolderId || folderAuth?.accessToken || '',
+          cloudProvider,
+        );
         await carrier.ensureRoot();
         const book = await ensureBook(carrier);
         const remote = await pullRemote(carrier);

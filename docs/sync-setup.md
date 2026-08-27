@@ -5,7 +5,7 @@ Record Book is a tool any ranch can install. **Each ranch’s cattle stay on tha
 Each phone keeps a local IndexedDB copy for offline work. Then pick one sharing path for **this** ranch only:
 
 1. **This ranch runs Docker / Portainer on its own network.** The website uses `/api` on that host. That Postgres database is this ranch’s book. Other ranches who pull the same Docker image get their own empty database.
-2. **This ranch has no server.** On the APK, choose a folder in **this ranch’s** Google Drive, Dropbox, or other storage. Other phones on **this** ranch pick that same folder. Another ranch picks a folder in **their** account.
+2. **This ranch has no server.** On the APK, install Google Drive and pick a folder **inside Google Drive**, not this phone’s files. Other phones on **this** ranch pick that same Drive folder. Dropbox’s Android app cannot share a folder with Record Book.
 
 See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android APK](android.md).
 
@@ -19,9 +19,11 @@ See [Docker / Portainer](docker-portainer.md), [Ranch API](api.md), and [Android
 
 ## This ranch’s folder (no server)
 
-Settings → **Use my Google Drive folder** or **Use my Dropbox folder**. Android opens the system picker on **your** account. Pick a folder you own. The app writes a `RecordBook` directory inside it.
+Settings → **Use my Google Drive folder**. Install the Drive app first. In the picker, open the menu and choose **Google Drive**, not this phone. Pick a folder you own. The app writes a `RecordBook` directory inside it.
 
-That folder is this ranch only. Do not pick a folder that belongs to another ranch.
+That folder is this ranch only. Do not pick a folder that belongs to another ranch. Do not pick this phone’s Download or storage root.
+
+Dropbox on Android cannot be picked as a folder. Use Google Drive, or this ranch’s Docker API.
 
 Desktop Chrome over HTTPS can pick a folder the same way. HTTP LAN Docker sites use this ranch’s database instead.
 

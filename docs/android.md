@@ -16,9 +16,13 @@ This is a **debug** APK for sideload, not a Play Store build.
 
 ## Share without a ranch server
 
-Settings → **Use my Google Drive folder** or **Use my Dropbox folder**. The phone opens the Android folder picker on **your** account. Pick a folder **you** own. Other phones on **this** ranch pick that same folder. Another ranch picks a folder in **their** account.
+Install the **Google Drive** app on the phone. Settings → **Use my Google Drive folder**. The picker must show Google Drive, not this phone’s files. Open the menu at the top left and choose **Google Drive**, then pick a folder **you** own. Other phones on **this** ranch pick that same Drive folder.
 
-Do not pick someone else’s Drive or Dropbox. There is no product Dropbox. No Google Cloud client ID, Dropbox app key, or GitHub secret is required.
+Do not tap **Use this folder** on this phone’s internal storage. That stays on the phone and will not copy to the office.
+
+**Dropbox’s Android app does not let other apps pick a folder.** Use Google Drive, or run Docker on this ranch and type that API in Settings.
+
+There is no product Drive or Dropbox. No Google Cloud client ID or GitHub secret is required.
 
 ## Ranch database (optional)
 

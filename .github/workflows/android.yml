@@ -78,7 +78,7 @@ jobs:
             1. Download `record-book-debug.apk` on the phone.
             2. Open it and allow that one install from unknown sources.
             3. Log calves offline. IndexedDB stays on the device.
-            4. Each install is another ranch. Use YOUR Drive or Dropbox folder, or a Docker server YOU run. Settings → Use my Google Drive folder or Use my Dropbox folder.
+            4. Each install is another ranch. If you run Docker, type YOUR API (`http://YOUR-NAS:8180/api`). If you do not, install Google Drive and Settings → Use my Google Drive folder (pick Drive, not this phone). Dropbox’s Android app cannot share a folder.
 
             If YOU run Docker, Settings → Ranch API URL `http://YOUR-NAS:8180/api`. Do not use another ranch’s account or NAS.
 

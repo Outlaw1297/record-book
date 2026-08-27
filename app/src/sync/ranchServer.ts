@@ -47,11 +47,30 @@ export function joinRanchApiBase(raw: string, origin: string): string {
 }
 
 function ranchHeaders(method: 'GET' | 'POST' | 'PUT' = 'GET'): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-store',
+    Pragma: 'no-cache',
+  };
   if (method !== 'GET') headers['Content-Type'] = 'application/json';
   const key = getRanchApiKey();
   if (key) headers.Authorization = `Bearer ${key}`;
   return headers;
+}
+
+function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: string) {
+  return fetch(ranchUrl(path), ranchRequestInit(method, body));
+}
+
+export function ranchRequestInit(
+  method: 'GET' | 'POST' | 'PUT' = 'GET',
+  body?: string,
+): RequestInit {
+  return {
+    method,
+    cache: 'no-store',
+    headers: ranchHeaders(method),
+    body,
+  };
 }
 
 export function hasRanchServer(): boolean {
@@ -126,9 +145,7 @@ export async function pullFromRanchServer(): Promise<{
     return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
   }
   try {
-    const response = await fetch(ranchUrl('/v1/export'), {
-      headers: ranchHeaders('GET'),
-    });
+    const response = await ranchFetch('/v1/export');
     if (!response.ok) {
       return {
         ok: false,
@@ -172,9 +189,7 @@ export type RanchDeviceRow = {
 export async function loadRanchDevices(): Promise<RanchDeviceRow[]> {
   if (!hasRanchServer()) return [];
   try {
-    const response = await fetch(ranchUrl('/v1/devices'), {
-      headers: ranchHeaders('GET'),
-    });
+    const response = await ranchFetch('/v1/devices');
     if (!response.ok) return [];
     const body = (await response.json()) as unknown;
     return Array.isArray(body) ? (body as RanchDeviceRow[]) : [];
@@ -188,13 +203,11 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
     return { ok: false, detail: 'Enter the ranch API URL first.' };
   }
   try {
-    const health = await fetch(ranchUrl('/health'));
+    const health = await ranchFetch('/health');
     if (!health.ok) {
       return { ok: false, detail: `Ranch API health check failed (${health.status}).` };
     }
-    const catalog = await fetch(ranchUrl('/v1'), {
-      headers: ranchHeaders('GET'),
-    });
+    const catalog = await ranchFetch('/v1');
     if (catalog.status === 401) {
       return { ok: false, detail: 'Ranch API key was rejected.' };
     }
@@ -224,11 +237,11 @@ export async function pushToRanchServer(): Promise<{
   const settings = await ensureSettings();
   const snapshot = await buildSnapshot();
   try {
-    const response = await fetch(ranchUrl('/v1/sync/snapshot'), {
-      method: 'POST',
-      headers: ranchHeaders('POST'),
-      body: JSON.stringify(snapshot),
-    });
+    const response = await ranchFetch(
+      '/v1/sync/snapshot',
+      'POST',
+      JSON.stringify(snapshot),
+    );
     const body = (await response.json().catch(() => ({}))) as {
       error?: string;
       applied?: number;
@@ -240,17 +253,17 @@ export async function pushToRanchServer(): Promise<{
         detail: body.error || `Ranch API ${response.status}`,
       };
     }
-    await fetch(ranchUrl(`/v1/devices/${encodeURIComponent(settings.deviceId)}`), {
-      method: 'PUT',
-      headers: ranchHeaders('PUT'),
-      body: JSON.stringify({
+    await ranchFetch(
+      `/v1/devices/${encodeURIComponent(settings.deviceId)}`,
+      'PUT',
+      JSON.stringify({
         deviceId: settings.deviceId,
         deviceName: settings.deviceName || 'Device',
         operatorName: settings.operatorName,
         kind: settings.deviceKind,
         lastSeenAt: new Date().toISOString(),
       }),
-    }).catch(() => undefined);
+    ).catch(() => undefined);
     return {
       ok: true,
       skipped: false,

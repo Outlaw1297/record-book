@@ -1,4 +1,5 @@
 import { db, ensureSettings, type SyncAuth } from '../db/schema';
+import { assertCloudFolder } from './folderUri';
 import { RECORD_BOOK_FOLDER, type CloudCarrier, type CloudFile, type CloudProvider } from './types';
 import { SharedFolder } from './sharedFolderPlugin';
 
@@ -9,7 +10,8 @@ function folderIdFrom(auth: SyncAuth | undefined): string {
 export async function connectSharedFolder(provider: CloudProvider): Promise<{
   name: string;
 }> {
-  const folder = await SharedFolder.pickFolder();
+  const folder = await SharedFolder.pickFolder({ provider });
+  assertCloudFolder(folder.id, provider);
   const settings = await ensureSettings();
   const auth: SyncAuth = {
     id: 1,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchUnreachableDetail } from './ranchServer';
+import { joinRanchApiBase, ranchRequestInit, ranchUnreachableDetail } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -41,5 +41,12 @@ describe('ranchUnreachableDetail', () => {
     expect(ranchUnreachableDetail(new Error('Ranch API 503'), health)).toBe(
       'Ranch API 503',
     );
+  });
+});
+
+describe('ranchRequestInit', () => {
+  it('does not let the phone reuse a cached ranch export', () => {
+    expect(ranchRequestInit('GET').cache).toBe('no-store');
+    expect(ranchRequestInit('POST', '{}').cache).toBe('no-store');
   });
 });

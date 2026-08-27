@@ -11,7 +11,7 @@ export function scheduleSync(delayMs = 2500): void {
   if (timer) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     void (async () => {
-      if (!navigator.onLine) {
+      if (!navigator.onLine && !hasRanchServer()) {
         emitSyncEvent();
         return;
       }

@@ -12,7 +12,7 @@ export type SharedFolderEntry = {
 };
 
 type SharedFolderApi = {
-  pickFolder(): Promise<SharedFolderRef>;
+  pickFolder(options?: { provider?: string }): Promise<SharedFolderRef>;
   writeFile(options: { folderId: string; path: string; data: string }): Promise<void>;
   readFile(options: { folderId: string; path: string }): Promise<{ data?: string; missing?: boolean }>;
   mkdir(options: { folderId: string; path: string }): Promise<void>;
@@ -115,7 +115,7 @@ async function dirAt(
 }
 
 class SharedFolderWeb extends WebPlugin implements SharedFolderApi {
-  async pickFolder(): Promise<SharedFolderRef> {
+  async pickFolder(_options?: { provider?: string }): Promise<SharedFolderRef> {
     const picker = window as DirectoryPickerWindow;
     if (typeof picker.showDirectoryPicker !== 'function') {
       throw new Error(

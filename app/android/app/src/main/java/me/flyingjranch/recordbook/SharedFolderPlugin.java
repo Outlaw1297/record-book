@@ -2,7 +2,10 @@ package me.flyingjranch.recordbook;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import androidx.activity.result.ActivityResult;
 import androidx.documentfile.provider.DocumentFile;
 import com.getcapacitor.JSArray;
@@ -24,6 +27,22 @@ public class SharedFolderPlugin extends Plugin {
 
     @PluginMethod
     public void pickFolder(PluginCall call) {
+        String provider = call.getString("provider", "");
+        if ("google-drive".equals(provider) && !hasAuthority("com.google.android.apps.docs.storage")
+                && !hasAuthority("com.google.android.apps.docs.storage.legacy")
+                && !isInstalled("com.google.android.apps.docs")) {
+            call.reject(
+                "Install the Google Drive app, then try again. In the picker, open the menu and choose Google Drive, not this phone."
+            );
+            return;
+        }
+        if ("dropbox".equals(provider) && !hasDropboxProvider()) {
+            call.reject(
+                "Dropbox on Android does not let other apps pick a folder. Use Google Drive (install the Drive app), or set this ranch's API if you run Docker."
+            );
+            return;
+        }
+
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -31,6 +50,11 @@ public class SharedFolderPlugin extends Plugin {
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         );
+        intent.putExtra("android.content.extra.SHOW_ADVANCED", true);
+        Uri initial = initialUriFor(provider);
+        if (initial != null) {
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initial);
+        }
         startActivityForResult(call, intent, "folderPicked");
     }
 
@@ -44,6 +68,20 @@ public class SharedFolderPlugin extends Plugin {
         Uri uri = result.getData().getData();
         if (uri == null) {
             call.reject("No folder was returned.");
+            return;
+        }
+        String provider = call.getString("provider", "");
+        String authority = uri.getAuthority() == null ? "" : uri.getAuthority();
+        if ("google-drive".equals(provider) && !authority.contains("com.google.android.apps.docs")) {
+            call.reject(
+                "That folder is on this phone, not Google Drive. Install the Google Drive app, open the picker menu, and choose Google Drive."
+            );
+            return;
+        }
+        if ("dropbox".equals(provider) && !authority.toLowerCase().contains("dropbox")) {
+            call.reject(
+                "Dropbox on Android does not let other apps pick a folder. Use Google Drive (install the Drive app), or set this ranch's API if you run Docker."
+            );
             return;
         }
         int flags =
@@ -221,6 +259,49 @@ public class SharedFolderPlugin extends Plugin {
         if (children == null) return null;
         for (DocumentFile child : children) {
             if (name.equals(child.getName())) return child;
+        }
+        return null;
+    }
+
+    private boolean isInstalled(String packageName) {
+        try {
+            getContext().getPackageManager().getPackageInfo(packageName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException error) {
+            return false;
+        }
+    }
+
+    private boolean hasAuthority(String authority) {
+        ProviderInfo info = getContext().getPackageManager().resolveContentProvider(authority, 0);
+        return info != null;
+    }
+
+    private boolean hasDropboxProvider() {
+        return hasAuthority("com.dropbox.android.storage")
+            || hasAuthority("com.dropbox.android.documents")
+            || hasAuthority("com.dropbox.prod.storage");
+    }
+
+    private Uri initialUriFor(String provider) {
+        if ("google-drive".equals(provider)) {
+            if (hasAuthority("com.google.android.apps.docs.storage")) {
+                return DocumentsContract.buildRootUri("com.google.android.apps.docs.storage", "root");
+            }
+            if (hasAuthority("com.google.android.apps.docs.storage.legacy")) {
+                return DocumentsContract.buildRootUri(
+                    "com.google.android.apps.docs.storage.legacy",
+                    "root"
+                );
+            }
+        }
+        if ("dropbox".equals(provider)) {
+            if (hasAuthority("com.dropbox.android.storage")) {
+                return DocumentsContract.buildRootUri("com.dropbox.android.storage", "root");
+            }
+            if (hasAuthority("com.dropbox.android.documents")) {
+                return DocumentsContract.buildRootUri("com.dropbox.android.documents", "root");
+            }
         }
         return null;
     }

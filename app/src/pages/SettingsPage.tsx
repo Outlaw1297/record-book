@@ -337,10 +337,10 @@ export function SettingsPage() {
       <section className="sync-panel">
         <h2>This ranch’s folder</h2>
         <p className="hint">
-          Use this when you do not run a ranch server. The picker opens YOUR
-          Google Drive or Dropbox (or any folder you own). That is this ranch’s
-          book. Other ranches who install Record Book do not see it and do not
-          write to your account.
+          Use this when you do not run a ranch server. These buttons must open
+          YOUR Google Drive or Dropbox, not this phone’s files. Install the
+          Google Drive app first. Dropbox’s Android app cannot share a folder
+          with other apps, so use Drive or this ranch’s Docker API instead.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
@@ -353,7 +353,7 @@ export function SettingsPage() {
               auth?.accountEmail ||
               (ranchReady
                 ? 'Skip this if you already use your own ranch server.'
-                : 'Phones and the office on THIS ranch pick the same folder in your account.')}
+                : 'Phones and the office on THIS ranch pick the same Google Drive folder, or use this ranch’s API.')}
           </p>
         </div>
 

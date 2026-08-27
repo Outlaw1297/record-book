@@ -119,9 +119,9 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
             </h1>
             <p className="lede">
               Phone is for gloves and one-handed calf entry. To share this
-              ranch’s herd, pick a folder in YOUR Google Drive (not this
-              phone’s files), or run YOUR own Docker server. Do not use
-              another ranch’s account or NAS.
+              ranch’s herd, sign in to YOUR Google Drive or Dropbox, or run
+              YOUR own Docker server. Do not use another ranch’s account or
+              NAS.
             </p>
             <Segmented
               ariaLabel="Device"

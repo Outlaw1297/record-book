@@ -29,12 +29,12 @@ describe('noneProviderBanner', () => {
     ).toBe('4 change(s) copying to the ranch database…');
   });
 
-  it('asks no-server installs to pick this ranch’s folder', () => {
+  it('asks no-server installs to sign in with Google or Dropbox', () => {
     expect(
       noneProviderBanner({
         pendingCount: 0,
         ranchConfigured: false,
       }),
-    ).toMatch(/this ranch’s folder/i);
+    ).toMatch(/sign in with Google or Dropbox/i);
   });
 });

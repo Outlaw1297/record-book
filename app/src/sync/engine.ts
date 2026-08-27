@@ -24,7 +24,6 @@ import {
 } from './ranchServer';
 import { applyRemoteFile } from './remoteApply';
 import { formatWhen, isSyncOnline, noneProviderBanner, noSharedBookDetail } from './statusCopy';
-import { assertCloudFolder } from './folderUri';
 import {
   buildSnapshot,
   clearHerdForReplace,
@@ -395,7 +394,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
     const token = await getValidAccessToken();
     if (!token) {
       if (!ranchOk) {
-        lastError = 'Choose this ranch’s folder in Settings.';
+        lastError = 'Sign in with Google or Dropbox in Settings.';
         emitSyncEvent();
         return {
           ok: false,
@@ -413,11 +412,6 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           /* Herd was already cleared for the ranch attempt. */
         }
         const carrier = carrierFor(cloudProvider);
-        const folderAuth = await getSyncAuth();
-        assertCloudFolder(
-          folderAuth?.rootFolderId || folderAuth?.accessToken || '',
-          cloudProvider,
-        );
         await carrier.ensureRoot();
         const book = await ensureBook(carrier);
         const remote = await pullRemote(carrier);

@@ -32,11 +32,11 @@ export function noneProviderBanner(opts: {
     return 'Online — this ranch’s database copies by itself on your Wi-Fi.';
   }
   if (pendingCount > 0) {
-    return `${pendingCount} change(s) on this phone. Choose this ranch’s folder, or set this ranch’s API if you run a server.`;
+    return `${pendingCount} change(s) on this phone. Sign in with Google or Dropbox, or set this ranch’s API if you run a server.`;
   }
-  return 'Online — choose this ranch’s folder, or set this ranch’s API if you run a server';
+  return 'Online — sign in with Google or Dropbox, or set this ranch’s API if you run a server';
 }
 
 export function noSharedBookDetail(): string {
-  return 'Choose a folder in YOUR Drive or Dropbox, or set the API for a Docker server YOU run. Other ranches are not on this book.';
+  return 'Sign in to YOUR Google Drive or Dropbox, or set the API for a Docker server YOU run. Other ranches are not on this book.';
 }

@@ -2,7 +2,7 @@
 
 The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device.
 
-This is the same APK for every ranch. It does not bake a NAS address, OAuth keys, or anyone else’s Drive or Dropbox. Each install is another ranch using the tool. Cattle stay on that ranch.
+This is the same APK for every ranch. It does not bake a NAS address or anyone else’s Drive or Dropbox. Public OAuth client IDs identify the Record Book app, not a ranch. Each install is another ranch using the tool. Cattle stay on that ranch.
 
 ## Install on a phone
 
@@ -16,13 +16,9 @@ This is a **debug** APK for sideload, not a Play Store build.
 
 ## Share without a ranch server
 
-Install the **Google Drive** app on the phone. Settings → **Use my Google Drive folder**. The picker must show Google Drive, not this phone’s files. Open the menu at the top left and choose **Google Drive**, then pick a folder **you** own. Other phones on **this** ranch pick that same Drive folder.
+Settings → **Sign in with Google** or **Sign in with Dropbox**. That opens Google or Dropbox login for **your** account (not this phone’s file picker). The app writes `RecordBook` in that account.
 
-Do not tap **Use this folder** on this phone’s internal storage. That stays on the phone and will not copy to the office.
-
-**Dropbox’s Android app does not let other apps pick a folder.** Use Google Drive, or run Docker on this ranch and type that API in Settings.
-
-There is no product Drive or Dropbox. No Google Cloud client ID or GitHub secret is required.
+See [Native Google Drive and Dropbox login](oauth-setup.md) for the official OAuth docs and how to bake the public client IDs once.
 
 ## Ranch database (optional)
 

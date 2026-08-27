@@ -4,7 +4,7 @@ import { completeOAuthCallback } from '../sync/auth';
 
 export function OAuthCallbackPage() {
   const [params] = useSearchParams();
-  const [detail, setDetail] = useState('Opening this ranch’s folder…');
+  const [detail, setDetail] = useState('Finishing sign-in…');
   const [ok, setOk] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function OAuthCallbackPage() {
         setDetail(
           error instanceof Error
             ? error.message
-            : 'Folder connect failed. Try again from Settings.',
+            : 'Sign-in did not finish. Try again from Settings.',
         );
       }
     })();

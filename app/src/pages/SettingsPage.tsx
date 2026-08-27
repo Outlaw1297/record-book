@@ -77,7 +77,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (searchParams.get('sync') === 'connected') {
-      toast('Folder connected. Syncing…');
+      toast('Signed in. Syncing…');
       setSearchParams(
         {},
         {
@@ -119,11 +119,11 @@ export function SettingsPage() {
     try {
       const result = await startOAuth(provider);
       if (!result.navigated) {
-        toast(result.detail || 'Folder connected.');
+        toast(result.detail || 'Signed in.');
         setBusy(null);
       }
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not open the folder picker.');
+      toast(error instanceof Error ? error.message : 'Could not start sign-in.');
       setBusy(null);
     }
   }
@@ -139,7 +139,7 @@ export function SettingsPage() {
     const ok = window.confirm(
       ranchReady
         ? 'Replace the herd on THIS device with the ranch database? Unsynced rows on this device will be dropped. Other devices are not changed.'
-        : 'Replace the herd on THIS device from this ranch’s folder? Unsynced rows on this device will be dropped.',
+        : 'Replace the herd on THIS device from YOUR Google Drive or Dropbox? Unsynced rows on this device will be dropped.',
     );
     if (!ok) return;
     setBusy('replace');
@@ -202,7 +202,7 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <p className="lede">
           {native
-            ? 'This phone keeps this ranch’s book. Share it with a folder in YOUR Drive or Dropbox, or with a Docker server YOU run. Other ranches who install this app have their own books.'
+            ? 'This phone keeps this ranch’s book. Sign in to YOUR Google or Dropbox, or use a Docker server YOU run. Other ranches who install this app sign into their own accounts.'
             : 'This browser keeps this ranch’s book. If you opened it from your own Docker site, that database is yours. Other ranches are not on it.'}
         </p>
       </header>
@@ -256,8 +256,8 @@ export function SettingsPage() {
         <p className="hint">
           Only if YOU run the Portainer stack on YOUR network. Saves copy by
           themselves on Wi-Fi after that. Do not point this phone at another
-          ranch’s server. If you have no server, skip this and use your own
-          Google Drive folder below.
+          ranch’s server. If you have no server, skip this and sign in to your
+          own Google Drive or Dropbox below.
         </p>
         <p className="due-kicker" style={{ marginBottom: '0.5rem' }}>
           {ranchReady ? 'This ranch’s server' : 'No server on this ranch'}
@@ -328,7 +328,7 @@ export function SettingsPage() {
             ? 'Replacing…'
             : ranchReady
               ? 'Replace this device from the ranch database'
-              : 'Replace this device from this ranch’s folder'}
+              : 'Replace this device from Drive or Dropbox'}
         </button>
         <p className="hint" style={{ marginTop: '0.55rem' }}>
           Pending changes: {pending ?? 0}
@@ -342,16 +342,16 @@ export function SettingsPage() {
       </section>
 
       <section className="sync-panel">
-        <h2>This ranch’s folder</h2>
+        <h2>This ranch’s Google Drive or Dropbox</h2>
         <p className="hint">
-          Use this when you do not run a ranch server. These buttons must open
-          YOUR Google Drive or Dropbox, not this phone’s files. Install the
-          Google Drive app first. Dropbox’s Android app cannot share a folder
-          with other apps, so use Drive or this ranch’s Docker API instead.
+          Sign in to YOUR Google or Dropbox account. That opens Google or
+          Dropbox login, not this phone’s files. The app writes a RecordBook
+          folder in that account. Other ranches who install Record Book sign
+          into their own accounts and do not see your herd.
         </p>
 
         <div className="account-card" style={{ marginTop: '0.85rem' }}>
-          <p className="due-kicker">{connected ? 'This ranch’s folder' : 'No folder yet'}</p>
+          <p className="due-kicker">{connected ? 'Signed in' : 'Not signed in'}</p>
           <p className="due-date" style={{ fontSize: '1.35rem' }}>
             {providerName ?? 'Your Drive or Dropbox'}
           </p>
@@ -360,7 +360,7 @@ export function SettingsPage() {
               auth?.accountEmail ||
               (ranchReady
                 ? 'Skip this if you already use your own ranch server.'
-                : 'Phones and the office on THIS ranch pick the same Google Drive folder, or use this ranch’s API.')}
+                : 'Phones and the office on THIS ranch sign into the same Google or Dropbox account, or use this ranch’s API.')}
           </p>
         </div>
 
@@ -371,7 +371,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('google-drive')}
           >
-            {busy === 'google-drive' ? 'Opening Drive…' : 'Use my Google Drive folder'}
+            {busy === 'google-drive' ? 'Opening Google…' : 'Sign in with Google'}
           </button>
           <button
             type="button"
@@ -379,7 +379,7 @@ export function SettingsPage() {
             disabled={busy !== null}
             onClick={() => void connect('dropbox')}
           >
-            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Use my Dropbox folder'}
+            {busy === 'dropbox' ? 'Opening Dropbox…' : 'Sign in with Dropbox'}
           </button>
         </div>
         <div className="provider-actions">
@@ -389,7 +389,7 @@ export function SettingsPage() {
             disabled={busy !== null || !connected}
             onClick={() => void disconnect()}
           >
-            Disconnect this folder
+            Disconnect this account
           </button>
         </div>
       </section>
@@ -397,7 +397,7 @@ export function SettingsPage() {
       <section className="sync-panel">
         <h2>Devices on this ranch’s book</h2>
         <p className="hint">
-          Phones and office PCs that sync THIS ranch’s folder or THIS ranch’s
+          Phones and office PCs that sync THIS ranch’s Drive, Dropbox, or
           server. Another ranch’s install does not show up here.
         </p>
         <div className="card-list" style={{ marginTop: '0.75rem' }}>
@@ -433,8 +433,8 @@ export function SettingsPage() {
         </div>
         {others.length === 0 && (devices ?? []).length > 0 ? (
           <p className="hint" style={{ marginTop: '0.6rem' }}>
-            Connect another phone or the office to this ranch’s folder or this
-            ranch’s server. Do not use another ranch’s Drive, Dropbox, or NAS.
+            Connect another phone or the office to this ranch’s Drive,
+            Dropbox, or server. Do not use another ranch’s account or NAS.
           </p>
         ) : null}
       </section>

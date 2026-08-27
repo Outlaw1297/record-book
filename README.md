@@ -2,7 +2,7 @@
 
 Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. This is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** The same APK or Docker image on another ranch is a different book. There is no product Drive, Dropbox, or server.
 
-Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones on **this** ranch pick a folder in **this ranch’s** Google Drive or Dropbox (system picker, no keys). A ranch can also run **its own** optional **Docker / Portainer** stack so Postgres on **that** NAS is **that** ranch’s book.
+Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones on **this** ranch sign into **this ranch’s** Google Drive or Dropbox (native OAuth, not the phone’s file picker). A ranch can also run **its own** optional **Docker / Portainer** stack so Postgres on **that** NAS is **that** ranch’s book.
 
 ## Run locally
 
@@ -47,7 +47,7 @@ Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, 
 | **Sales** | Calf ID, sex, sold to, date, price, cull notes, circled / x marks |
 | **Gestation** | Service date + 283 days = due date |
 | **Account** | You on this device, other devices on this ranch’s book |
-| **Settings** | This ranch, your name/device, this ranch’s folder or server, device roster, overlap log |
+| **Settings** | This ranch, your name/device, Drive / Dropbox sign-in or ranch server, device roster, overlap log |
 | **Onboarding** | First-run ranch name and field vs desk |
 
 Install the **Android APK** for pasture use ([install](docs/android.md)). The Portainer PWA is for the office browser.
@@ -57,7 +57,7 @@ Install the **Android APK** for pasture use ([install](docs/android.md)). The Po
 - Local **IndexedDB** (Dexie) is the working store offline
 - Every write goes to an **outbox**
 - **If this ranch runs its own Docker server**, Postgres on that host is this ranch’s book (`/api` on that host). Other ranches who pull the same image get their own empty database
-- **If this ranch has no server**, choose a **Google Drive / Dropbox / other folder this ranch owns**. The system picker; no keys. Another ranch picks a folder in their account
+- **If this ranch has no server**, **Sign in with Google** or **Sign in with Dropbox** using this ranch’s account. Native OAuth; another ranch signs into theirs. Setup: [Native login](docs/oauth-setup.md)
 - Your name and device label stay on this device; ranch name, year, and cattle rows stay in this ranch’s book
 - The ranch API key stays on the device; it is never written to the outbox or cloud snapshot
 - **Download JSON backup** still works without cloud

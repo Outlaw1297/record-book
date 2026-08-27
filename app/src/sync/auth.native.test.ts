@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { RECORD_BOOK_FOLDER } from './types';
+import { missingClientIdMessage } from './credentials';
 import { noSharedBookDetail } from './statusCopy';
 
-describe('per-ranch folder book', () => {
-  it('keeps herd files under RecordBook in the chosen folder', () => {
-    expect(RECORD_BOOK_FOLDER).toBe('RecordBook');
+describe('native cloud login', () => {
+  it('asks each ranch to sign into their own account', () => {
+    expect(noSharedBookDetail()).toMatch(/YOUR Google Drive or Dropbox/);
+    expect(noSharedBookDetail()).toMatch(/Other ranches are not on this book/);
   });
 
-  it('does not require a ranch server or developer keys', () => {
-    expect(noSharedBookDetail()).toMatch(/YOUR Drive or Dropbox/);
-    expect(noSharedBookDetail()).toMatch(/Other ranches are not on this book/);
-    expect(noSharedBookDetail()).not.toMatch(/Ranch API is not set/);
-    expect(noSharedBookDetail()).not.toMatch(/GitHub/);
+  it('does not tell people to paste keys on the phone', () => {
+    expect(missingClientIdMessage('google-drive')).not.toMatch(/paste/i);
+    expect(missingClientIdMessage('google-drive')).toMatch(/Android client/);
+    expect(missingClientIdMessage('dropbox')).toMatch(/their own Dropbox/);
   });
 });

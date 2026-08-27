@@ -297,18 +297,43 @@ async function persistAuth(
       updatedAt: new Date().toISOString(),
     });
   }
-  if (hasRanchServer()) {
-    void shareCloudLoginWithNas({
-      provider,
-      accessToken: auth.accessToken,
-      refreshToken: auth.refreshToken,
-      expiresAt: auth.expiresAt,
-      accountEmail: auth.accountEmail,
-      accountName: auth.accountName,
-      clientId: clientIdFor(provider),
-    });
-  }
+  void shareCloudAuthWithNas(auth);
   return auth;
+}
+
+function nasLoginFromAuth(auth: SyncAuth) {
+  return {
+    provider: auth.provider,
+    accessToken: auth.accessToken,
+    refreshToken: auth.refreshToken,
+    expiresAt: auth.expiresAt,
+    accountEmail: auth.accountEmail,
+    accountName: auth.accountName,
+    clientId: clientIdFor(auth.provider),
+  };
+}
+
+async function shareCloudAuthWithNas(auth: SyncAuth): Promise<void> {
+  if (!hasRanchServer()) return;
+  await shareCloudLoginWithNas(nasLoginFromAuth(auth));
+}
+
+/** Retry sharing phone cloud logins so a ranch URL saved later still gets a NAS spare. */
+export async function shareStoredCloudLoginsWithNas(): Promise<void> {
+  if (!hasRanchServer()) return;
+  const rows = await listCloudAuths();
+  for (const row of rows) {
+    try {
+      const token = await getValidAccessToken(row.provider);
+      const auth = await getAuthFor(row.provider);
+      if (!token || !auth) continue;
+      await shareCloudLoginWithNas(
+        nasLoginFromAuth({ ...auth, accessToken: token }),
+      );
+    } catch {
+      /* Next sync retries this account. */
+    }
+  }
 }
 
 export async function completeOAuthCallback(

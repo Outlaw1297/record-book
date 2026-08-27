@@ -6,7 +6,12 @@ import {
   type SyncProvider,
 } from '../db/schema';
 import { serializeJsonl } from './apply';
-import { getValidAccessToken, hasUsableSession, listCloudAuths } from './auth';
+import {
+  getValidAccessToken,
+  hasUsableSession,
+  listCloudAuths,
+  shareStoredCloudLoginsWithNas,
+} from './auth';
 import { preferredCloudProvider } from './authStore';
 import { carrierFor } from './carrier';
 import { cloudSyncRole } from './cloudRole';
@@ -380,27 +385,6 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       if (incoming.applied) parts.push(`received ${incoming.applied} from ranch`);
       if (incoming.conflicts) parts.push(`${incoming.conflicts} overlap(s) logged`);
 
-      for (const provider of connectedClouds) {
-        try {
-          const carrier = carrierFor(provider);
-          await carrier.ensureRoot();
-          const remote = await pullRemote(carrier);
-          pulled = {
-            pulled: pulled.pulled + remote.pulled,
-            conflicts: pulled.conflicts + remote.conflicts,
-          };
-          if (remote.pulled) {
-            parts.push(`received ${remote.pulled} from ${providerLabel(provider)}`);
-          }
-        } catch (error) {
-          parts.push(
-            error instanceof Error
-              ? error.message
-              : `Could not read ${providerLabel(provider)}.`,
-          );
-        }
-      }
-
       const ranch = await pushToRanchServer();
       if (ranch.ok) {
         ranchOk = true;
@@ -430,6 +414,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
             settings.deviceId,
           );
         }
+        await shareStoredCloudLoginsWithNas();
         const nas = await requestNasBackup();
         if (!/no dropbox or google login stored/i.test(nas.detail)) {
           parts.push(nas.detail);

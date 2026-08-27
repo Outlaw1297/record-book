@@ -40,6 +40,7 @@ const DROPBOX_CONTENT = 'https://content.dropboxapi.com/2';
 const RECORD_BOOK = 'RecordBook';
 const SNAPSHOT_FILE = 'herd-latest.json';
 const SNAPSHOT_PATH = `/${RECORD_BOOK}/snapshots/${SNAPSHOT_FILE}`;
+const CLOUD_PROVIDERS: CloudProvider[] = ['dropbox', 'google-drive'];
 
 let inflight: Promise<{ ok: boolean; detail: string }> | null = null;
 
@@ -325,6 +326,65 @@ async function backupOne(row: CloudAccountRow, snapshot: unknown): Promise<void>
   await markBackupOk(row.provider, token, expiresAt);
 }
 
+function providerLabel(provider: CloudProvider): string {
+  return provider === 'dropbox' ? 'Dropbox' : 'Google Drive';
+}
+
+function snapshotExportedAtMs(snapshot: unknown): number {
+  if (!snapshot || typeof snapshot !== 'object') return 0;
+  const raw = (snapshot as { exportedAt?: unknown }).exportedAt;
+  if (typeof raw !== 'string' && typeof raw !== 'number') return 0;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+async function loadLatestCloudSnapshot(): Promise<{
+  provider: CloudProvider;
+  snapshot: Record<string, unknown>;
+  exportedAt: number;
+} | null> {
+  let best: {
+    provider: CloudProvider;
+    snapshot: Record<string, unknown>;
+    exportedAt: number;
+  } | null = null;
+  for (const provider of CLOUD_PROVIDERS) {
+    try {
+      const snapshot = await pullCloudSnapshot(provider);
+      if (!snapshot || typeof snapshot !== 'object') continue;
+      const exportedAt = snapshotExportedAtMs(snapshot);
+      if (!best || exportedAt > best.exportedAt) {
+        best = {
+          provider,
+          snapshot: snapshot as Record<string, unknown>,
+          exportedAt,
+        };
+      }
+    } catch (error) {
+      await markError(
+        provider,
+        error instanceof Error ? error.message : 'Could not restore from cloud.',
+      );
+    }
+  }
+  return best;
+}
+
+async function restoreIfCloudNewer(rows: CloudAccountRow[]): Promise<void> {
+  const latest = await loadLatestCloudSnapshot();
+  if (!latest) return;
+  const account = rows.find((row) => row.provider === latest.provider);
+  const lastBackupMs = account?.last_backup_at?.getTime();
+  if (
+    lastBackupMs != null &&
+    latest.exportedAt > 0 &&
+    latest.exportedAt <= lastBackupMs
+  ) {
+    return;
+  }
+  await applySnapshot(latest.snapshot);
+}
+
 export async function backupAllToCloud(): Promise<{ ok: boolean; detail: string }> {
   if (inflight) return inflight;
   inflight = (async () => {
@@ -336,13 +396,14 @@ export async function backupAllToCloud(): Promise<{ ok: boolean; detail: string 
     if (result.rows.length === 0) {
       return { ok: true, detail: 'No Dropbox or Google login stored on this NAS yet.' };
     }
+    await restoreIfCloudNewer(result.rows);
     const snapshot = await exportSnapshot();
     const ok: string[] = [];
     const failed: string[] = [];
     for (const row of result.rows) {
       try {
         await backupOne(row, snapshot);
-        ok.push(row.provider === 'dropbox' ? 'Dropbox' : 'Google Drive');
+        ok.push(providerLabel(row.provider));
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Backup failed.';
         await markError(row.provider, message);
@@ -371,8 +432,14 @@ export function startCloudBackupLoop(): void {
       console.error('NAS cloud backup failed', error);
     });
   };
-  setTimeout(tick, 20_000);
-  setInterval(tick, 120_000);
+  void restoreNasFromCloud()
+    .catch((error) => {
+      console.error('NAS cloud restore failed', error);
+    })
+    .finally(() => {
+      setTimeout(tick, 20_000);
+      setInterval(tick, 120_000);
+    });
 }
 
 export async function pullCloudSnapshot(provider: CloudProvider): Promise<unknown | null> {
@@ -400,25 +467,16 @@ export async function pullCloudSnapshot(provider: CloudProvider): Promise<unknow
 }
 
 export async function restoreNasFromCloud(): Promise<{ applied: number; detail: string }> {
-  let applied = 0;
-  for (const provider of ['dropbox', 'google-drive'] as CloudProvider[]) {
-    try {
-      const snapshot = await pullCloudSnapshot(provider);
-      if (!snapshot || typeof snapshot !== 'object') continue;
-      const result = await applySnapshot(snapshot as Record<string, unknown>);
-      applied += result.applied;
-    } catch (error) {
-      await markError(
-        provider,
-        error instanceof Error ? error.message : 'Could not restore from cloud.',
-      );
-    }
+  const latest = await loadLatestCloudSnapshot();
+  if (!latest) {
+    return { applied: 0, detail: 'No newer cloud copy to apply.' };
   }
+  const result = await applySnapshot(latest.snapshot);
   return {
-    applied,
+    applied: result.applied,
     detail:
-      applied > 0
-        ? `NAS applied ${applied} row(s) from Dropbox/Drive.`
+      result.applied > 0
+        ? `NAS applied ${result.applied} row(s) from ${providerLabel(latest.provider)}.`
         : 'No newer cloud copy to apply.',
   };
 }

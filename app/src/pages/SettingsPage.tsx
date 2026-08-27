@@ -15,6 +15,7 @@ import {
 import {
   disconnectCloud,
   listCloudAuths,
+  shareStoredCloudLoginsWithNas,
   startOAuth,
 } from '../sync/auth';
 import { defaultDeviceName } from '../sync/identity';
@@ -105,6 +106,7 @@ export function SettingsPage() {
     if (!settings) return;
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
+    if (ranchApiUrl.trim()) void shareStoredCloudLoginsWithNas();
     const nextRanch = ranchName.trim() || 'Record Book';
     const nextYear = currentYear;
     const ranchChanged =
@@ -174,7 +176,10 @@ export function SettingsPage() {
         ? 'Ranch API saved on this device. Changes copy by themselves when you have Wi-Fi.'
         : 'Ranch API cleared on this device.',
     );
-    if (ranchApiUrl.trim()) scheduleSync(400);
+    if (ranchApiUrl.trim()) {
+      void shareStoredCloudLoginsWithNas();
+      scheduleSync(400);
+    }
   }
 
   async function testRanchApi() {
@@ -290,7 +295,10 @@ export function SettingsPage() {
             onBlur={() => {
               saveRanchApiUrl(ranchApiUrl);
               saveRanchApiKey(ranchApiKey);
-              if (ranchApiUrl.trim()) scheduleSync(400);
+              if (ranchApiUrl.trim()) {
+                void shareStoredCloudLoginsWithNas();
+                scheduleSync(400);
+              }
             }}
             placeholder={native ? RANCH_LAN_API_PLACEHOLDER : '/api'}
             autoComplete="off"

@@ -42,7 +42,7 @@ Google will not let you create login IDs until this is filled in.
 3. **App name:** `Record Book`
 4. **User support email:** pick your Gmail from the list.
 5. Click **Next**.
-6. **Audience:** click **External** (people who are not in a Google Workspace company). Click **Next**.
+6. **Audience:** click **External** (people who are not in a Google Workspace company). Click **Next**. A later grey **Make internal** is normal on a personal Gmail. Leave it External.
 7. **Contact information:** type the same email again. Click **Next**.
 8. Check **I agree to the Google API Services: User Data Policy**. Click **Continue**, then **Create**.
 
@@ -56,17 +56,18 @@ While the app is in Testing, Google only lets listed accounts sign in. `drive.fi
 
 1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).
 2. Publishing status should say **Testing**. If **Publish app** is greyed out, leave it. That is what we want.
-3. If a yellow box says **Your app's OAuth configuration is incomplete** with **Go to Branding**:
+3. **User type** should say **External**. Grey **Make internal** (“Because you're not a Google Workspace user…”) is expected on a personal Gmail. Do not try to change it. This still means each ranch signs into **their** Google, not yours.
+4. If a yellow box says **Your app's OAuth configuration is incomplete** with **Go to Branding**:
    1. Click **Go to Branding**.
    2. **App name:** `Record Book`
    3. **User support email:** pick your Gmail.
    4. **Developer contact information:** the same email.
    5. Click **Save**. Leave home page, privacy, terms, and Authorized domains blank (same as 1C).
    6. Come back to [Audience](https://console.cloud.google.com/auth/audience).
-4. Under **Test users**, click **Add users**.
-5. Type the **same Gmail that is on the phone**. Click **Save**.
-6. The table must show that Gmail. **No rows to display** means Drive login will fail.
-7. If anyone else on this ranch will test Google login, add their Gmail the same way.
+5. Under **Test users**, click **Add users**.
+6. Type the **same Gmail that is on the phone**. Click **Save**.
+7. The table must show that Gmail. **No rows to display** means Drive login will fail.
+8. If anyone else on this ranch will test Google login, add their Gmail the same way.
 
 You do **not** need **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
 
@@ -258,6 +259,7 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | Audience yellow “OAuth configuration is incomplete” | Click Go to Branding, save App name + your Gmail, leave domains blank. Then **Add users**. Grey Publish is fine. |
 | Audience “No rows to display” under Test users | Drive will fail. Add the phone’s Gmail. |
 | Google Search Console / authorized domains | Ignore. Leave domains empty. That box is only if you typed a website. |
+| Audience User type External / grey Make internal | Correct on a personal Gmail. Leave External. Still each ranch’s own Google. |
 | Dropbox redirect error | Redirect URI is not exactly `me.flyingjranch.recordbook://oauth/callback` |
 
 Another ranch installs the **same** APK and signs into **their** Google or Dropbox. They never get your herd.

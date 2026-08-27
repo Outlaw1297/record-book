@@ -233,7 +233,6 @@ async function publishRoster(
     JSON.stringify(withFolders, null, 2),
     'overwrite',
   );
-  await cacheRoster(withFolders, settings.deviceId);
   return withFolders;
 }
 
@@ -322,7 +321,9 @@ async function copySnapshotTo(provider: CloudProvider): Promise<void> {
   const carrier = carrierFor(provider);
   await carrier.ensureRoot();
   const book = await ensureBook(carrier);
-  await maybeWriteSnapshot(carrier, true);
+  if (!(await localHerdIsEmpty())) {
+    await maybeWriteSnapshot(carrier, true);
+  }
   const changeFiles = await carrier.list('changes');
   await publishRoster(
     carrier,
@@ -461,6 +462,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
           book.bookId,
           changeFiles.map((file) => file.key),
         );
+        await cacheRoster(roster, settings.deviceId);
         if (roster.devices.length > 1) {
           parts.push(`${roster.devices.length} devices on ${providerLabel(bookProvider)}`);
         }

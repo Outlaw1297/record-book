@@ -56,8 +56,8 @@ export async function getAuthFor(provider: CloudProvider): Promise<SyncAuth | un
   return row?.provider === provider ? row : undefined;
 }
 
+/** Read-only. Safe inside Dexie liveQuery callbacks. */
 export async function listCloudAuths(): Promise<SyncAuth[]> {
-  await migrateCloudAuthRows();
   const rows = await db.syncAuth.toArray();
   return rows.filter(
     (row) => row.provider === 'google-drive' || row.provider === 'dropbox',
@@ -65,6 +65,7 @@ export async function listCloudAuths(): Promise<SyncAuth[]> {
 }
 
 export async function getSyncAuth(): Promise<SyncAuth | undefined> {
+  await migrateCloudAuthRows();
   const settings = await db.settings.get(1);
   const rows = await listCloudAuths();
   const preferred = preferredCloudProvider(

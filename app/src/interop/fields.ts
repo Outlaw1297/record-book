@@ -2,22 +2,33 @@ import type { AnimalStatus, Sex } from '../db/schema';
 
 export const COW_SENSE_SEX = ['Heifer', 'Cow', 'Bull', 'Steer'] as const;
 export const COW_SENSE_TYPE = [
-  'Calf',
+  'Nursing Calf',
+  'Weaned Calf',
+  'Yearling',
   'Replacement',
+  'Breeding Cow',
+  'Breeding Bull',
+  'Multi Sire',
+  'Stocker',
+  'Feeder',
+  'Calving Failure',
+  'Calf',
   'Cow',
   'Bull',
   'Steer',
   'Herd Sire',
-  'Reference',
+  'Unknown',
 ] as const;
 export const COW_SENSE_STATUS = [
   'Active',
+  'Disposed',
+  'Reference',
   'Sold',
   'Dead',
   'Culled',
-  'Reference',
   'Open',
 ] as const;
+export const COW_SENSE_DISPOSAL = ['Marketing', 'Culling', 'Death loss', 'Transfer'] as const;
 
 export type AnimalField =
   | 'herdId'
@@ -106,6 +117,7 @@ const HEADER_ALIASES: Record<string, AnimalField> = {
   chutescore: 'disposition',
   disposition: 'disposition',
   bodycondition: 'bodyCondition',
+  conditioncode: 'bodyCondition',
   birthweight: 'birthWeight',
   bw: 'birthWeight',
   weaningweight: 'weaningWeight',
@@ -216,25 +228,43 @@ export function mapSaleHeader(header: string): string | undefined {
 
 export function sexFromCowSense(value: string): Sex {
   const key = normalizeHeader(value);
-  if (['heifer', 'cow', 'female', 'f', 'h'].includes(key)) return 'F';
+  if (['heifer', 'heiferspay', 'spayedheifer', 'cow', 'female', 'f', 'h'].includes(key)) return 'F';
   if (['bull', 'steer', 'male', 'm', 'b', 's'].includes(key)) return 'M';
   return '';
 }
 
-export function statusFromCowSense(value: string): AnimalStatus {
+export function statusFromCowSense(value: string, disposalType = ''): AnimalStatus {
   const key = normalizeHeader(value);
-  if (['sold', 'sale'].includes(key)) return 'sold';
-  if (['dead', 'died', 'death', 'deceased'].includes(key)) return 'dead';
-  if (['culled', 'cull'].includes(key)) return 'culled';
+  const disposal = normalizeHeader(disposalType);
+  if (['sold', 'sale', 'marketing'].includes(key)) return 'sold';
+  if (['dead', 'died', 'death', 'deceased', 'deathloss'].includes(key)) return 'dead';
+  if (['culled', 'cull', 'culling'].includes(key)) return 'culled';
+  if (key === 'disposed') {
+    if (disposal === 'marketing' || disposal === 'transfer') return 'sold';
+    if (disposal.includes('death')) return 'dead';
+    return 'culled';
+  }
   if (['open'].includes(key)) return 'open';
   if (['flagged', 'flag'].includes(key)) return 'flagged';
   if (['reference', 'ref'].includes(key)) return 'reference';
   return 'active';
 }
 
-export function cowSenseSex(sex: Sex, animalType?: string): string {
-  if (sex === 'F') return normalizeHeader(animalType || '') === 'cow' ? 'Cow' : 'Heifer';
-  if (normalizeHeader(animalType || '') === 'steer') return 'Steer';
+function typeLooksLikeCow(animalType?: string): boolean {
+  const type = normalizeHeader(animalType || '');
+  return type === 'cow' || type.endsWith('cow') || type.includes('breedingcow');
+}
+
+function typeLooksLikeSteer(animalType?: string): boolean {
+  const type = normalizeHeader(animalType || '');
+  return type === 'steer' || type === 'stocker' || type === 'feeder';
+}
+
+export function cowSenseSex(sex: Sex, animalType?: string, originalSex?: string): string {
+  const original = (originalSex || '').trim();
+  if ((COW_SENSE_SEX as readonly string[]).includes(original)) return original;
+  if (sex === 'F') return typeLooksLikeCow(animalType) ? 'Cow' : 'Heifer';
+  if (typeLooksLikeSteer(animalType)) return 'Steer';
   if (sex === 'M') return 'Bull';
   return '';
 }
@@ -256,6 +286,24 @@ export function cowSenseStatus(status: AnimalStatus): string {
   }
 }
 
+export function cowSenseFileStatus(status: AnimalStatus): string {
+  if (status === 'reference') return 'Reference';
+  if (status === 'sold' || status === 'dead' || status === 'culled') return 'Disposed';
+  return 'Active';
+}
+
+export function cowSenseDisposalType(
+  status: AnimalStatus,
+  extra?: Record<string, string>,
+): string {
+  const fromExtra = extra?.['Disposal Type'] || extra?.DisposalType || extra?.disposalType;
+  if (fromExtra?.trim()) return fromExtra.trim();
+  if (status === 'sold') return 'Marketing';
+  if (status === 'dead') return 'Death loss';
+  if (status === 'culled') return 'Culling';
+  return '';
+}
+
 export function cowSenseType(animalType?: string, sex?: Sex): string {
   const type = (animalType || '').trim();
   if (type) return type;
@@ -275,16 +323,18 @@ export function yearFromDate(value?: string): number | undefined {
 export function normalizeDate(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
-  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const stripped = trimmed.replace(/\s+\d{1,2}:\d{2}(:\d{2})?.*$/, '');
+  const iso = stripped.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const us = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  const us = stripped.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (us) {
     const month = us[1].padStart(2, '0');
     const day = us[2].padStart(2, '0');
-    const year = us[3].length === 2 ? `20${us[3]}` : us[3];
+    const year =
+      us[3].length === 2 ? (Number(us[3]) >= 50 ? `19${us[3]}` : `20${us[3]}`) : us[3];
     return `${year}-${month}-${day}`;
   }
-  const parsed = new Date(trimmed);
+  const parsed = new Date(stripped);
   if (Number.isNaN(parsed.getTime())) return trimmed;
   const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const day = String(parsed.getDate()).padStart(2, '0');

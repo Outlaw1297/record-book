@@ -12,6 +12,7 @@ import {
   exportCowSenseTreatmentsCsv,
 } from '../interop/export';
 import { countRows, parseCowSenseBytes, type ParsedHerd } from '../interop/parse';
+import { cowSenseSex, cowSenseStatus } from '../interop/fields';
 import { Field, Segmented } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 
@@ -69,7 +70,7 @@ export function InteropPage() {
   async function onImport(event: FormEvent) {
     event.preventDefault();
     if (!parsed || countRows(parsed) === 0) {
-      toast('Choose a Cow Sense CSV or TXT first.');
+      toast('Choose a Cow Sense .csh or CSV first.');
       return;
     }
     setBusy('import');
@@ -105,8 +106,9 @@ export function InteropPage() {
       <header className="page-header">
         <h1>Cow Sense</h1>
         <p className="lede">
-          Pull this ranch’s herd in from Cow Sense, edit it here, then send a CSV
-          back through Cow Sense Tools → Import.
+          Pull this ranch’s herd in from the Cow Sense .csh (read only). Edit it
+          here, then send a CSV back through Cow Sense Tools → Import. We never
+          write the original herd file.
         </p>
       </header>
 
@@ -123,9 +125,9 @@ export function InteropPage() {
           <p className="due-kicker">Import</p>
           <h2>{fileName || 'Nygaaard.csh or a Cow Sense CSV'}</h2>
           <p>
-            Drop the herd file here, or a CSV/TXT from Manage → List. .csh is
-            Cow Sense’s private database; if that file is not a spreadsheet, export
-            List as CSV in Cow Sense and drop that too.
+            Drop the herd file here. Record Book reads a copy of the Cow Sense
+            Access database (.csh). It does not write that file. CSV/TXT from
+            Manage → List still works.
           </p>
           <button
             type="button"
@@ -184,9 +186,9 @@ export function InteropPage() {
                     {parsed.animals.slice(0, 8).map((animal) => (
                       <tr key={animal.id}>
                         <td>{animal.herdId}</td>
-                        <td>{animal.sex || '—'}</td>
+                        <td>{cowSenseSex(animal.sex, animal.animalType) || '—'}</td>
                         <td>{animal.animalType || '—'}</td>
-                        <td>{animal.status}</td>
+                        <td>{cowSenseStatus(animal.status)}</td>
                         <td>{animal.damId || '—'}</td>
                       </tr>
                     ))}
@@ -229,9 +231,11 @@ export function InteropPage() {
       <section className="sync-panel" style={{ marginTop: '1.5rem' }}>
         <h2>Send back to Cow Sense</h2>
         <p className="hint">
-          Cow Sense will not open a Record Book file. Download CSV, then in Cow
-          Sense use Tools → Import. Sex must be Heifer/Cow/Bull/Steer, and Type
-          and Status are required. These buttons write those words.
+          Cow Sense will not open a Record Book file, and Record Book will not
+          overwrite your .csh. Download CSV, then in Cow Sense use Tools →
+          Import. Sex must be Heifer/Cow/Bull/Steer. Status on the way back is
+          Active / Disposed / Reference, with Disposal Type for sold, dead, or
+          culled.
         </p>
         <p className="hint">
           On this device now: {live?.animals.length ?? 0} animals ·{' '}

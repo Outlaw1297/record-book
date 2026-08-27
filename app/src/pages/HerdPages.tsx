@@ -75,8 +75,8 @@ export function HerdListPage() {
         <div>
           <h1>Herd</h1>
           <p className="lede">
-            Visual ID, type, and status the way Cow Sense keeps them. Import a
-            .csh CSV if you are starting from that herd file.
+            Visual ID, type, and status the way Cow Sense keeps them. Import the
+            .csh herd file, or a CSV if you already exported one.
           </p>
         </div>
         <div className="provider-actions">
@@ -118,7 +118,7 @@ export function HerdListPage() {
         <div style={{ marginTop: '1rem' }}>
           <EmptyState
             title="No animals yet"
-            body="Import Nygaaard.csh as a Cow Sense CSV, or add one animal by Visual ID, Sex, Type, and Status."
+            body="Import the Cow Sense .csh (a copy, never the original), or add one animal by Visual ID, Sex, Type, and Status."
             actionTo="/import"
             actionLabel="Import Cow Sense"
           />
@@ -154,7 +154,7 @@ function blankAnimal(): Animal {
     herdId: '',
     sex: '',
     status: 'active',
-    animalType: 'Calf',
+    animalType: 'Nursing Calf',
     updatedAt: nowIso(),
   };
 }
@@ -318,6 +318,10 @@ export function HerdDetailPage() {
                   onChange={(e) => patch({ animalType: e.target.value })}
                 >
                   <option value="">Select</option>
+                  {animal.animalType &&
+                  !(COW_SENSE_TYPE as readonly string[]).includes(animal.animalType) ? (
+                    <option value={animal.animalType}>{animal.animalType}</option>
+                  ) : null}
                   {COW_SENSE_TYPE.map((type) => (
                     <option key={type} value={type}>
                       {type}
@@ -336,6 +340,7 @@ export function HerdDetailPage() {
                     Sold: 'sold',
                     Dead: 'dead',
                     Culled: 'culled',
+                    Disposed: 'culled',
                     Reference: 'reference',
                     Open: 'open',
                   };

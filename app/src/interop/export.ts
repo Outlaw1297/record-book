@@ -6,7 +6,7 @@ import type {
   TreatmentRecord,
 } from '../db/schema';
 import { toCsv } from './csv';
-import { cowSenseSex, cowSenseStatus, cowSenseType } from './fields';
+import { cowSenseDisposalType, cowSenseFileStatus, cowSenseSex, cowSenseType } from './fields';
 
 export const COW_SENSE_ANIMAL_HEADERS = [
   'Visual ID',
@@ -15,6 +15,7 @@ export const COW_SENSE_ANIMAL_HEADERS = [
   'Sex',
   'Type',
   'Status',
+  'Disposal Type',
   'Birth Date',
   'Birth Year',
   'Location',
@@ -51,10 +52,21 @@ function extraOf(animal: Animal): Record<string, string> {
   }
 }
 
+const DEDUPED_EXTRA = new Set([
+  'Sex',
+  'Status',
+  'GUID',
+  'DisposalType',
+  'Disposal Type',
+  'disposalType',
+]);
+
 export function exportCowSenseAnimalsCsv(animals: Animal[]): string {
   const extras = new Set<string>();
   for (const animal of animals) {
-    for (const key of Object.keys(extraOf(animal))) extras.add(key);
+    for (const key of Object.keys(extraOf(animal))) {
+      if (!DEDUPED_EXTRA.has(key)) extras.add(key);
+    }
   }
   const extraHeaders = [...extras].sort();
   const headers = [...COW_SENSE_ANIMAL_HEADERS, ...extraHeaders];
@@ -66,9 +78,10 @@ export function exportCowSenseAnimalsCsv(animals: Animal[]): string {
         animal.herdId,
         animal.electronicId,
         animal.name,
-        cowSenseSex(animal.sex, animal.animalType),
+        cowSenseSex(animal.sex, animal.animalType, extra.Sex),
         cowSenseType(animal.animalType, animal.sex),
-        cowSenseStatus(animal.status),
+        cowSenseFileStatus(animal.status),
+        cowSenseDisposalType(animal.status, extra),
         animal.birthDate,
         animal.yearBorn,
         animal.location,

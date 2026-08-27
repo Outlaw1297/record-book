@@ -41,7 +41,7 @@ Portainer: git repo `https://github.com/Outlaw1297/record-book`, branch `main`, 
 |---------|------------------|
 | **Home** | Field dashboard with Log calf as the primary action |
 | **Herd** | Lifetime lookup by Visual ID; Cow Sense Identity / Traits / Performance / Treatments |
-| **Cow Sense** | Import `.csh` or CSV, export CSV for Cow Sense Tools → Import |
+| **Cow Sense** | Read a copy of the `.csh` Access herd (never write it), export CSV for Tools → Import |
 | **Cow–Calf** | Calf/cow/sire IDs, sex, calving date, birth weight/codes, calving ease, remarks, open cows |
 | **Breeding** | AI 1st/2nd + pasture service + due date |
 | **Pasture** | Pasture name, bull in/out, animal list with notes/metrics |

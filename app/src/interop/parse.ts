@@ -12,6 +12,7 @@ import {
   yearFromDate,
   type AnimalField,
 } from './fields';
+import { isJetDatabase, parseJetHerd } from './jet';
 
 export type CowSenseFormat =
   | 'csv'
@@ -54,9 +55,7 @@ function detectFormat(bytes: Uint8Array): CowSenseFormat {
   const ascii = new TextDecoder('latin1').decode(bytes.slice(0, 32));
   if (ascii.startsWith('SQLite format 3')) return 'sqlite';
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) return 'zip';
-  if (ascii.includes('Standard Jet DB') || ascii.startsWith('\x00\x01\x00\x00Standard')) {
-    return 'access';
-  }
+  if (isJetDatabase(bytes)) return 'access';
   if (ascii.toLowerCase().includes('sql server compact') || ascii.includes('SDF Format')) {
     return 'sqlce';
   }
@@ -149,13 +148,18 @@ function animalFromRow(
   const yearBorn = yearBornRaw ? Number(yearBornRaw) || yearFromDate(yearBornRaw) : yearFromDate(birthDate);
   const sexValue = pick(row, mapped as Map<string, string>, 'sex');
   const statusValue = pick(row, mapped as Map<string, string>, 'status');
+  const disposalType =
+    extra.DisposalType ||
+    extra['Disposal Type'] ||
+    extra.disposalType ||
+    '';
   return {
     id: stableId('animal', herdId),
     herdId,
     electronicId: pick(row, mapped as Map<string, string>, 'electronicId') || undefined,
     name: pick(row, mapped as Map<string, string>, 'name') || undefined,
     sex: sexFromCowSense(sexValue),
-    status: statusFromCowSense(statusValue || 'Active'),
+    status: statusFromCowSense(statusValue || 'Active', disposalType),
     animalType: pick(row, mapped as Map<string, string>, 'animalType') || undefined,
     birthDate,
     yearBorn,
@@ -419,10 +423,13 @@ function unknownBinaryWarning(format: CowSenseFormat): string {
   if (format === 'sqlite') {
     return 'This .csh looks like a SQLite database. Drop a Cow Sense CSV (Manage > List > Export) here too, or we will keep trying to map tables from a spreadsheet export.';
   }
-  if (format === 'sqlce' || format === 'access') {
-    return 'Cow Sense herd files are a private database. Record Book reads CSV/TXT that Cow Sense already exports. In Cow Sense: Manage > List, pick the columns, Export, then drop that file here. To send data back, download the Cow Sense CSV from this page and use Tools > Import.';
+  if (format === 'sqlce') {
+    return 'This herd file looks like SQL Server Compact. Export from Cow Sense Manage → List as CSV and drop that here. Record Book does not write the original .csh.';
   }
-  return 'Could not read that .csh as a spreadsheet. Cow Sense keeps herd files in its own format. Export from Manage > List as CSV or TXT and import that here. The CSV we export uses Cow Sense Sex/Type/Status words so Tools > Import can take them back.';
+  if (format === 'access') {
+    return 'Could not read the Cow Sense Access tables in that .csh. Export Manage → List as CSV and drop that here. Record Book never writes the original herd file.';
+  }
+  return 'Could not read that .csh as a Cow Sense database or spreadsheet. Export from Manage → List as CSV or TXT and import that here. The CSV we export uses Cow Sense Sex/Type/Status words so Tools → Import can take them back.';
 }
 
 export function parseCowSenseText(text: string, fileName = 'herd.csv'): ParsedHerd {
@@ -450,6 +457,21 @@ export function parseCowSenseBytes(bytes: Uint8Array, fileName = 'herd.csh'): Pa
     parsed.magic = magic;
     if (parsed.animals.length || parsed.cowCalf.length || parsed.treatments.length) {
       return parsed;
+    }
+  }
+  if (format === 'access' || (format === 'csh-unknown' && /\.csh$/i.test(fileName) && isJetDatabase(bytes))) {
+    try {
+      const jet = parseJetHerd(bytes);
+      jet.magic = magic;
+      if (jet.animals.length === 0 && jet.warnings.length === 0) {
+        jet.warnings.push(unknownBinaryWarning('access'));
+      }
+      return jet;
+    } catch (error) {
+      return emptyHerd('access', magic, [
+        error instanceof Error ? error.message : 'Could not open this Cow Sense database.',
+        'Record Book does not change the original .csh. Export Manage → List as CSV if this copy will not open.',
+      ]);
     }
   }
   const result = emptyHerd(format === 'csh-unknown' && /\.csh$/i.test(fileName) ? 'csh-unknown' : format, magic, [

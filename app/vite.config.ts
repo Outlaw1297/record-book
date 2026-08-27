@@ -4,6 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['buffer', 'mdb-reader'],
+  },
   build: {
     target: 'es2020',
   },

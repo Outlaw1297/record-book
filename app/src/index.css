@@ -187,6 +187,12 @@
     background: transparent;
   }
 
+  .btn.danger {
+    background: color-mix(in srgb, #8b2e1f 8%, white);
+    border-color: color-mix(in srgb, #8b2e1f 45%, var(--color-line));
+    color: #8b2e1f;
+  }
+
   .btn.block {
     width: 100%;
   }

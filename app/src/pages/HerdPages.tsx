@@ -9,12 +9,14 @@ import {
   queueChange,
   todayIsoDate,
   upsertAnimalByHerdId,
+  softDeleteRecord,
   type Animal,
   type AnimalStatus,
   type TreatmentRecord,
 } from '../db/schema';
 import { getLifetime } from '../lib/herd';
 import { COW_SENSE_STATUS, COW_SENSE_TYPE, cowSenseSex, cowSenseStatus } from '../interop/fields';
+import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { IconSearch } from '../ui/icons';
 import { useToast } from '../ui/Toast';
@@ -227,6 +229,22 @@ export function HerdDetailPage() {
     });
     toast(existing || !isNew ? 'Animal saved' : 'Animal added to this ranch');
     if (saved && isNew) navigate(`/herd/${encodeURIComponent(saved.herdId)}`);
+  }
+
+  async function deleteAnimal() {
+    if (!existing?.id) return;
+    const gone = await softDeleteRecord('animals', existing.id);
+    if (!gone) {
+      toast('Could not delete that animal.');
+      return;
+    }
+    toast('Animal deleted from this ranch’s book');
+    navigate('/herd');
+  }
+
+  async function deleteTreatment(id: string) {
+    const gone = await softDeleteRecord('treatments', id);
+    toast(gone ? 'Treatment deleted' : 'Could not delete that treatment.');
   }
 
   async function addTreatment(event: FormEvent) {
@@ -611,14 +629,23 @@ export function HerdDetailPage() {
         {error && tab === 'identity' ? <p className="field-error">{error}</p> : null}
 
         {tab !== 'treatments' && tab !== 'history' ? (
-          <div className="sticky-actions">
-            <Link className="btn secondary" to="/herd">
-              Back to herd
-            </Link>
-            <button type="submit" className="btn primary">
-              Save animal
-            </button>
-          </div>
+          <>
+            {!isNew && existing ? (
+              <DeleteRecordButton
+                label="Delete animal"
+                confirmText={`Delete ${animal.herdId || decoded} from this ranch’s book? This does not change the Cow Sense .csh.`}
+                onDelete={deleteAnimal}
+              />
+            ) : null}
+            <div className="sticky-actions">
+              <Link className="btn secondary" to="/herd">
+                Back to herd
+              </Link>
+              <button type="submit" className="btn primary">
+                Save animal
+              </button>
+            </div>
+          </>
         ) : null}
       </form>
 
@@ -633,7 +660,20 @@ export function HerdDetailPage() {
                 .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
                 .map((row) => (
                   <div className="list-card" key={row.id}>
-                    <h2>{row.product || 'Treatment'}</h2>
+                    <div className="row-between" style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                      <h2>{row.product || 'Treatment'}</h2>
+                      <button
+                        type="button"
+                        className="btn danger"
+                        style={{ minHeight: '2.5rem', padding: '0.35rem 0.7rem' }}
+                        onClick={() => {
+                          if (!window.confirm('Delete this treatment?')) return;
+                          void deleteTreatment(row.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                     <p>
                       {[row.date, row.dose, row.route, row.notes].filter(Boolean).join(' · ')}
                     </p>

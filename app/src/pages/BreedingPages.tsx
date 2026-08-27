@@ -9,11 +9,13 @@ import {
   todayIsoDate,
   upsertAnimalByHerdId,
   queueChange,
+  softDeleteRecord,
   type BreedingKind,
   type BreedingService,
 } from '../db/schema';
 import { dueDateFromService, formatDisplayDate } from '../lib/gestation';
 import { listHerdIds } from '../lib/herd';
+import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 
@@ -169,6 +171,17 @@ export function BreedingFormPage() {
     navigate('/breeding');
   }
 
+  async function onDelete() {
+    if (!existing) return;
+    const gone = await softDeleteRecord('breeding', existing.id);
+    if (!gone) {
+      toast('Could not delete that row.');
+      return;
+    }
+    toast('Breeding row deleted');
+    navigate('/breeding');
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -240,6 +253,13 @@ export function BreedingFormPage() {
           />
           <span>Flagged</span>
         </label>
+        {existing ? (
+          <DeleteRecordButton
+            label="Delete service"
+            confirmText="Delete this breeding row from this ranch’s book?"
+            onDelete={onDelete}
+          />
+        ) : null}
         <div className="sticky-actions">
           <Link className="btn ghost" to="/breeding">
             Cancel

@@ -8,10 +8,12 @@ import {
   nowIso,
   upsertAnimalByHerdId,
   queueChange,
+  softDeleteRecord,
   type ListMark,
   type SaleRecord,
   type Sex,
 } from '../db/schema';
+import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 
@@ -173,6 +175,17 @@ export function SalesFormPage() {
     navigate('/sales');
   }
 
+  async function onDelete() {
+    if (!existing) return;
+    const gone = await softDeleteRecord('sales', existing.id);
+    if (!gone) {
+      toast('Could not delete that row.');
+      return;
+    }
+    toast('Sale / cull deleted');
+    navigate('/sales');
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -258,6 +271,13 @@ export function SalesFormPage() {
           />
           <span>Flagged</span>
         </label>
+        {existing ? (
+          <DeleteRecordButton
+            label="Delete row"
+            confirmText="Delete this sale / cull row from this ranch’s book?"
+            onDelete={onDelete}
+          />
+        ) : null}
         <div className="sticky-actions">
           <Link className="btn ghost" to="/sales">
             Cancel

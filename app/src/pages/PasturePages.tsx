@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState } from '../ui/Field';
 import { useToast } from '../ui/Toast';
 import {
@@ -10,6 +11,8 @@ import {
   nowIso,
   queueChange,
   upsertAnimalByHerdId,
+  softDeletePasture,
+  softDeleteRecord,
   type PastureExposure,
   type PastureExposureAnimal,
   type PastureRole,
@@ -120,6 +123,22 @@ export function PastureFormPage() {
     navigate(`/pasture/${record.id}`);
   }
 
+  async function onDeletePasture() {
+    if (!existing) return;
+    const gone = await softDeletePasture(existing.id);
+    if (!gone) {
+      toast('Could not delete that pasture.');
+      return;
+    }
+    toast('Pasture deleted');
+    navigate('/pasture');
+  }
+
+  async function onDeleteAnimal(animalId: string) {
+    const gone = await softDeleteRecord('pastureAnimals', animalId);
+    toast(gone ? 'Animal removed from this pasture' : 'Could not remove that animal.');
+  }
+
   async function addAnimal(e: FormEvent) {
     e.preventDefault();
     if (!existing) {
@@ -192,6 +211,13 @@ export function PastureFormPage() {
             rows={2}
           />
         </label>
+        {existing ? (
+          <DeleteRecordButton
+            label="Delete pasture"
+            confirmText="Delete this pasture and its animal list from this ranch’s book?"
+            onDelete={onDeletePasture}
+          />
+        ) : null}
         <div className="sticky-actions">
           <Link className="btn ghost" to="/pasture">
             Back
@@ -210,7 +236,18 @@ export function PastureFormPage() {
               <li key={a.id}>
                 <strong>{a.role === 'bull' ? 'Bull' : 'Cow'}</strong> {a.animalHerdId}
                 {a.metric ? ` ${a.metric}` : ''}
-                {a.note ? ` · ${a.note}` : ''}
+                {a.note ? ` · ${a.note}` : ''}{' '}
+                <button
+                  type="button"
+                  className="btn danger"
+                  style={{ minHeight: '2.25rem', padding: '0.25rem 0.6rem', marginLeft: '0.35rem' }}
+                  onClick={() => {
+                    if (!window.confirm(`Remove ${a.animalHerdId} from this pasture?`)) return;
+                    void onDeleteAnimal(a.id);
+                  }}
+                >
+                  Remove
+                </button>
               </li>
             ))}
             {(animals?.length ?? 0) === 0 && (

@@ -343,6 +343,41 @@ export async function queueChange(
   void import('../sync/scheduler').then((mod) => mod.scheduleSync(300));
 }
 
+type DeletableRecord = { id: string; updatedAt: string; deletedAt?: string };
+
+const ENTITY_TABLES = {
+  animals: () => db.animals,
+  cowCalf: () => db.cowCalf,
+  breeding: () => db.breeding,
+  pastures: () => db.pastures,
+  pastureAnimals: () => db.pastureAnimals,
+  sales: () => db.sales,
+  treatments: () => db.treatments,
+} as const;
+
+export async function softDeleteRecord(
+  entity: keyof typeof ENTITY_TABLES,
+  id: string,
+): Promise<boolean> {
+  const table = ENTITY_TABLES[entity]();
+  const row = (await table.get(id)) as DeletableRecord | undefined;
+  if (!row || row.deletedAt) return false;
+  const next = { ...row, updatedAt: nowIso(), deletedAt: nowIso() };
+  await table.put(next as never);
+  await queueChange(entity, id, 'delete', next);
+  return true;
+}
+
+export async function softDeletePasture(id: string): Promise<boolean> {
+  const animals = await db.pastureAnimals
+    .filter((row) => row.exposureId === id && !row.deletedAt)
+    .toArray();
+  for (const animal of animals) {
+    await softDeleteRecord('pastureAnimals', animal.id);
+  }
+  return softDeleteRecord('pastures', id);
+}
+
 function definedFields<T extends object>(extras: Partial<T>): Partial<T> {
   const next: Partial<T> = {};
   for (const [key, value] of Object.entries(extras) as Array<[keyof T, T[keyof T]]>) {

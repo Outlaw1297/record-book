@@ -28,6 +28,15 @@ import {
 import { applyRemoteFile } from './remoteApply';
 import { formatWhen, isSyncOnline, noneProviderBanner, noSharedBookDetail } from './statusCopy';
 import {
+  clearSyncProgress,
+  getSyncLogs,
+  getSyncProgress,
+  logSyncError,
+  logSyncInfo,
+  logSyncWarn,
+  setSyncProgress,
+} from './activity';
+import {
   buildSnapshot,
   clearHerdForReplace,
   localHerdIsEmpty,
@@ -60,6 +69,9 @@ export type SyncStatus = {
   bookId?: string;
   canSync: boolean;
   retryable: boolean;
+  error?: string;
+  progress: ReturnType<typeof getSyncProgress>;
+  logs: ReturnType<typeof getSyncLogs>;
 };
 
 let inflight: Promise<SyncRunResult> | null = null;
@@ -164,6 +176,9 @@ export async function getSyncStatus(): Promise<SyncStatus> {
         connected ||
         ranchConfigured,
     ),
+    error: lastError,
+    progress: getSyncProgress(),
+    logs: getSyncLogs(),
   };
 }
 
@@ -343,23 +358,42 @@ async function connectedCloudProviders(): Promise<CloudProvider[]> {
 }
 
 async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
+  logSyncInfo(options.replace ? 'Replace-from-cloud started' : 'Sync started');
+  setSyncProgress({
+    phase: 'sync',
+    current: 0,
+    total: 1,
+    label: 'Copying this ranch’s book…',
+  });
+  try {
+    return await runSyncBody(options);
+  } finally {
+    clearSyncProgress();
+  }
+}
+
+async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
   const settings = await ensureSettings();
   const ranchConfigured = hasRanchServer();
   const connectedClouds = await connectedCloudProviders();
   const preferred = preferredCloudProvider(settings.syncProvider, connectedClouds);
   if (!ranchConfigured && connectedClouds.length === 0) {
+    const detail = noSharedBookDetail();
+    logSyncError(detail);
     return {
       ok: false,
-      detail: noSharedBookDetail(),
+      detail,
       pulled: 0,
       pushed: 0,
       conflicts: 0,
     };
   }
   if (typeof navigator !== 'undefined' && !navigator.onLine && !ranchConfigured) {
+    const detail = 'No network — try again when you have service.';
+    logSyncError(detail);
     return {
       ok: false,
-      detail: 'No network — try again when you have service.',
+      detail,
       pulled: 0,
       pushed: 0,
       conflicts: 0,
@@ -374,6 +408,12 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
 
   if (ranchConfigured) {
     if (options.replace) await clearHerdForReplace();
+    setSyncProgress({
+      phase: 'sync',
+      current: 0,
+      total: 1,
+      label: 'Reading ranch database…',
+    });
     const incoming = await pullFromRanchServer();
     if (incoming.ok) {
       pulled = { pulled: incoming.applied, conflicts: incoming.conflicts };
@@ -393,11 +433,12 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
             parts.push(`received ${remote.pulled} from ${providerLabel(provider)}`);
           }
         } catch (error) {
-          parts.push(
+          const message =
             error instanceof Error
               ? error.message
-              : `Could not read ${providerLabel(provider)}.`,
-          );
+              : `Could not read ${providerLabel(provider)}.`;
+          logSyncWarn(message);
+          parts.push(message);
         }
       }
 
@@ -430,6 +471,12 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
             settings.deviceId,
           );
         }
+        setSyncProgress({
+          phase: 'backup',
+          current: 1,
+          total: 1,
+          label: 'NAS spare copy to Dropbox or Drive…',
+        });
         const nas = await requestNasBackup();
         if (!/no dropbox or google login stored/i.test(nas.detail)) {
           parts.push(nas.detail);
@@ -503,6 +550,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       } catch (error) {
         lastError =
           error instanceof Error ? error.message : `${cloudLabel} sync failed.`;
+        logSyncError(lastError);
         emitSyncEvent();
         return {
           ok: false,
@@ -525,6 +573,7 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
       ? `Synced with ${cloudLabel ?? 'cloud'} — ${parts.join(', ')}.`
       : `Herd is up to date on ${cloudLabel ?? 'cloud'}.`;
   emitSyncEvent();
+  logSyncInfo(detail);
   return {
     ok: true,
     detail,

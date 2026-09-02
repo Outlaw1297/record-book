@@ -23,7 +23,7 @@ This ranch’s file uses Cow Sense words:
 
 A 160 MB herd file needs a computer (or the office PWA). A phone WebView may run out of memory. CSV from Manage → List still works.
 
-After import, this ranch’s NAS copies the herd into Postgres. That used to 504 (timeout) on ~10,000 animals. The PWA now sends the herd in pieces, and the API commits them in one database transaction.
+After import, this ranch’s NAS copies the herd into Postgres. That used to 504 (timeout) on ~10,000 animals. The PWA now sends the herd in pieces, and the API commits them in one database transaction. The status bar at the top of every page shows a progress bar (chunk 12/88, percent) and a **Details** log with each HTTP path, status, and error so a timeout is visible without opening DevTools.
 
 ## Pull the herd in
 

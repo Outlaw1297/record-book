@@ -15,6 +15,13 @@ import { countRows, parseCowSenseBytes, type ParsedHerd } from '../interop/parse
 import { cowSenseSex, cowSenseStatus } from '../interop/fields';
 import { Field, Segmented } from '../ui/Field';
 import { useToast } from '../ui/Toast';
+import {
+  clearSyncProgress,
+  logSyncError,
+  logSyncInfo,
+  logSyncWarn,
+  setSyncProgress,
+} from '../sync/activity';
 
 export function InteropPage() {
   const toast = useToast();
@@ -39,10 +46,30 @@ export function InteropPage() {
   async function readFile(file: File) {
     setBusy('read');
     setFileName(file.name);
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    logSyncInfo(`Reading ${file.name} (${mb} MB)`);
+    setSyncProgress({
+      phase: 'read',
+      current: 0,
+      total: 2,
+      label: `Reading ${file.name} (${mb} MB)`,
+    });
     try {
       const buffer = new Uint8Array(await file.arrayBuffer());
+      setSyncProgress({
+        phase: 'read',
+        current: 1,
+        total: 2,
+        label: `Parsing ${file.name}`,
+      });
+      logSyncInfo(`Parsing ${file.name} (${buffer.byteLength} bytes)`);
       const next = parseCowSenseBytes(buffer, file.name);
       setParsed(next);
+      logSyncInfo(
+        `Parsed ${next.animals.length} animals, ${next.cowCalf.length} calving, ${next.breeding.length} breeding, ${next.treatments.length} treatments, ${next.sales.length} sales` +
+          (next.magic ? ` · ${next.magic.slice(0, 48)}` : ''),
+      );
+      for (const warning of next.warnings) logSyncWarn(warning);
       if (countRows(next) === 0) {
         toast(next.warnings[0] || 'No herd rows in that file.');
       } else {
@@ -54,8 +81,12 @@ export function InteropPage() {
         );
       }
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not read that file.');
+      const message = error instanceof Error ? error.message : 'Could not read that file.';
+      logSyncError(`Could not read ${file.name}`, message);
+      toast(message);
       setParsed(null);
+    } finally {
+      clearSyncProgress();
     }
     setBusy(null);
   }
@@ -83,7 +114,9 @@ export function InteropPage() {
           '. They stay on this ranch’s book.',
       );
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Import failed.');
+      const message = error instanceof Error ? error.message : 'Import failed.';
+      logSyncError('Cow Sense import failed', message);
+      toast(message);
     }
     setBusy(null);
   }

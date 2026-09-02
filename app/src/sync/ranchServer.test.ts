@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotPushBodies } from './ranchServer';
+import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -89,6 +89,13 @@ describe('Cow Sense ranch snapshot chunks', () => {
     });
     expect(bodies).toHaveLength(1);
     expect(bodies[0]?.animals).toHaveLength(1);
+  });
+
+  it('labels a chunk so the status bar can show animals vs settings', () => {
+    expect(snapshotChunkLabel({ settings: { ranchName: 'Flying J' } })).toBe('settings');
+    expect(snapshotChunkLabel({ animals: [{ id: '1' }, { id: '2' }] })).toBe(
+      'animals · 2 rows',
+    );
   });
 
   it('explains a 504 as a NAS timeout on a large herd write', () => {

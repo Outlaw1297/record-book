@@ -12,6 +12,12 @@ import {
   type TreatmentRecord,
 } from '../db/schema';
 import { scheduleSync } from '../sync/scheduler';
+import {
+  clearSyncProgress,
+  logSyncError,
+  logSyncInfo,
+  setSyncProgress,
+} from '../sync/activity';
 import type { ParsedHerd } from './parse';
 
 export type ImportMode = 'merge' | 'replace';
@@ -162,30 +168,110 @@ export async function applyCowSenseImport(
   parsed: ParsedHerd,
   mode: ImportMode,
 ): Promise<ImportResult> {
-  if (mode === 'replace') {
-    const now = fresherStamp();
-    const animals = await db.animals.filter((row) => !row.deletedAt).toArray();
-    for (const row of animals) {
-      const next = { ...row, updatedAt: now, deletedAt: now };
-      await db.animals.put(next);
-      await queueChange('animals', next.id, 'delete', next);
+  const existingCount =
+    mode === 'replace'
+      ? await db.animals.filter((row) => !row.deletedAt).count()
+      : 0;
+  const total =
+    existingCount +
+    parsed.animals.length +
+    parsed.cowCalf.length +
+    parsed.breeding.length +
+    parsed.treatments.length +
+    parsed.sales.length;
+  let done = 0;
+
+  function tick(label: string, forceLog = false, currentInStep?: number, stepTotal?: number) {
+    done += 1;
+    const show =
+      forceLog ||
+      done === 1 ||
+      done === total ||
+      done % 200 === 0;
+    setSyncProgress({
+      phase: 'import',
+      current: done,
+      total: Math.max(total, 1),
+      label:
+        currentInStep != null && stepTotal != null
+          ? `${label} (${currentInStep}/${stepTotal})`
+          : label,
+    });
+    if (show) {
+      logSyncInfo(
+        `${label}` +
+          (currentInStep != null && stepTotal != null
+            ? ` ${currentInStep}/${stepTotal}`
+            : '') +
+          ` · ${done}/${Math.max(total, 1)} saved on this device`,
+      );
     }
   }
-  let animals = 0;
-  for (const animal of parsed.animals) {
-    await putAnimal(animal, mode);
-    animals += 1;
+
+  try {
+    logSyncInfo(
+      `Import ${mode}: ${parsed.animals.length} animals, ${parsed.cowCalf.length} calving, ${parsed.breeding.length} breeding, ${parsed.treatments.length} treatments, ${parsed.sales.length} sales`,
+    );
+    if (mode === 'replace') {
+      const now = fresherStamp();
+      const animals = await db.animals.filter((row) => !row.deletedAt).toArray();
+      logSyncInfo(`Replace herd: marking ${animals.length} animals gone`);
+      for (let i = 0; i < animals.length; i += 1) {
+        const row = animals[i];
+        const next = { ...row, updatedAt: now, deletedAt: now };
+        await db.animals.put(next);
+        await queueChange('animals', next.id, 'delete', next);
+        tick('Clearing this ranch’s animals', i === 0, i + 1, animals.length);
+      }
+    }
+    let animals = 0;
+    for (const animal of parsed.animals) {
+      await putAnimal(animal, mode);
+      animals += 1;
+      tick('Saving animals', animals === 1, animals, parsed.animals.length);
+    }
+    let cowCalf = 0;
+    for (const row of parsed.cowCalf) {
+      await putCowCalf(row);
+      cowCalf += 1;
+      tick('Saving calving', cowCalf === 1, cowCalf, parsed.cowCalf.length);
+    }
+    let breeding = 0;
+    for (const row of parsed.breeding) {
+      await putBreeding(row);
+      breeding += 1;
+      tick('Saving breeding', breeding === 1, breeding, parsed.breeding.length);
+    }
+    let treatments = 0;
+    for (const row of parsed.treatments) {
+      await putTreatment(row);
+      treatments += 1;
+      tick('Saving treatments', treatments === 1, treatments, parsed.treatments.length);
+    }
+    let sales = 0;
+    for (const row of parsed.sales) {
+      await putSale(row);
+      sales += 1;
+      tick('Saving sales', sales === 1, sales, parsed.sales.length);
+    }
+    logSyncInfo(
+      `Imported ${animals} animals, ${cowCalf} calving, ${breeding} breeding, ${treatments} treatments, ${sales} sales on this device`,
+    );
+    scheduleSync(parsed.animals.length > 200 ? 2000 : 400);
+    return {
+      animals,
+      cowCalf,
+      breeding,
+      treatments,
+      sales,
+    };
+  } catch (error) {
+    logSyncError(
+      'Cow Sense import failed while saving this ranch’s book',
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  } finally {
+    clearSyncProgress();
   }
-  for (const row of parsed.cowCalf) await putCowCalf(row);
-  for (const row of parsed.breeding) await putBreeding(row);
-  for (const row of parsed.treatments) await putTreatment(row);
-  for (const row of parsed.sales) await putSale(row);
-  scheduleSync(parsed.animals.length > 200 ? 2000 : 400);
-  return {
-    animals,
-    cowCalf: parsed.cowCalf.length,
-    breeding: parsed.breeding.length,
-    treatments: parsed.treatments.length,
-    sales: parsed.sales.length,
-  };
 }

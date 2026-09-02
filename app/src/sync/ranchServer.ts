@@ -2,6 +2,13 @@ import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
+import {
+  clearSyncProgress,
+  logSyncError,
+  logSyncInfo,
+  logSyncWarn,
+  setSyncProgress,
+} from './activity';
 
 const URL_KEY = 'record-book.ranchApiUrl';
 const API_KEY = 'record-book.ranchApiKey';
@@ -155,35 +162,52 @@ export async function pullFromRanchServer(): Promise<{
     return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
   }
   try {
+    logSyncInfo('GET /v1/export · reading ranch database');
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total: 1,
+      label: 'Reading ranch database',
+    });
     const response = await ranchFetch('/v1/export');
     if (!response.ok) {
+      const detail = ranchHttpDetail(response.status);
+      logSyncError(`HTTP ${response.status} · GET /v1/export`, detail);
       return {
         ok: false,
         applied: 0,
         conflicts: 0,
-        detail: ranchHttpDetail(response.status),
+        detail,
       };
     }
     const snapshot = asHerdSnapshot(await response.json().catch(() => null));
     if (!snapshot) {
+      logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');
       return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
     }
     const merged = await mergeSnapshot(snapshot);
+    const detail =
+      merged.applied > 0
+        ? `Pulled ${merged.applied} row(s) from the ranch database.`
+        : 'Ranch database is up to date.';
+    logSyncInfo(
+      `HTTP 200 · GET /v1/export · applied ${merged.applied}` +
+        (merged.conflicts ? ` · ${merged.conflicts} overlap(s)` : ''),
+    );
     return {
       ok: true,
       applied: merged.applied,
       conflicts: merged.conflicts,
-      detail:
-        merged.applied > 0
-          ? `Pulled ${merged.applied} row(s) from the ranch database.`
-          : 'Ranch database is up to date.',
+      detail,
     };
   } catch (error) {
+    const detail = ranchUnreachableDetail(error, ranchUrl('/health'));
+    logSyncError('GET /v1/export failed', detail);
     return {
       ok: false,
       applied: 0,
       conflicts: 0,
-      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+      detail,
     };
   }
 }
@@ -253,6 +277,17 @@ export function chunkList<T>(rows: T[], size = RANCH_SNAPSHOT_CHUNK): T[][] {
   return chunks;
 }
 
+export function snapshotChunkLabel(body: Record<string, unknown>): string {
+  for (const key of SNAPSHOT_KEYS) {
+    const rows = body[key];
+    if (Array.isArray(rows) && rows.length > 0) {
+      return `${key} · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
+    }
+  }
+  if (body.settings) return 'settings';
+  return 'snapshot';
+}
+
 export function snapshotPushBodies(snapshot: HerdSnapshot): Array<Record<string, unknown>> {
   const rows = SNAPSHOT_KEYS.reduce((sum, key) => sum + (snapshot[key]?.length ?? 0), 0);
   if (rows <= RANCH_SNAPSHOT_CHUNK) {
@@ -306,11 +341,26 @@ export async function pushToRanchServer(): Promise<{
   const bodies = snapshotPushBodies(snapshot);
   try {
     let applied = 0;
+    logSyncInfo(
+      `Writing ranch database · ${bodies.length} request${bodies.length === 1 ? '' : 's'}`,
+    );
     for (let index = 0; index < bodies.length; index += 1) {
       const last = index === bodies.length - 1;
       const path = last ? '/v1/sync/snapshot' : '/v1/sync/snapshot?backup=0';
+      const label = snapshotChunkLabel(bodies[index]);
+      setSyncProgress({
+        phase: 'ranch',
+        current: index + 1,
+        total: bodies.length,
+        label: `Ranch database ${index + 1}/${bodies.length} · ${label}`,
+      });
+      logSyncInfo(`POST ${path} · chunk ${index + 1}/${bodies.length} · ${label}`);
       let response = await ranchFetch(path, 'POST', JSON.stringify(bodies[index]));
       if ((response.status === 504 || response.status === 502) && !last) {
+        logSyncWarn(
+          `HTTP ${response.status} on chunk ${index + 1}/${bodies.length}, retrying…`,
+          ranchHttpDetail(response.status),
+        );
         await new Promise((resolve) => setTimeout(resolve, 1500));
         response = await ranchFetch(path, 'POST', JSON.stringify(bodies[index]));
       }
@@ -319,13 +369,21 @@ export async function pushToRanchServer(): Promise<{
         applied?: number;
       };
       if (!response.ok) {
+        const detail = ranchHttpDetail(response.status, body.error);
+        logSyncError(
+          `HTTP ${response.status} · chunk ${index + 1}/${bodies.length} · POST ${path}`,
+          detail,
+        );
         return {
           ok: false,
           skipped: false,
-          detail: ranchHttpDetail(response.status, body.error),
+          detail,
         };
       }
       applied += body.applied ?? 0;
+      logSyncInfo(
+        `HTTP ${response.status} · chunk ${index + 1}/${bodies.length} applied ${body.applied ?? 0} (total ${applied})`,
+      );
     }
     await ranchFetch(
       `/v1/devices/${encodeURIComponent(settings.deviceId)}`,
@@ -338,17 +396,23 @@ export async function pushToRanchServer(): Promise<{
         lastSeenAt: new Date().toISOString(),
       }),
     ).catch(() => undefined);
+    const detail = `Ranch database updated (${applied} rows).`;
+    logSyncInfo(detail);
     return {
       ok: true,
       skipped: false,
-      detail: `Ranch database updated (${applied} rows).`,
+      detail,
     };
   } catch (error) {
+    const detail = ranchUnreachableDetail(error, ranchUrl('/health'));
+    logSyncError('Ranch snapshot POST failed', detail);
     return {
       ok: false,
       skipped: false,
-      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+      detail,
     };
+  } finally {
+    clearSyncProgress();
   }
 }
 
@@ -430,22 +494,30 @@ export async function requestNasBackup(): Promise<{ ok: boolean; detail: string 
     };
     if (!response.ok) {
       if (response.status === 404) {
+        const detail =
+          'Redeploy the Portainer stack so this NAS can copy the herd to Dropbox or Drive.';
+        logSyncError(`HTTP 404 · POST /v1/cloud-backup/now`, detail);
         return {
           ok: false,
-          detail:
-            'Redeploy the Portainer stack so this NAS can copy the herd to Dropbox or Drive.',
+          detail,
         };
       }
+      const detail = body.detail || `Ranch API ${response.status}`;
+      logSyncError(`HTTP ${response.status} · POST /v1/cloud-backup/now`, detail);
       return {
         ok: false,
-        detail: body.detail || `Ranch API ${response.status}`,
+        detail,
       };
     }
-    return { ok: true, detail: body.detail || 'NAS copied the herd to Dropbox or Drive.' };
+    const detail = body.detail || 'NAS copied the herd to Dropbox or Drive.';
+    logSyncInfo(`HTTP ${response.status} · POST /v1/cloud-backup/now · ${detail}`);
+    return { ok: true, detail };
   } catch (error) {
+    const detail = ranchUnreachableDetail(error, ranchUrl('/health'));
+    logSyncError('POST /v1/cloud-backup/now failed', detail);
     return {
       ok: false,
-      detail: ranchUnreachableDetail(error, ranchUrl('/health')),
+      detail,
     };
   }
 }

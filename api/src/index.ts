@@ -106,6 +106,10 @@ startCloudBackupLoop();
 console.log(`record-book-api listening on ${hostname}:${port}`);
 
 const server = serve({ fetch: app.fetch, port, hostname });
+const httpServer = server as typeof server & { requestTimeout?: number; timeout?: number; headersTimeout?: number };
+httpServer.requestTimeout = 0;
+httpServer.headersTimeout = 0;
+httpServer.timeout = 0;
 
 async function shutdown() {
   server.close();

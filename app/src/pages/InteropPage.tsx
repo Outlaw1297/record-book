@@ -66,8 +66,8 @@ export function InteropPage() {
       const next = parseCowSenseBytes(buffer, file.name);
       setParsed(next);
       logSyncInfo(
-        `Parsed ${next.animals.length} animals, ${next.cowCalf.length} calving, ${next.breeding.length} breeding, ${next.treatments.length} treatments, ${next.sales.length} sales` +
-          (next.magic ? ` · ${next.magic.slice(0, 48)}` : ''),
+        `Parsed ${next.format}: ${next.animals.length} animals, ${next.cowCalf.length} calving, ${next.breeding.length} breeding, ${next.treatments.length} treatments, ${next.sales.length} sales` +
+          (next.format === 'access' && next.magic ? ` · ${next.magic.slice(0, 40)}` : ''),
       );
       for (const warning of next.warnings) logSyncWarn(warning);
       if (countRows(next) === 0) {

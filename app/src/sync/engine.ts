@@ -358,13 +358,6 @@ async function connectedCloudProviders(): Promise<CloudProvider[]> {
 }
 
 async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
-  logSyncInfo(options.replace ? 'Replace-from-cloud started' : 'Sync started');
-  setSyncProgress({
-    phase: 'sync',
-    current: 0,
-    total: 1,
-    label: 'Copying this ranch’s book…',
-  });
   try {
     return await runSyncBody(options);
   } finally {
@@ -378,27 +371,31 @@ async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRun
   const connectedClouds = await connectedCloudProviders();
   const preferred = preferredCloudProvider(settings.syncProvider, connectedClouds);
   if (!ranchConfigured && connectedClouds.length === 0) {
-    const detail = noSharedBookDetail();
-    logSyncError(detail);
     return {
       ok: false,
-      detail,
+      detail: noSharedBookDetail(),
       pulled: 0,
       pushed: 0,
       conflicts: 0,
     };
   }
   if (typeof navigator !== 'undefined' && !navigator.onLine && !ranchConfigured) {
-    const detail = 'No network — try again when you have service.';
-    logSyncError(detail);
     return {
       ok: false,
-      detail,
+      detail: 'No network — try again when you have service.',
       pulled: 0,
       pushed: 0,
       conflicts: 0,
     };
   }
+
+  logSyncInfo(options.replace ? 'Replace-from-cloud started' : 'Sync started');
+  setSyncProgress({
+    phase: 'sync',
+    current: 0,
+    total: 1,
+    label: 'Copying this ranch’s book…',
+  });
 
   const parts: string[] = [];
   let pulled = { pulled: 0, conflicts: 0 };

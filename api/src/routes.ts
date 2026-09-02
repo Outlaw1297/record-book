@@ -371,7 +371,7 @@ v1.put('/devices/:id', async (c) => {
 v1.post('/sync/snapshot', async (c) => {
   const body = (await c.req.json()) as Json;
   const result = await applySnapshot(body);
-  void backupAllToCloud();
+  if (c.req.query('backup') !== '0') void backupAllToCloud();
   return c.json({ ok: true, ...result });
 });
 

@@ -5,6 +5,8 @@ import { ensureSettings } from '../db/schema';
 
 const URL_KEY = 'record-book.ranchApiUrl';
 const API_KEY = 'record-book.ranchApiKey';
+/** Rows per POST so nginx does not 504 a 35k-row Cow Sense import. */
+export const RANCH_SNAPSHOT_CHUNK = 250;
 
 function fromEnv(name: 'VITE_RANCH_API_URL' | 'VITE_RANCH_API_KEY'): string {
   const value = import.meta.env[name];
@@ -103,6 +105,13 @@ export function ranchUnreachableDetail(error: unknown, healthUrl: string): strin
   return raw;
 }
 
+export function ranchHttpDetail(status: number, bodyError?: string): string {
+  if (status === 504 || status === 502) {
+    return `Ranch API ${status}: the NAS timed out writing the herd. A Cow Sense import is a large copy. Wait, then tap Sync.`;
+  }
+  return bodyError || `Ranch API ${status}`;
+}
+
 function asHerdSnapshot(body: unknown): HerdSnapshot | null {
   if (!body || typeof body !== 'object') return null;
   const record = body as Record<string, unknown>;
@@ -152,7 +161,7 @@ export async function pullFromRanchServer(): Promise<{
         ok: false,
         applied: 0,
         conflicts: 0,
-        detail: `Ranch API ${response.status}`,
+        detail: ranchHttpDetail(response.status),
       };
     }
     const snapshot = asHerdSnapshot(await response.json().catch(() => null));
@@ -213,7 +222,7 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
       return { ok: false, detail: 'Ranch API key was rejected.' };
     }
     if (!catalog.ok) {
-      return { ok: false, detail: `Ranch API ${catalog.status}` };
+      return { ok: false, detail: ranchHttpDetail(catalog.status) };
     }
     return {
       ok: true,
@@ -227,6 +236,63 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
   }
 }
 
+const SNAPSHOT_KEYS = [
+  'animals',
+  'cowCalf',
+  'breeding',
+  'pastures',
+  'pastureAnimals',
+  'sales',
+  'treatments',
+] as const;
+
+export function chunkList<T>(rows: T[], size = RANCH_SNAPSHOT_CHUNK): T[][] {
+  if (rows.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) chunks.push(rows.slice(i, i + size));
+  return chunks;
+}
+
+export function snapshotPushBodies(snapshot: HerdSnapshot): Array<Record<string, unknown>> {
+  const rows = SNAPSHOT_KEYS.reduce((sum, key) => sum + (snapshot[key]?.length ?? 0), 0);
+  if (rows <= RANCH_SNAPSHOT_CHUNK) {
+    return [
+      {
+        format: snapshot.format,
+        version: snapshot.version,
+        exportedAt: snapshot.exportedAt,
+        settings: snapshot.settings,
+        animals: snapshot.animals,
+        cowCalf: snapshot.cowCalf,
+        breeding: snapshot.breeding,
+        pastures: snapshot.pastures,
+        pastureAnimals: snapshot.pastureAnimals,
+        sales: snapshot.sales,
+        treatments: snapshot.treatments,
+      },
+    ];
+  }
+  const bodies: Array<Record<string, unknown>> = [
+    {
+      format: snapshot.format,
+      version: snapshot.version,
+      exportedAt: snapshot.exportedAt,
+      settings: snapshot.settings,
+    },
+  ];
+  for (const key of SNAPSHOT_KEYS) {
+    for (const chunk of chunkList(snapshot[key] ?? [])) {
+      bodies.push({
+        format: snapshot.format,
+        version: snapshot.version,
+        exportedAt: snapshot.exportedAt,
+        [key]: chunk,
+      });
+    }
+  }
+  return bodies;
+}
+
 export async function pushToRanchServer(): Promise<{
   ok: boolean;
   skipped: boolean;
@@ -237,22 +303,29 @@ export async function pushToRanchServer(): Promise<{
   }
   const settings = await ensureSettings();
   const snapshot = await buildSnapshot();
+  const bodies = snapshotPushBodies(snapshot);
   try {
-    const response = await ranchFetch(
-      '/v1/sync/snapshot',
-      'POST',
-      JSON.stringify(snapshot),
-    );
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-      applied?: number;
-    };
-    if (!response.ok) {
-      return {
-        ok: false,
-        skipped: false,
-        detail: body.error || `Ranch API ${response.status}`,
+    let applied = 0;
+    for (let index = 0; index < bodies.length; index += 1) {
+      const last = index === bodies.length - 1;
+      const path = last ? '/v1/sync/snapshot' : '/v1/sync/snapshot?backup=0';
+      let response = await ranchFetch(path, 'POST', JSON.stringify(bodies[index]));
+      if ((response.status === 504 || response.status === 502) && !last) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        response = await ranchFetch(path, 'POST', JSON.stringify(bodies[index]));
+      }
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        applied?: number;
       };
+      if (!response.ok) {
+        return {
+          ok: false,
+          skipped: false,
+          detail: ranchHttpDetail(response.status, body.error),
+        };
+      }
+      applied += body.applied ?? 0;
     }
     await ranchFetch(
       `/v1/devices/${encodeURIComponent(settings.deviceId)}`,
@@ -268,7 +341,7 @@ export async function pushToRanchServer(): Promise<{
     return {
       ok: true,
       skipped: false,
-      detail: `Ranch database updated (${body.applied ?? 0} rows).`,
+      detail: `Ranch database updated (${applied} rows).`,
     };
   } catch (error) {
     return {

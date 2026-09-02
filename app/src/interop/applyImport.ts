@@ -180,7 +180,7 @@ export async function applyCowSenseImport(
   for (const row of parsed.breeding) await putBreeding(row);
   for (const row of parsed.treatments) await putTreatment(row);
   for (const row of parsed.sales) await putSale(row);
-  scheduleSync(400);
+  scheduleSync(parsed.animals.length > 200 ? 2000 : 400);
   return {
     animals,
     cowCalf: parsed.cowCalf.length,

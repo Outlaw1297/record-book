@@ -1,4 +1,4 @@
-import { query } from './db.js';
+import { query, withTransaction } from './db.js';
 import {
   animalFromDb,
   breedingFromDb,
@@ -440,23 +440,25 @@ function asArray(value: unknown): Json[] {
 }
 
 export async function applySnapshot(snapshot: Json): Promise<{ applied: number; kept: number }> {
-  let applied = 0;
-  let kept = 0;
-  const bump = async (result: 'applied' | 'kept') => {
-    if (result === 'applied') applied += 1;
-    else kept += 1;
-  };
-  if (snapshot.settings && typeof snapshot.settings === 'object') {
-    await bump(await upsertRanch(snapshot.settings as Json));
-  }
-  for (const row of asArray(snapshot.animals)) await bump(await upsertAnimal(row));
-  for (const row of asArray(snapshot.cowCalf)) await bump(await upsertCowCalf(row));
-  for (const row of asArray(snapshot.breeding)) await bump(await upsertBreeding(row));
-  for (const row of asArray(snapshot.pastures)) await bump(await upsertPasture(row));
-  for (const row of asArray(snapshot.pastureAnimals)) await bump(await upsertPastureAnimal(row));
-  for (const row of asArray(snapshot.sales)) await bump(await upsertSale(row));
-  for (const row of asArray(snapshot.treatments)) await bump(await upsertTreatment(row));
-  return { applied, kept };
+  return withTransaction(async () => {
+    let applied = 0;
+    let kept = 0;
+    const bump = async (result: 'applied' | 'kept') => {
+      if (result === 'applied') applied += 1;
+      else kept += 1;
+    };
+    if (snapshot.settings && typeof snapshot.settings === 'object') {
+      await bump(await upsertRanch(snapshot.settings as Json));
+    }
+    for (const row of asArray(snapshot.animals)) await bump(await upsertAnimal(row));
+    for (const row of asArray(snapshot.cowCalf)) await bump(await upsertCowCalf(row));
+    for (const row of asArray(snapshot.breeding)) await bump(await upsertBreeding(row));
+    for (const row of asArray(snapshot.pastures)) await bump(await upsertPasture(row));
+    for (const row of asArray(snapshot.pastureAnimals)) await bump(await upsertPastureAnimal(row));
+    for (const row of asArray(snapshot.sales)) await bump(await upsertSale(row));
+    for (const row of asArray(snapshot.treatments)) await bump(await upsertTreatment(row));
+    return { applied, kept };
+  });
 }
 
 export async function exportSnapshot() {

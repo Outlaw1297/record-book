@@ -38,6 +38,58 @@ describe('planSnapshotApply', () => {
     expect(plan.conflicts).toBe(1);
     expect(plan.puts.some((row) => row.id === 'remote' && !row.deletedAt)).toBe(false);
   });
+
+  it('does not let a duplicate tombstone hide the live winner from the next remote with that key', () => {
+    const plan = planSnapshotApply(
+      'animals',
+      [{ id: 'aaa', herdId: '101', updatedAt: '2026-09-04T12:00:00.000Z' }],
+      [
+        { id: 'zzz', herdId: '101', updatedAt: '2026-09-04T13:00:00.000Z' },
+        { id: 'mmm', herdId: '101', updatedAt: '2026-09-04T14:00:00.000Z' },
+      ],
+      now,
+    );
+    const lastById = new Map(plan.puts.map((row) => [row.id, row]));
+    expect(lastById.get('mmm')?.deletedAt).toBeUndefined();
+    expect(lastById.get('zzz')?.deletedAt).toBeTruthy();
+    expect(lastById.get('aaa')?.deletedAt).toBeTruthy();
+  });
+
+  it('matches the next page against the live animal, not a leftover tombstone', () => {
+    const plan = planSnapshotApply(
+      'treatments',
+      [
+        {
+          id: 'live',
+          animalHerdId: '101',
+          date: '2026-09-01',
+          product: 'Draxxin',
+          updatedAt: '2026-09-04T13:00:00.000Z',
+        },
+        {
+          id: 'aaa',
+          animalHerdId: '101',
+          date: '2026-09-01',
+          product: 'Draxxin',
+          updatedAt: '2026-09-04T13:00:00.000Z',
+          deletedAt: '2026-09-04T13:00:00.000Z',
+        },
+      ],
+      [
+        {
+          id: 'next',
+          animalHerdId: '101',
+          date: '2026-09-01',
+          product: 'Draxxin',
+          updatedAt: '2026-09-04T14:00:00.000Z',
+        },
+      ],
+      now,
+    );
+    const lastById = new Map(plan.puts.map((row) => [row.id, row]));
+    expect(lastById.get('next')?.deletedAt).toBeUndefined();
+    expect(lastById.get('live')?.deletedAt).toBeTruthy();
+  });
 });
 
 describe('naturalKeyFor', () => {

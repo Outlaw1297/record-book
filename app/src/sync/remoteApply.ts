@@ -176,12 +176,25 @@ export function planSnapshotApply(
 ): SnapshotApplyPlan {
   const byId = new Map<string, RecordWithMeta>();
   const byKey = new Map<string, RecordWithMeta>();
+
+  function rememberKey(row: RecordWithMeta): void {
+    const key = naturalKeyFor(entity, row);
+    if (!key) return;
+    const prev = byKey.get(key);
+    if (!prev || prev.id === row.id) {
+      byKey.set(key, row);
+      return;
+    }
+    if (Boolean(row.deletedAt) !== Boolean(prev.deletedAt)) {
+      if (!row.deletedAt) byKey.set(key, row);
+      return;
+    }
+    if (pickIdentityWinner(prev, row) === 'remote') byKey.set(key, row);
+  }
+
   for (const row of localRows) {
     byId.set(row.id, row);
-    const key = naturalKeyFor(entity, row);
-    if (!key) continue;
-    const prev = byKey.get(key);
-    if (!prev || pickIdentityWinner(prev, row) === 'remote') byKey.set(key, row);
+    rememberKey(row);
   }
 
   const puts: RecordWithMeta[] = [];
@@ -193,8 +206,7 @@ export function planSnapshotApply(
   function write(row: RecordWithMeta): void {
     puts.push(row);
     byId.set(row.id, row);
-    const key = naturalKeyFor(entity, row);
-    if (key) byKey.set(key, row);
+    rememberKey(row);
   }
 
   for (const raw of remoteRows) {

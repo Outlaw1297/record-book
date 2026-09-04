@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies, ranchExportPagePath, asExportMeta, isRanchTimeout, ranchTimeoutDetail, RANCH_EXPORT_PAGE } from './ranchServer';
+import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies, ranchExportPagePath, asExportMeta, asExportPage, isRanchTimeout, ranchTimeoutDetail, RANCH_EXPORT_PAGE } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -119,6 +119,17 @@ describe('Cow Sense ranch snapshot chunks', () => {
     expect(meta?.counts.cowCalf).toBe(12);
     expect(meta?.settings?.ranchName).toBe('Flying J');
     expect(asExportMeta({ format: 'record-book-snapshot' })).toBeNull();
+  });
+
+  it('rejects a damaged export page instead of treating it as the last page', () => {
+    expect(asExportPage(null)).toBeNull();
+    expect(asExportPage('not-json')).toBeNull();
+    expect(asExportPage({ total: 9802 })).toBeNull();
+    expect(asExportPage({ total: 9802, rows: [{ id: 'a1' }] })).toEqual({
+      total: 9802,
+      rows: [{ id: 'a1' }],
+    });
+    expect(asExportPage({ rows: [] })).toEqual({ rows: [] });
   });
 
   it('turns an aborted ranch GET into a wait-and-retry message', () => {

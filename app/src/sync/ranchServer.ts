@@ -226,6 +226,17 @@ export function asExportMeta(body: unknown): ExportMeta | null {
   return { settings, counts };
 }
 
+export function asExportPage(body: unknown): { total?: number; rows: unknown[] } | null {
+  if (!body || typeof body !== 'object') return null;
+  const record = body as Record<string, unknown>;
+  if (!Array.isArray(record.rows)) return null;
+  const total = record.total;
+  return {
+    rows: record.rows,
+    ...(typeof total === 'number' && Number.isFinite(total) && total >= 0 ? { total } : {}),
+  };
+}
+
 function pullResult(applied: number, conflicts: number) {
   const detail =
     applied > 0
@@ -285,13 +296,20 @@ async function pullPagedFromRanch(meta: ExportMeta): Promise<{
         logSyncError(`HTTP ${response.status} · GET ${path}`, detail);
         return { ok: false, applied, conflicts, detail };
       }
-      const body = (await response.json().catch(() => null)) as {
-        total?: number;
-        rows?: unknown[];
-      } | null;
-      const rows = Array.isArray(body?.rows) ? body.rows : [];
-      if (typeof body?.total === 'number' && Number.isFinite(body.total) && body.total >= 0) {
-        tableTotal = body.total;
+      const body = asExportPage(await response.json().catch(() => null));
+      if (!body) {
+        const detail =
+          'The ranch sent an unreadable page of the herd. Stay on ranch Wi-Fi, then tap Sync.';
+        logSyncError(`HTTP 200 · GET ${path} · invalid page`, detail);
+        return { ok: false, applied, conflicts, detail };
+      }
+      const rows = body.rows;
+      if (typeof body.total === 'number') tableTotal = body.total;
+      if (rows.length === 0 && offset < tableTotal) {
+        const detail =
+          'The ranch sent an empty page before the herd was complete. Stay on ranch Wi-Fi, then tap Sync.';
+        logSyncError(`HTTP 200 · GET ${path} · empty page`, detail);
+        return { ok: false, applied, conflicts, detail };
       }
       setSyncProgress({
         phase: 'ranch-pull',

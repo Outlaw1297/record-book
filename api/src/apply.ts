@@ -461,6 +461,67 @@ export async function applySnapshot(snapshot: Json): Promise<{ applied: number; 
   });
 }
 
+const EXPORT_COLLECTIONS = {
+  animals: { table: 'animals', fromDb: animalFromDb },
+  cowCalf: { table: 'cow_calf', fromDb: cowCalfFromDb },
+  breeding: { table: 'breeding', fromDb: breedingFromDb },
+  pastures: { table: 'pastures', fromDb: pastureFromDb },
+  pastureAnimals: { table: 'pasture_animals', fromDb: pastureAnimalFromDb },
+  sales: { table: 'sales', fromDb: saleFromDb },
+  treatments: { table: 'treatments', fromDb: treatmentFromDb },
+} as const;
+
+export type ExportCollectionKey = keyof typeof EXPORT_COLLECTIONS;
+
+export function isExportCollectionKey(value: string): value is ExportCollectionKey {
+  return Object.prototype.hasOwnProperty.call(EXPORT_COLLECTIONS, value);
+}
+
+export const EXPORT_PAGE_MAX = 2000;
+
+export async function exportMeta() {
+  const ranch = await query('SELECT * FROM ranch WHERE id = 1');
+  const entries = await Promise.all(
+    (Object.keys(EXPORT_COLLECTIONS) as ExportCollectionKey[]).map(async (key) => {
+      const result = await query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM ${EXPORT_COLLECTIONS[key].table}`,
+      );
+      return [key, result.rows[0]?.n ?? 0] as const;
+    }),
+  );
+  return {
+    format: 'record-book-export-meta' as const,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: ranch.rows[0] ? ranchFromDb(ranch.rows[0]) : undefined,
+    counts: Object.fromEntries(entries) as Record<ExportCollectionKey, number>,
+  };
+}
+
+export async function exportCollection(
+  key: ExportCollectionKey,
+  limit: number,
+  offset: number,
+) {
+  const spec = EXPORT_COLLECTIONS[key];
+  const safeLimit = Math.min(EXPORT_PAGE_MAX, Math.max(1, limit));
+  const safeOffset = Math.max(0, offset);
+  const [countResult, rowsResult] = await Promise.all([
+    query<{ n: number }>(`SELECT count(*)::int AS n FROM ${spec.table}`),
+    query(`SELECT * FROM ${spec.table} ORDER BY id LIMIT $1 OFFSET $2`, [
+      safeLimit,
+      safeOffset,
+    ]),
+  ]);
+  return {
+    table: key,
+    total: countResult.rows[0]?.n ?? 0,
+    offset: safeOffset,
+    limit: safeLimit,
+    rows: rowsResult.rows.map((row) => spec.fromDb(row)),
+  };
+}
+
 export async function exportSnapshot() {
   const [
     ranch,
@@ -473,13 +534,13 @@ export async function exportSnapshot() {
     treatments,
   ] = await Promise.all([
     query('SELECT * FROM ranch WHERE id = 1'),
-    query('SELECT * FROM animals ORDER BY lower(herd_id)'),
-    query('SELECT * FROM cow_calf ORDER BY year DESC, lower(cow_id)'),
-    query('SELECT * FROM breeding ORDER BY year DESC, lower(cow_id)'),
-    query('SELECT * FROM pastures ORDER BY year DESC, pasture_name'),
-    query('SELECT * FROM pasture_animals ORDER BY exposure_id'),
-    query('SELECT * FROM sales ORDER BY year DESC, lower(calf_id)'),
-    query('SELECT * FROM treatments ORDER BY date DESC NULLS LAST, lower(animal_herd_id)'),
+    query('SELECT * FROM animals ORDER BY id'),
+    query('SELECT * FROM cow_calf ORDER BY id'),
+    query('SELECT * FROM breeding ORDER BY id'),
+    query('SELECT * FROM pastures ORDER BY id'),
+    query('SELECT * FROM pasture_animals ORDER BY id'),
+    query('SELECT * FROM sales ORDER BY id'),
+    query('SELECT * FROM treatments ORDER BY id'),
   ]);
   return {
     format: 'record-book-snapshot',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies } from './ranchServer';
+import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies, ranchExportPagePath, asExportMeta, isRanchTimeout, ranchTimeoutDetail, RANCH_EXPORT_PAGE } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -101,5 +101,30 @@ describe('Cow Sense ranch snapshot chunks', () => {
   it('explains a 504 as a NAS timeout on a large herd write', () => {
     expect(ranchHttpDetail(504)).toMatch(/timed out/i);
     expect(ranchHttpDetail(504)).toMatch(/504/);
+  });
+
+  it('pages ranch export so a phone does not wait on one giant JSON', () => {
+    expect(ranchExportPagePath('animals', 2000)).toBe(
+      `/v1/export/animals?limit=${RANCH_EXPORT_PAGE}&offset=2000`,
+    );
+  });
+
+  it('reads export meta counts', () => {
+    const meta = asExportMeta({
+      format: 'record-book-export-meta',
+      counts: { animals: 9802, cowCalf: 12 },
+      settings: { ranchName: 'Flying J', currentYear: 2026 },
+    });
+    expect(meta?.counts.animals).toBe(9802);
+    expect(meta?.counts.cowCalf).toBe(12);
+    expect(meta?.settings?.ranchName).toBe('Flying J');
+    expect(asExportMeta({ format: 'record-book-snapshot' })).toBeNull();
+  });
+
+  it('turns an aborted ranch GET into a wait-and-retry message', () => {
+    expect(isRanchTimeout({ name: 'AbortError', message: 'The user aborted a request.' })).toBe(
+      true,
+    );
+    expect(ranchTimeoutDetail()).toMatch(/large herd/i);
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSyncProgress,
   formatSyncLog,
@@ -9,6 +9,7 @@ import {
   logSyncWarn,
   resetSyncActivity,
   setSyncProgress,
+  startProgressClock,
 } from './activity';
 
 afterEach(() => {
@@ -40,6 +41,21 @@ describe('sync activity log', () => {
     clearSyncProgress();
     expect(getSyncProgress()).toBeNull();
     expect(getSyncLogs()).toHaveLength(3);
+  });
+
+  it('ticks the reading label so the bar does not look frozen at 0%', () => {
+    vi.useFakeTimers();
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total: 1,
+      label: 'Reading ranch database',
+    });
+    const stop = startProgressClock('Reading ranch database');
+    vi.advanceTimersByTime(1000);
+    expect(getSyncProgress()?.label).toBe('Reading ranch database · 1s');
+    stop();
+    vi.useRealTimers();
   });
 
   it('caps the ring buffer so a 10k-animal import cannot grow forever', () => {

@@ -72,6 +72,7 @@ function asArray(value: unknown): unknown[] {
 
 export async function mergeSnapshot(
   snapshot: HerdSnapshot,
+  onProgress?: (current: number, total: number, label: string) => void,
 ): Promise<{ applied: number; conflicts: number }> {
   let applied = 0;
   let conflicts = 0;
@@ -95,10 +96,18 @@ export async function mergeSnapshot(
     ['sales', asArray(snapshot.sales)],
     ['treatments', asArray(snapshot.treatments)],
   ];
+  const total = Math.max(
+    1,
+    batches.reduce((sum, [, rows]) => sum + rows.length, 0) + (snapshot.settings ? 1 : 0),
+  );
+  let current = 0;
   for (const [entity, rows] of batches) {
+    onProgress?.(current, total, `Saving ${entity} ${current} / ${total}`);
     const result = await applySnapshotRows(entity, rows);
     applied += result.applied;
     conflicts += result.conflicts;
+    current += rows.length;
+    onProgress?.(current, total, `Saving ${entity} ${current} / ${total}`);
   }
   if (snapshot.settings) {
     const result = await applyRemoteChange({

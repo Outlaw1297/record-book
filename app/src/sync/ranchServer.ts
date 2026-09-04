@@ -1,4 +1,5 @@
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
+import { applyRemoteChange, applySnapshotRows } from './remoteApply';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
@@ -8,12 +9,27 @@ import {
   logSyncInfo,
   logSyncWarn,
   setSyncProgress,
+  startProgressClock,
 } from './activity';
 
 const URL_KEY = 'record-book.ranchApiUrl';
 const API_KEY = 'record-book.ranchApiKey';
 /** Rows per POST so nginx does not 504 a 35k-row Cow Sense import. */
 export const RANCH_SNAPSHOT_CHUNK = 250;
+/** Rows per GET so a phone does not hang on one giant /v1/export JSON. */
+export const RANCH_EXPORT_PAGE = 1000;
+const PAGE_TIMEOUT_MS = 120_000;
+const FULL_EXPORT_TIMEOUT_MS = 600_000;
+
+const EXPORT_TABLES = [
+  { key: 'animals' as const, label: 'animals' },
+  { key: 'cowCalf' as const, label: 'calving' },
+  { key: 'breeding' as const, label: 'breeding' },
+  { key: 'pastures' as const, label: 'pasture' },
+  { key: 'pastureAnimals' as const, label: 'pasture animals' },
+  { key: 'sales' as const, label: 'sales' },
+  { key: 'treatments' as const, label: 'treatments' },
+];
 
 function fromEnv(name: 'VITE_RANCH_API_URL' | 'VITE_RANCH_API_KEY'): string {
   const value = import.meta.env[name];
@@ -66,19 +82,31 @@ function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record
   return headers;
 }
 
-function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: string) {
-  return fetch(ranchUrl(path), ranchRequestInit(method, body));
+function ranchFetch(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  body?: string,
+  timeoutMs?: number,
+) {
+  const ms = timeoutMs ?? (method === 'GET' ? PAGE_TIMEOUT_MS : FULL_EXPORT_TIMEOUT_MS);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(ranchUrl(path), ranchRequestInit(method, body, controller.signal)).finally(() => {
+    clearTimeout(timer);
+  });
 }
 
 export function ranchRequestInit(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   body?: string,
+  signal?: AbortSignal,
 ): RequestInit {
   return {
     method,
     cache: 'no-store',
     headers: ranchHeaders(method),
     body,
+    signal,
   };
 }
 
@@ -112,11 +140,30 @@ export function ranchUnreachableDetail(error: unknown, healthUrl: string): strin
   return raw;
 }
 
+export function ranchTimeoutDetail(): string {
+  return 'The ranch database is still reading a large herd. Stay on ranch Wi-Fi, wait a minute, then tap Sync.';
+}
+
+export function isRanchTimeout(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const name = 'name' in error ? String(error.name) : '';
+  const message = 'message' in error ? String(error.message) : '';
+  return name === 'AbortError' || /aborted|timed out/i.test(message);
+}
+
 export function ranchHttpDetail(status: number, bodyError?: string): string {
   if (status === 504 || status === 502) {
     return `Ranch API ${status}: the NAS timed out writing the herd. A Cow Sense import is a large copy. Wait, then tap Sync.`;
   }
   return bodyError || `Ranch API ${status}`;
+}
+
+export function ranchExportPagePath(
+  table: string,
+  offset: number,
+  limit = RANCH_EXPORT_PAGE,
+): string {
+  return `/v1/export/${table}?limit=${limit}&offset=${offset}`;
 }
 
 function asHerdSnapshot(body: unknown): HerdSnapshot | null {
@@ -152,6 +199,185 @@ function asHerdSnapshot(body: unknown): HerdSnapshot | null {
   };
 }
 
+type ExportMeta = {
+  settings?: HerdSnapshot['settings'];
+  counts: Partial<Record<(typeof EXPORT_TABLES)[number]['key'], number>>;
+};
+
+export function asExportMeta(body: unknown): ExportMeta | null {
+  if (!body || typeof body !== 'object') return null;
+  const record = body as Record<string, unknown>;
+  if (record.format !== 'record-book-export-meta') return null;
+  const countsRaw =
+    record.counts && typeof record.counts === 'object'
+      ? (record.counts as Record<string, unknown>)
+      : {};
+  const counts: ExportMeta['counts'] = {};
+  for (const { key } of EXPORT_TABLES) {
+    const value = countsRaw[key];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      counts[key] = value;
+    }
+  }
+  const settings =
+    record.settings && typeof record.settings === 'object'
+      ? (record.settings as HerdSnapshot['settings'])
+      : undefined;
+  return { settings, counts };
+}
+
+function pullResult(applied: number, conflicts: number) {
+  const detail =
+    applied > 0
+      ? `Pulled ${applied} row(s) from the ranch database.`
+      : 'Ranch database is up to date.';
+  return { ok: true as const, applied, conflicts, detail };
+}
+
+async function pullPagedFromRanch(meta: ExportMeta): Promise<{
+  ok: boolean;
+  applied: number;
+  conflicts: number;
+  detail: string;
+}> {
+  const counted = EXPORT_TABLES.reduce((sum, table) => sum + (meta.counts[table.key] ?? 0), 0);
+  const total = Math.max(1, counted);
+  let current = 0;
+  let applied = 0;
+  let conflicts = 0;
+
+  if (meta.settings) {
+    const result = await applyRemoteChange({
+      v: 1,
+      deviceId: 'snapshot',
+      entity: 'settings',
+      entityId: '1',
+      op: 'upsert',
+      updatedAt: meta.settings.updatedAt || new Date().toISOString(),
+      payload: meta.settings,
+    });
+    if (result === 'applied') applied += 1;
+    if (result === 'conflict') conflicts += 1;
+  }
+
+  for (const table of EXPORT_TABLES) {
+    let offset = 0;
+    let tableTotal = meta.counts[table.key] ?? 0;
+    if (tableTotal === 0) continue;
+    while (offset < tableTotal) {
+      const path = ranchExportPagePath(table.key, offset);
+      const label = `Reading ${table.label} ${offset} / ${tableTotal}`;
+      setSyncProgress({
+        phase: 'ranch-pull',
+        current,
+        total,
+        label,
+      });
+      const stopClock = startProgressClock(label);
+      let response: Response;
+      try {
+        response = await ranchFetch(path);
+      } finally {
+        stopClock();
+      }
+      if (!response.ok) {
+        const detail = ranchHttpDetail(response.status);
+        logSyncError(`HTTP ${response.status} · GET ${path}`, detail);
+        return { ok: false, applied, conflicts, detail };
+      }
+      const body = (await response.json().catch(() => null)) as {
+        total?: number;
+        rows?: unknown[];
+      } | null;
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (typeof body?.total === 'number' && Number.isFinite(body.total) && body.total >= 0) {
+        tableTotal = body.total;
+      }
+      setSyncProgress({
+        phase: 'ranch-pull',
+        current,
+        total,
+        label: `Saving ${table.label} ${offset} / ${tableTotal}`,
+      });
+      const merged = await applySnapshotRows(table.key, rows);
+      applied += merged.applied;
+      conflicts += merged.conflicts;
+      current += rows.length;
+      offset += rows.length;
+      logSyncInfo(`HTTP 200 · GET ${path} · ${rows.length} row${rows.length === 1 ? '' : 's'}`);
+      if (rows.length === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  const result = pullResult(applied, conflicts);
+  logSyncInfo(
+    `Ranch database read · applied ${applied}` +
+      (conflicts ? ` · ${conflicts} overlap(s)` : ''),
+  );
+  return result;
+}
+
+async function pullFullExport(): Promise<{
+  ok: boolean;
+  applied: number;
+  conflicts: number;
+  detail: string;
+}> {
+  logSyncInfo('GET /v1/export · reading whole ranch database');
+  setSyncProgress({
+    phase: 'ranch-pull',
+    current: 0,
+    total: 1,
+    label: 'Reading ranch database',
+  });
+  const stopClock = startProgressClock('Reading ranch database');
+  let response: Response;
+  try {
+    response = await ranchFetch('/v1/export', 'GET', undefined, FULL_EXPORT_TIMEOUT_MS);
+  } finally {
+    stopClock();
+  }
+  if (!response.ok) {
+    const detail = ranchHttpDetail(response.status);
+    logSyncError(`HTTP ${response.status} · GET /v1/export`, detail);
+    return { ok: false, applied: 0, conflicts: 0, detail };
+  }
+  const snapshot = asHerdSnapshot(await response.json().catch(() => null));
+  if (!snapshot) {
+    logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');
+    return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
+  }
+  const total =
+    snapshot.animals.length +
+    snapshot.cowCalf.length +
+    snapshot.breeding.length +
+    snapshot.pastures.length +
+    snapshot.pastureAnimals.length +
+    snapshot.sales.length +
+    (snapshot.treatments?.length ?? 0);
+  setSyncProgress({
+    phase: 'ranch-pull',
+    current: 0,
+    total: Math.max(1, total),
+    label: 'Saving ranch database',
+  });
+  const merged = await mergeSnapshot(snapshot, (current, nextTotal, label) => {
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current,
+      total: nextTotal,
+      label,
+    });
+  });
+  const result = pullResult(merged.applied, merged.conflicts);
+  logSyncInfo(
+    `HTTP 200 · GET /v1/export · applied ${merged.applied}` +
+      (merged.conflicts ? ` · ${merged.conflicts} overlap(s)` : ''),
+  );
+  return result;
+}
+
 export async function pullFromRanchServer(): Promise<{
   ok: boolean;
   applied: number;
@@ -162,46 +388,41 @@ export async function pullFromRanchServer(): Promise<{
     return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
   }
   try {
-    logSyncInfo('GET /v1/export · reading ranch database');
+    logSyncInfo('GET /v1/export/meta · counting ranch database');
     setSyncProgress({
       phase: 'ranch-pull',
       current: 0,
       total: 1,
       label: 'Reading ranch database',
     });
-    const response = await ranchFetch('/v1/export');
-    if (!response.ok) {
-      const detail = ranchHttpDetail(response.status);
-      logSyncError(`HTTP ${response.status} · GET /v1/export`, detail);
-      return {
-        ok: false,
-        applied: 0,
-        conflicts: 0,
-        detail,
-      };
+    const stopClock = startProgressClock('Reading ranch database');
+    let metaResponse: Response;
+    try {
+      metaResponse = await ranchFetch('/v1/export/meta');
+    } finally {
+      stopClock();
     }
-    const snapshot = asHerdSnapshot(await response.json().catch(() => null));
-    if (!snapshot) {
-      logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');
-      return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
+    if (metaResponse.ok) {
+      const meta = asExportMeta(await metaResponse.json().catch(() => null));
+      if (meta) {
+        logSyncInfo(
+          `HTTP 200 · GET /v1/export/meta · ${EXPORT_TABLES.reduce(
+            (sum, table) => sum + (meta.counts[table.key] ?? 0),
+            0,
+          )} rows`,
+        );
+        return pullPagedFromRanch(meta);
+      }
+    } else if (metaResponse.status !== 404) {
+      const detail = ranchHttpDetail(metaResponse.status);
+      logSyncError(`HTTP ${metaResponse.status} · GET /v1/export/meta`, detail);
+      return { ok: false, applied: 0, conflicts: 0, detail };
     }
-    const merged = await mergeSnapshot(snapshot);
-    const detail =
-      merged.applied > 0
-        ? `Pulled ${merged.applied} row(s) from the ranch database.`
-        : 'Ranch database is up to date.';
-    logSyncInfo(
-      `HTTP 200 · GET /v1/export · applied ${merged.applied}` +
-        (merged.conflicts ? ` · ${merged.conflicts} overlap(s)` : ''),
-    );
-    return {
-      ok: true,
-      applied: merged.applied,
-      conflicts: merged.conflicts,
-      detail,
-    };
+    return pullFullExport();
   } catch (error) {
-    const detail = ranchUnreachableDetail(error, ranchUrl('/health'));
+    const detail = isRanchTimeout(error)
+      ? ranchTimeoutDetail()
+      : ranchUnreachableDetail(error, ranchUrl('/health'));
     logSyncError('GET /v1/export failed', detail);
     return {
       ok: false,

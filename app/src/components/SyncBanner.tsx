@@ -63,8 +63,10 @@ export function SyncBanner() {
   const logs = activity.logs;
   const errorCount = logs.filter((line) => line.level === 'error').length;
   const hasError = Boolean(status.error);
+  const knownTotal = Boolean(progress && progress.total > 0);
+  const started = Boolean(progress && progress.current > 0);
   const percent =
-    progress && progress.total > 0
+    progress && knownTotal && started
       ? Math.min(100, Math.round((progress.current / progress.total) * 100))
       : null;
   const headline = progress ? progress.label : status.message;
@@ -77,9 +79,13 @@ export function SyncBanner() {
       <div className="sync-banner-main">
         <div className="sync-banner-copy">
           <span>{headline}</span>
-          {progress && percent != null ? (
+          {progress ? (
             <span className="sync-banner-meta">
-              {progress.current} / {progress.total} · {percent}%
+              {percent != null
+                ? `${progress.current} / ${progress.total} · ${percent}%`
+                : progress.total > 1
+                  ? `${progress.current} / ${progress.total}`
+                  : 'working'}
             </span>
           ) : null}
         </div>
@@ -100,16 +106,19 @@ export function SyncBanner() {
           </button>
         ) : null}
       </div>
-      {progress && percent != null ? (
+      {progress ? (
         <div
           className="sync-banner-progress"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={percent}
+          aria-valuenow={percent ?? 0}
           aria-label={progress.label}
         >
-          <div className="sync-banner-progress-bar" style={{ width: `${percent}%` }} />
+          <div
+            className={`sync-banner-progress-bar${percent == null ? ' indeterminate' : ''}`}
+            style={percent == null ? undefined : { width: `${percent}%` }}
+          />
         </div>
       ) : null}
       {logs.length > 0 ? (

@@ -87,8 +87,18 @@ export function HerdListPage() {
       if (filter === 'gone' && (animal.status === 'active' || animal.status === 'open')) {
         return false;
       }
-      if (typeFilter !== 'all' && (animal.animalType || '') !== typeFilter) return false;
-      if (locationFilter !== 'all' && (animal.location || '') !== locationFilter) return false;
+      if (
+        typeFilter !== 'all' &&
+        (animal.animalType || '').toLowerCase() !== typeFilter.toLowerCase()
+      ) {
+        return false;
+      }
+      if (
+        locationFilter !== 'all' &&
+        (animal.location || '').toLowerCase() !== locationFilter.toLowerCase()
+      ) {
+        return false;
+      }
       if (yearFilter !== 'all' && animal.yearBorn !== yearFilter) return false;
       return matchesQuery(
         [

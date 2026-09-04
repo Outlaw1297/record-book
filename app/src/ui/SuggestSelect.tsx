@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Field } from './Field';
 
 /** Native dropdown of common and already-used answers, with Other to type a new one. */
@@ -20,8 +21,11 @@ export function SuggestSelect({
   error?: string;
   autoCapitalize?: 'characters' | 'off';
 }) {
+  const [otherMode, setOtherMode] = useState(false);
   const inList = options.some((option) => option === value);
-  const selectValue = !value ? '' : inList ? value : '__other';
+  const unmatched = Boolean(value) && !inList;
+  const showingOther = allowOther && (unmatched || (otherMode && !inList));
+  const selectValue = showingOther ? '__other' : value;
 
   if (options.length === 0) {
     return (
@@ -45,13 +49,16 @@ export function SuggestSelect({
         onChange={(event) => {
           const next = event.target.value;
           if (next === '__other') {
+            setOtherMode(true);
             onChange(inList ? '' : value);
             return;
           }
+          setOtherMode(false);
           onChange(next);
         }}
       >
         <option value="">{placeholder}</option>
+        {!allowOther && unmatched ? <option value={value}>{value}</option> : null}
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -59,7 +66,7 @@ export function SuggestSelect({
         ))}
         {allowOther ? <option value="__other">Other…</option> : null}
       </select>
-      {allowOther && selectValue === '__other' ? (
+      {showingOther ? (
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}

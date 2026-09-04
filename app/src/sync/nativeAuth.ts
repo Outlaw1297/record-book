@@ -1,20 +1,12 @@
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { isNativeApp } from '../platform';
 import { clientIdFor, missingClientIdMessage } from './credentials';
-import { NATIVE_OAUTH_REDIRECT_URI } from './pkce';
 import type { CloudProvider } from './types';
 
 const GOOGLE_SCOPES = [
   'email',
   'profile',
   'https://www.googleapis.com/auth/drive.file',
-];
-
-const DROPBOX_SCOPES = [
-  'files.content.write',
-  'files.content.read',
-  'files.metadata.read',
-  'files.metadata.write',
 ];
 
 export type NativeTokens = {
@@ -62,9 +54,7 @@ function expiresInFrom(access: { expires?: string } | null, seconds?: number | n
 
 async function ensureNativeAuth(): Promise<void> {
   const google = clientIdFor('google-drive');
-  const dropbox = clientIdFor('dropbox');
-  const key = `${google}|${dropbox}`;
-  if (initializedFor === key) return;
+  if (initializedFor === google) return;
   await SocialLogin.initialize({
     ...(google
       ? {
@@ -74,144 +64,78 @@ async function ensureNativeAuth(): Promise<void> {
           },
         }
       : {}),
-    ...(dropbox
-      ? {
-          oauth2: {
-            dropbox: {
-              appId: dropbox,
-              authorizationBaseUrl: 'https://www.dropbox.com/oauth2/authorize',
-              accessTokenEndpoint: 'https://api.dropboxapi.com/oauth2/token',
-              redirectUrl: NATIVE_OAUTH_REDIRECT_URI,
-              scope: DROPBOX_SCOPES.join(' '),
-              pkceEnabled: true,
-              responseType: 'code',
-              androidUseCustomTabs: true,
-              additionalParameters: { token_access_type: 'offline' },
-            },
-          },
-        }
-      : {}),
   });
-  initializedFor = key;
+  initializedFor = google;
 }
 
 export async function loginWithNativePlatform(provider: CloudProvider): Promise<{
   tokens: NativeTokens;
   account: NativeAccount;
 }> {
+  if (provider !== 'google-drive') {
+    throw new Error('Dropbox on the phone uses the system browser, not Google Sign-In.');
+  }
   const clientId = clientIdFor(provider);
   if (!clientId) {
     throw new Error(missingClientIdMessage(provider));
   }
   await ensureNativeAuth();
   try {
-    if (provider === 'google-drive') {
-      const response = await SocialLogin.login({
-        provider: 'google',
-        options: {
-          scopes: GOOGLE_SCOPES,
-          forceRefreshToken: true,
-          filterByAuthorizedAccounts: false,
-          forcePrompt: true,
-        },
-      });
-      if (response.provider !== 'google' || response.result.responseType !== 'online') {
-        throw new Error('Google sign-in did not return an access token. Rebuild after adding Drive access on the Google app.');
-      }
-      const access = response.result.accessToken;
-      if (!access?.token) {
-        throw new Error('Google signed in but did not grant Drive. Add the Drive API and drive.file scope on the Google Cloud app.');
-      }
-      return {
-        tokens: {
-          access_token: access.token,
-          refresh_token: access.refreshToken,
-          expires_in: expiresInFrom(access),
-        },
-        account: {
-          email: response.result.profile.email || undefined,
-          name: response.result.profile.name || undefined,
-        },
-      };
-    }
-
     const response = await SocialLogin.login({
-      provider: 'oauth2',
+      provider: 'google',
       options: {
-        providerId: 'dropbox',
-        additionalParameters: { token_access_type: 'offline' },
+        scopes: GOOGLE_SCOPES,
+        forceRefreshToken: true,
+        filterByAuthorizedAccounts: false,
+        forcePrompt: true,
       },
     });
-    if (response.provider !== 'oauth2' || !response.result.accessToken?.token) {
-      throw new Error('Dropbox sign-in did not finish.');
+    if (response.provider !== 'google' || response.result.responseType !== 'online') {
+      throw new Error('Google sign-in did not return an access token. Rebuild after adding Drive access on the Google app.');
     }
-    const resource = response.result.resourceData;
-    const resourceName = resource?.name;
-    const displayName =
-      typeof resourceName === 'string'
-        ? resourceName
-        : resourceName &&
-            typeof resourceName === 'object' &&
-            'display_name' in resourceName &&
-            typeof (resourceName as { display_name?: string }).display_name === 'string'
-          ? (resourceName as { display_name: string }).display_name
-          : undefined;
+    const access = response.result.accessToken;
+    if (!access?.token) {
+      throw new Error('Google signed in but did not grant Drive. Add the Drive API and drive.file scope on the Google Cloud app.');
+    }
     return {
       tokens: {
-        access_token: response.result.accessToken.token,
-        refresh_token:
-          response.result.refreshToken || response.result.accessToken.refreshToken || undefined,
-        expires_in: expiresInFrom(response.result.accessToken, response.result.expiresIn),
+        access_token: access.token,
+        refresh_token: access.refreshToken,
+        expires_in: expiresInFrom(access),
       },
       account: {
-        email: typeof resource?.email === 'string' ? resource.email : undefined,
-        name: displayName,
+        email: response.result.profile.email || undefined,
+        name: response.result.profile.name || undefined,
       },
     };
   } catch (error) {
-    throw asError(
-      error,
-      provider === 'google-drive'
-        ? 'Google sign-in failed.'
-        : 'Dropbox sign-in failed.',
-    );
+    throw asError(error, 'Google sign-in failed.');
   }
 }
 
 export async function refreshNativeSession(provider: CloudProvider): Promise<NativeTokens | null> {
   if (!isNativeApp()) return null;
+  if (provider !== 'google-drive') return null;
   const clientId = clientIdFor(provider);
   if (!clientId) return null;
   try {
     await ensureNativeAuth();
-    if (provider === 'google-drive') {
-      const response = await SocialLogin.login({
-        provider: 'google',
-        options: {
-          scopes: GOOGLE_SCOPES,
-          forceRefreshToken: true,
-        },
-      });
-      if (response.provider !== 'google' || response.result.responseType !== 'online') {
-        return null;
-      }
-      const access = response.result.accessToken;
-      if (!access?.token) return null;
-      return {
-        access_token: access.token,
-        refresh_token: access.refreshToken,
-        expires_in: expiresInFrom(access),
-      };
-    }
-    const response = await SocialLogin.refreshToken({
-      provider: 'oauth2',
-      providerId: 'dropbox',
+    const response = await SocialLogin.login({
+      provider: 'google',
+      options: {
+        scopes: GOOGLE_SCOPES,
+        forceRefreshToken: true,
+      },
     });
-    if (!response.accessToken?.token) return null;
+    if (response.provider !== 'google' || response.result.responseType !== 'online') {
+      return null;
+    }
+    const access = response.result.accessToken;
+    if (!access?.token) return null;
     return {
-      access_token: response.accessToken.token,
-      refresh_token: response.refreshToken || response.accessToken.refreshToken || undefined,
-      expires_in: expiresInFrom(response.accessToken, response.expiresIn),
+      access_token: access.token,
+      refresh_token: access.refreshToken,
+      expires_in: expiresInFrom(access),
     };
   } catch {
     return null;
@@ -220,16 +144,10 @@ export async function refreshNativeSession(provider: CloudProvider): Promise<Nat
 
 export async function logoutNativePlatform(provider?: CloudProvider): Promise<void> {
   if (!isNativeApp()) return;
+  if (provider && provider !== 'google-drive') return;
   try {
     await ensureNativeAuth();
-    if (!provider || provider === 'google-drive') {
-      await SocialLogin.logout({ provider: 'google' }).catch(() => undefined);
-    }
-    if (!provider || provider === 'dropbox') {
-      await SocialLogin.logout({ provider: 'oauth2', providerId: 'dropbox' }).catch(
-        () => undefined,
-      );
-    }
+    await SocialLogin.logout({ provider: 'google' }).catch(() => undefined);
   } catch {
     /* Best-effort native sign-out. Local tokens are still cleared. */
   }

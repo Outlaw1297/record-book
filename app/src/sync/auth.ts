@@ -11,6 +11,11 @@ import {
   logoutNativePlatform,
   refreshNativeSession,
 } from './nativeAuth';
+import {
+  openExternalAuthUrl,
+  prepareNativeOAuthReturn,
+  waitForNativeOAuthReturn,
+} from './oauthReturn';
 import { createPkce, oauthRedirectUri, randomUrlSafe, toFormBody } from './pkce';
 import { authRowId, preferredCloudProvider, relocatedDropboxAuth } from './authStore';
 import type { CloudProvider } from './types';
@@ -118,39 +123,13 @@ function signedInDetail(provider: CloudProvider): string {
     : 'Signed in to YOUR Dropbox. Google stays connected if you already signed in there.';
 }
 
-export async function startOAuth(
+function authorizationUrl(
   provider: CloudProvider,
-): Promise<{ navigated: boolean; detail?: string }> {
-  if (isNativeApp()) {
-    const native = await loginWithNativePlatform(provider);
-    const previous = await getAuthFor(provider);
-    await persistAuth(provider, native.tokens, previous, {
-      connect: true,
-      account: native.account,
-    });
-    try {
-      const { syncNow } = await import('./engine');
-      const synced = await syncNow();
-      if (synced.ok) return { navigated: false, detail: synced.detail };
-    } catch {
-      /* Login succeeded; background sync will retry. */
-    }
-    return { navigated: false, detail: signedInDetail(provider) };
-  }
-
-  const clientId = clientIdFor(provider);
-  if (!clientId) {
-    throw new Error(missingClientIdMessage(provider));
-  }
-
-  const { verifier, challenge } = await createPkce();
-  const state = randomUrlSafe(16);
-  const redirectUri = oauthRedirectUri();
-  localStorage.setItem(
-    OAUTH_SESSION_KEY,
-    JSON.stringify({ provider, verifier, state } satisfies OauthSession),
-  );
-
+  clientId: string,
+  redirectUri: string,
+  challenge: string,
+  state: string,
+): string {
   const url = new URL(
     provider === 'google-drive'
       ? 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -162,7 +141,6 @@ export async function startOAuth(
   url.searchParams.set('code_challenge', challenge);
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('state', state);
-
   if (provider === 'google-drive') {
     url.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file');
     url.searchParams.set('access_type', 'offline');
@@ -171,8 +149,78 @@ export async function startOAuth(
   } else {
     url.searchParams.set('token_access_type', 'offline');
   }
+  return url.toString();
+}
 
-  window.location.assign(url.toString());
+async function savePkceSession(provider: CloudProvider): Promise<{
+  challenge: string;
+  redirectUri: string;
+  state: string;
+}> {
+  const { verifier, challenge } = await createPkce();
+  const state = randomUrlSafe(16);
+  const redirectUri = oauthRedirectUri();
+  localStorage.setItem(
+    OAUTH_SESSION_KEY,
+    JSON.stringify({ provider, verifier, state } satisfies OauthSession),
+  );
+  return { challenge, redirectUri, state };
+}
+
+function syncAfterLogin(): void {
+  void import('./engine')
+    .then(({ syncNow }) => syncNow())
+    .catch(() => undefined);
+}
+
+async function finishNativeGoogleLogin(): Promise<{ navigated: boolean; detail: string }> {
+  const native = await loginWithNativePlatform('google-drive');
+  const previous = await getAuthFor('google-drive');
+  await persistAuth('google-drive', native.tokens, previous, {
+    connect: true,
+    account: native.account,
+  });
+  syncAfterLogin();
+  return { navigated: false, detail: signedInDetail('google-drive') };
+}
+
+async function finishNativeDropboxLogin(): Promise<{ navigated: boolean; detail: string }> {
+  const clientId = clientIdFor('dropbox');
+  if (!clientId) {
+    throw new Error(missingClientIdMessage('dropbox'));
+  }
+  const { challenge, redirectUri, state } = await savePkceSession('dropbox');
+  await prepareNativeOAuthReturn();
+  const waiting = waitForNativeOAuthReturn();
+  openExternalAuthUrl(
+    authorizationUrl('dropbox', clientId, redirectUri, challenge, state),
+  );
+  const params = await waiting;
+  const result = await completeOAuthCallback(params);
+  if (!result.ok) {
+    throw new Error(result.detail);
+  }
+  return { navigated: false, detail: result.detail };
+}
+
+export async function startOAuth(
+  provider: CloudProvider,
+): Promise<{ navigated: boolean; detail?: string }> {
+  if (isNativeApp()) {
+    return provider === 'google-drive'
+      ? finishNativeGoogleLogin()
+      : finishNativeDropboxLogin();
+  }
+
+  const clientId = clientIdFor(provider);
+  if (!clientId) {
+    throw new Error(missingClientIdMessage(provider));
+  }
+
+  const { challenge, redirectUri, state } = await savePkceSession(provider);
+  window.location.assign(
+    authorizationUrl(provider, clientId, redirectUri, challenge, state),
+  );
   return { navigated: true };
 }
 
@@ -338,27 +386,10 @@ export async function completeOAuthCallback(
   const previous = await getAuthFor(session.provider);
   const tokens = await exchangeCode(session.provider, code, session.verifier);
   await persistAuth(session.provider, tokens, previous, { connect: true });
-  try {
-    const { syncNow } = await import('./engine');
-    const synced = await syncNow();
-    if (synced.ok) {
-      return {
-        ok: true,
-        detail:
-          session.provider === 'google-drive'
-            ? 'Google Drive connected. RecordBook folder is ready.'
-            : 'Dropbox connected. RecordBook folder is ready.',
-      };
-    }
-  } catch {
-    /* Login succeeded; background sync will retry. */
-  }
+  syncAfterLogin();
   return {
     ok: true,
-    detail:
-      session.provider === 'google-drive'
-        ? 'Google Drive connected.'
-        : 'Dropbox connected.',
+    detail: signedInDetail(session.provider),
   };
 }
 

@@ -1,3 +1,4 @@
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
@@ -133,7 +134,7 @@ function asHerdSnapshot(body: unknown): HerdSnapshot | null {
   const settings =
     record.settings && typeof record.settings === 'object'
       ? (record.settings as HerdSnapshot['settings'])
-      : { ranchName: 'Record Book', currentYear: new Date().getFullYear() };
+      : { ranchName: DEFAULT_RANCH_NAME, currentYear: new Date().getFullYear() };
   return {
     format: 'record-book-snapshot',
     version: 1,

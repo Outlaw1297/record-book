@@ -1,4 +1,4 @@
-const CACHE = 'record-book-v3';
+const CACHE = 'record-book-v4';
 const APP_SHELL = ['/manifest.webmanifest', '/icon.svg', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {

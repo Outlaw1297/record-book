@@ -1,4 +1,4 @@
-# Cattle Record Book — Product & Architecture Plan
+# HerdLedger — Product & Architecture Plan
 
 **Product:** Offline-first digital version of your **American Hereford Association / myHERD.org pocket calving book**, for phone (field) and desktop (office), syncing through Google Drive or Dropbox when cell service or Wi‑Fi is available.
 

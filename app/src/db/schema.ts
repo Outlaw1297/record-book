@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { sanitizeSettingsForSync } from '../sync/settingsPayload';
 import { emitOutboxEvent } from '../sync/types';
 
@@ -316,7 +317,7 @@ export async function ensureSettings(): Promise<AppSettings> {
 
   const settings: AppSettings = {
     id: 1,
-    ranchName: 'Record Book',
+    ranchName: DEFAULT_RANCH_NAME,
     operatorName: '',
     currentYear: new Date().getFullYear(),
     syncProvider: 'none',

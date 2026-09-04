@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { db, getSettings, isActiveCattle } from '../db/schema';
 
 export function HomePage() {
@@ -21,7 +22,7 @@ export function HomePage() {
   return (
     <div className="page">
       <header className="page-header">
-        <h1>{settings?.ranchName ?? 'Record Book'}</h1>
+        <h1>{settings?.ranchName ?? DEFAULT_RANCH_NAME}</h1>
         <p className="lede">
           Every year stays in this book
           {settings?.operatorName ? ` · ${settings.operatorName}` : ''}. Search

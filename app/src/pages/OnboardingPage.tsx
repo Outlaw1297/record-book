@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import { PRODUCT_NAME } from '../brand';
 import { db, ensureSettings } from '../db/schema';
 import { defaultDeviceName } from '../sync/identity';
+import { BrandWordmark } from '../ui/BrandMark';
 import { Field, Segmented } from '../ui/Field';
 
 const STEPS = 3;
@@ -43,12 +45,10 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
 
         {step === 0 && (
           <>
-            <h1 className="page-header" style={{ fontFamily: 'var(--font-display)' }}>
-              Record Book
-            </h1>
-            <p className="lede">
+            <BrandWordmark />
+            <p className="lede" style={{ marginTop: '1rem' }}>
               Log calves in the pasture with big, simple fields. This phone keeps
-              YOUR ranch’s book. Other ranches who install Record Book keep
+              YOUR ranch’s book. Other ranches who install {PRODUCT_NAME} keep
               theirs separately.
             </p>
             <div className="sticky-actions" style={{ gridTemplateColumns: '1fr' }}>
@@ -128,7 +128,7 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
                 Back
               </button>
               <button type="submit" className="btn primary">
-                Open record book
+                Open HerdLedger
               </button>
             </div>
           </form>

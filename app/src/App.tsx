@@ -15,6 +15,7 @@ import { InteropPage } from './pages/InteropPage';
 import { ScanEidPage } from './pages/ScanEidPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
+import { BrandWordmark } from './ui/BrandMark';
 import { getSettings } from './db/schema';
 
 function AppGate() {
@@ -31,7 +32,12 @@ function MainApp() {
   if (!settings) {
     return (
       <div className="onboard">
-        <p className="hint">Opening record book…</p>
+        <div className="onboard-card" style={{ textAlign: 'center' }}>
+          <BrandWordmark />
+          <p className="hint" style={{ marginTop: '1rem' }}>
+            Opening HerdLedger…
+          </p>
+        </div>
       </div>
     );
   }

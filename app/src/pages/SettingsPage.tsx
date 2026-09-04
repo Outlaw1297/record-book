@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DEFAULT_RANCH_NAME, PRODUCT_NAME, PRODUCT_WORDMARK, TAGLINE } from '../brand';
 import {
   db,
   getSettings,
@@ -103,7 +104,7 @@ export function SettingsPage() {
     if (!settings) return;
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
-    const nextRanch = ranchName.trim() || 'Record Book';
+    const nextRanch = ranchName.trim() || DEFAULT_RANCH_NAME;
     const ranchChanged = nextRanch !== settings.ranchName;
     const next = {
       ...settings,
@@ -425,7 +426,7 @@ export function SettingsPage() {
           </>
         ) : (
           <p className="hint" style={{ marginTop: '0.75rem' }}>
-            Open Record Book on the phone, set this host as the ranch API, then
+            Open HerdLedger on the phone, set this host as the ranch API, then
             Sign in with Google or Dropbox there. After that, this NAS copies
             the herd to that account by itself.
           </p>
@@ -504,6 +505,11 @@ export function SettingsPage() {
           </div>
         </section>
       ) : null}
+
+      <aside className="brand-about" aria-label={`About ${PRODUCT_NAME}`}>
+        <p className="wordmark">{PRODUCT_WORDMARK}</p>
+        <p className="tagline">{TAGLINE}</p>
+      </aside>
     </div>
   );
 }

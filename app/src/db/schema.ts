@@ -394,6 +394,17 @@ export async function findAnimalByHerdId(herdId: string): Promise<Animal | undef
     .first();
 }
 
+export async function findAnimalByElectronicId(eid: string): Promise<Animal | undefined> {
+  const key = eid.replace(/\D/g, '');
+  if (key.length < 8) return undefined;
+  return db.animals
+    .filter(
+      (animal) =>
+        !animal.deletedAt && (animal.electronicId || '').replace(/\D/g, '') === key,
+    )
+    .first();
+}
+
 export async function upsertAnimalByHerdId(
   herdId: string,
   extras: Partial<Omit<Animal, 'id' | 'herdId' | 'updatedAt' | 'deletedAt'>> = {},

@@ -910,4 +910,70 @@
       display: none;
     }
   }
+
+  .eid-panel,
+  .eid-result {
+    background: #fff;
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    padding: 1rem 1.05rem;
+    margin-top: 1rem;
+  }
+
+  .eid-panel h2,
+  .eid-result .eid-digits {
+    font-family: var(--font-display);
+  }
+
+  .eid-panel h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.25rem;
+  }
+
+  .eid-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+  }
+
+  .eid-preview {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin-top: 0.85rem;
+    border-radius: 50%;
+    border: 1px solid var(--color-line);
+    background: #111;
+  }
+
+  .eid-digits {
+    margin: 0.15rem 0 0.5rem;
+    font-size: 1.85rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .eid-hid {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+  }
+
+  .eid-field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.55rem;
+    align-items: stretch;
+  }
+
+  .eid-field .btn {
+    min-height: 52px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 839px) {
+    .eid-field {
+      grid-template-columns: 1fr;
+    }
+  }
 }

@@ -71,6 +71,10 @@ export function HomePage() {
       </div>
 
       <section className="quick-grid">
+        <Link className="quick-card" to="/eid">
+          <h2>Read EID tag</h2>
+          <p>Photo the yellow disc, or scan with an XRS2i wand</p>
+        </Link>
         <Link className="quick-card" to="/herd">
           <h2>Look up an animal</h2>
           <p>Visual ID, Cow Sense fields, lifetime records</p>

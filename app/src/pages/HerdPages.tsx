@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -20,6 +20,7 @@ import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { IconSearch } from '../ui/icons';
 import { useToast } from '../ui/Toast';
+import { takeScannedEid } from '../eid/wand';
 
 type AnimalTab = 'identity' | 'traits' | 'performance' | 'notes' | 'treatments' | 'history';
 
@@ -84,6 +85,9 @@ export function HerdListPage() {
         <div className="provider-actions">
           <Link className="btn secondary" to="/import">
             Import / export
+          </Link>
+          <Link className="btn secondary" to="/eid">
+            Read EID
           </Link>
           <Link className="btn primary" to="/herd/new">
             Add animal
@@ -196,10 +200,19 @@ export function HerdDetailPage() {
   const [txDose, setTxDose] = useState('');
   const [txNotes, setTxNotes] = useState('');
   const [error, setError] = useState('');
+  const pendingEid = useRef(takeScannedEid());
 
   useEffect(() => {
-    if (existing) setAnimal(existing);
-  }, [existing]);
+    const scanned = pendingEid.current;
+    if (existing) {
+      setAnimal(scanned ? { ...existing, electronicId: scanned } : existing);
+      if (scanned) pendingEid.current = undefined;
+      return;
+    }
+    if (isNew && scanned) {
+      setAnimal((current) => ({ ...current, electronicId: scanned }));
+    }
+  }, [existing, isNew]);
 
   function patch(partial: Partial<Animal>) {
     setAnimal((current) => ({ ...current, ...partial }));
@@ -412,12 +425,25 @@ export function HerdDetailPage() {
                 />
               </Field>
             </div>
-            <Field label="Electronic ID">
-              <input
-                value={animal.electronicId || ''}
-                onChange={(e) => patch({ electronicId: e.target.value || undefined })}
-              />
-            </Field>
+            <div className="field">
+              <span className="field-label">Electronic ID</span>
+              <div className="eid-field">
+                <input
+                  value={animal.electronicId || ''}
+                  onChange={(e) => patch({ electronicId: e.target.value || undefined })}
+                  inputMode="numeric"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <Link
+                  className="btn secondary"
+                  to={`/eid?return=${encodeURIComponent(isNew ? '/herd/new' : `/herd/${encodeURIComponent(animal.herdId || decoded)}`)}`}
+                >
+                  Read tag
+                </Link>
+              </div>
+            </div>
             <div className="form-row">
               <Field label="Sire">
                 <input

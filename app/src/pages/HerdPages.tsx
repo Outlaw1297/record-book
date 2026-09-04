@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
   findAnimalByHerdId,
+  isActiveCattle,
   newId,
   nowIso,
   queueChange,
@@ -81,10 +82,10 @@ export function HerdListPage() {
 
   const visible = useMemo(() => {
     return (animals ?? []).filter((animal) => {
-      if (filter === 'active' && animal.status !== 'active' && animal.status !== 'open') {
+      if (filter === 'active' && !isActiveCattle(animal.status)) {
         return false;
       }
-      if (filter === 'gone' && (animal.status === 'active' || animal.status === 'open')) {
+      if (filter === 'gone' && isActiveCattle(animal.status)) {
         return false;
       }
       if (typeFilter !== 'all' && (animal.animalType || '') !== typeFilter) return false;

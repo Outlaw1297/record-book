@@ -13,6 +13,11 @@ export type AnimalStatus =
   | 'flagged'
   | 'reference';
 
+/** Still in the herd: Active or Open. Sold, dead, culled, and reference stay in the book. */
+export function isActiveCattle(status: AnimalStatus): boolean {
+  return status === 'active' || status === 'open';
+}
+
 export interface Animal {
   id: string;
   herdId: string;

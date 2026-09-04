@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSettings } from '../db/schema';
+import { db, getSettings, isActiveCattle } from '../db/schema';
 
 export function HomePage() {
   const settings = useLiveQuery(() => getSettings());
@@ -12,7 +12,7 @@ export function HomePage() {
         db.breeding.filter((r) => !r.deletedAt).count(),
         db.pastures.filter((r) => !r.deletedAt).count(),
         db.sales.filter((r) => !r.deletedAt).count(),
-        db.animals.filter((r) => !r.deletedAt).count(),
+        db.animals.filter((r) => !r.deletedAt && isActiveCattle(r.status)).count(),
         db.outbox.filter((c) => !c.syncedAt).count(),
       ]);
     return { cowCalf, breeding, pastures, sales, animals, pending };
@@ -57,7 +57,7 @@ export function HomePage() {
         </div>
         <div className="stat">
           <strong>{counts?.animals ?? '—'}</strong>
-          <span>Herd I.D.s</span>
+          <span>Active cattle</span>
         </div>
         <div className="stat">
           <strong>{counts?.breeding ?? '—'}</strong>

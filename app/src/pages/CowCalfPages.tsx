@@ -19,6 +19,7 @@ import {
   rankedLabels,
 } from '../lib/choices';
 import { listHerdIds } from '../lib/herd';
+import { calfRowLabel } from '../lib/cowCalf';
 import { recordYear, uniqueYears } from '../lib/year';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
@@ -29,6 +30,7 @@ import { useToast } from '../ui/Toast';
 const REMARK_CHIPS = ['poll', 'GAGM', 'FAGM', 'open', 'preme pull', 'BB'];
 
 export function CowCalfListPage() {
+  const toast = useToast();
   const [query, setQuery] = useState('');
   const [year, setYear] = useState<'all' | number>('all');
   const [sex, setSex] = useState<'all' | Sex>('all');
@@ -49,6 +51,11 @@ export function CowCalfListPage() {
       }),
     [query, rows, sex, year],
   );
+
+  async function deleteRow(row: CowCalfRecord) {
+    const gone = await softDeleteRecord('cowCalf', row.id);
+    toast(gone ? 'Calf row deleted' : 'Could not delete that row.');
+  }
 
   return (
     <div className="page">
@@ -95,15 +102,23 @@ export function CowCalfListPage() {
         <>
           <div className="card-list card-mobile" style={{ marginTop: '1rem' }}>
             {visible.map((row) => (
-              <Link key={row.id} className="list-card" to={`/cow-calf/${row.id}`}>
-                <h2>{row.openWithoutCalf ? row.cowId : row.calfId || 'Calf'}</h2>
-                <p>
-                  Dam {row.cowId}
-                  {row.year ? ` · ${row.year}` : ''}
-                  {row.sex ? ` · ${row.sex}` : ''}
-                  {row.calvingDate ? ` · ${row.calvingDate}` : ''}
-                </p>
-              </Link>
+              <div key={row.id} className="list-card record-row">
+                <Link className="record-row-main" to={`/cow-calf/${row.id}`}>
+                  <h2>{row.openWithoutCalf ? row.cowId : row.calfId || 'Calf'}</h2>
+                  <p>
+                    Dam {row.cowId}
+                    {row.year ? ` · ${row.year}` : ''}
+                    {row.sex ? ` · ${row.sex}` : ''}
+                    {row.calvingDate ? ` · ${row.calvingDate}` : ''}
+                  </p>
+                </Link>
+                <DeleteRecordButton
+                  compact
+                  label="Delete"
+                  confirmText={`Delete ${calfRowLabel(row)} from this ranch’s book?`}
+                  onDelete={() => deleteRow(row)}
+                />
+              </div>
             ))}
           </div>
           <div className="table-wrap table-desktop" style={{ marginTop: '1rem' }}>
@@ -118,6 +133,9 @@ export function CowCalfListPage() {
                   <th>Birth wt</th>
                   <th>Calv EZ</th>
                   <th>Remarks</th>
+                  <th>
+                    <span className="sr-only">Delete</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -138,6 +156,14 @@ export function CowCalfListPage() {
                     </td>
                     <td>{row.calvingEase || '—'}</td>
                     <td>{row.remarks || '—'}</td>
+                    <td>
+                      <DeleteRecordButton
+                        compact
+                        label="Delete"
+                        confirmText={`Delete ${calfRowLabel(row)} from this ranch’s book?`}
+                        onDelete={() => deleteRow(row)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -403,13 +429,6 @@ export function CowCalfFormPage() {
           <span>Flagged (circled on paper)</span>
         </label>
 
-        {existing ? (
-          <DeleteRecordButton
-            label="Delete row"
-            confirmText="Delete this calf row from this ranch’s book?"
-            onDelete={onDelete}
-          />
-        ) : null}
         <div className="sticky-actions">
           <Link className="btn ghost" to="/cow-calf">
             Cancel
@@ -418,6 +437,13 @@ export function CowCalfFormPage() {
             Save calf
           </button>
         </div>
+        {existing ? (
+          <DeleteRecordButton
+            label="Delete this calf row"
+            confirmText="Delete this calf row from this ranch’s book?"
+            onDelete={onDelete}
+          />
+        ) : null}
       </form>
     </div>
   );

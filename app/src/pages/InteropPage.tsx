@@ -2,7 +2,8 @@ import { useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { applyCowSenseImport, type ImportMode } from '../interop/applyImport';
+import { applyCowSenseImport, continueImport, type ImportMode } from '../interop/applyImport';
+import { clearImportJob, importJobDone, importJobTotal } from '../interop/importJob';
 import {
   downloadTextFile,
   exportCowSenseAnimalsCsv,
@@ -27,6 +28,7 @@ export function InteropPage() {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
+  const [fileSize, setFileSize] = useState(0);
   const [parsed, setParsed] = useState<ParsedHerd | null>(null);
   const [mode, setMode] = useState<ImportMode>('merge');
   const [busy, setBusy] = useState<'read' | 'import' | null>(null);
@@ -42,10 +44,13 @@ export function InteropPage() {
     ]);
     return { animals, cowCalf, breeding, treatments, sales };
   });
+  const job = useLiveQuery(() => db.importJobs.get('active'));
+  const jobActive = Boolean(job && job.phase !== 'done');
 
   async function readFile(file: File) {
     setBusy('read');
     setFileName(file.name);
+    setFileSize(file.size);
     const mb = (file.size / (1024 * 1024)).toFixed(1);
     logSyncInfo(`Reading ${file.name} (${mb} MB)`);
     setSyncProgress({
@@ -95,7 +100,7 @@ export function InteropPage() {
     event.preventDefault();
     setDrag(false);
     const file = event.dataTransfer.files[0];
-    if (file) void readFile(file);
+    if (file && !jobActive) void readFile(file);
   }
 
   async function onImport(event: FormEvent) {
@@ -106,7 +111,10 @@ export function InteropPage() {
     }
     setBusy('import');
     try {
-      const result = await applyCowSenseImport(parsed, mode);
+      const result = await applyCowSenseImport(parsed, mode, {
+        fileName: fileName || 'herd',
+        fileSize,
+      });
       toast(
         `Imported ${result.animals} animals` +
           (result.cowCalf ? `, ${result.cowCalf} calving` : '') +
@@ -141,9 +149,65 @@ export function InteropPage() {
         <p className="lede">
           Pull this ranch’s herd in from the Cow Sense .csh (read only). Edit it
           here, then send a CSV back through Cow Sense Tools → Import. We never
-          write the original herd file.
+          write the original herd file. After you tap Import, this computer
+          keeps the work even if you close the tab or the power blinks. Reopen
+          Record Book and it continues.
         </p>
       </header>
+
+      {jobActive && job ? (
+        <div className="preview-card" style={{ marginTop: '1rem' }}>
+          <p className="due-kicker">Import in progress</p>
+          <h2>{job.fileName}</h2>
+          <p>
+            {job.phase === 'syncing'
+              ? 'Herd is on this computer. Copying it to the ranch database…'
+              : `${importJobDone(job).toLocaleString()} of ${importJobTotal(job).toLocaleString()} rows saved on this device.`}
+          </p>
+          <p className="hint">
+            You can close this page. Open Record Book again and it picks up
+            where it left off. You do not need the .csh file again.
+          </p>
+          <div className="provider-actions">
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy !== null}
+              onClick={() => {
+                setBusy('import');
+                void continueImport()
+                  .then((result) => {
+                    if (result) {
+                      toast(
+                        `Imported ${result.animals} animals` +
+                          (result.cowCalf ? `, ${result.cowCalf} calving` : '') +
+                          '.',
+                      );
+                    }
+                  })
+                  .catch((error: unknown) => {
+                    toast(error instanceof Error ? error.message : 'Import failed.');
+                  })
+                  .finally(() => setBusy(null));
+              }}
+            >
+              {busy === 'import' ? 'Continuing…' : 'Continue now'}
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={busy !== null}
+              onClick={() => {
+                void clearImportJob().then(() =>
+                  toast('Stopped. Already-saved animals stay on this ranch’s book.'),
+                );
+              }}
+            >
+              Stop
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <form className="form" onSubmit={onImport} style={{ marginTop: '1rem' }}>
         <div
@@ -159,13 +223,14 @@ export function InteropPage() {
           <h2>{fileName || 'Nygaaard.csh or a Cow Sense CSV'}</h2>
           <p>
             Drop the herd file here. Record Book reads a copy of the Cow Sense
-            Access database (.csh). It does not write that file. CSV/TXT from
-            Manage → List still works.
+            Access database (.csh). It does not write that file. After Import,
+            you can close this page — the save continues when you open Record
+            Book again.
           </p>
           <button
             type="button"
             className="btn secondary"
-            disabled={busy !== null}
+            disabled={busy !== null || jobActive}
             onClick={() => inputRef.current?.click()}
           >
             {busy === 'read' ? 'Reading…' : 'Choose file'}
@@ -254,7 +319,7 @@ export function InteropPage() {
           <button
             type="submit"
             className="btn primary"
-            disabled={busy !== null || !parsed || countRows(parsed) === 0}
+            disabled={busy !== null || jobActive || !parsed || countRows(parsed) === 0}
           >
             {busy === 'import' ? 'Importing…' : 'Import into this ranch'}
           </button>

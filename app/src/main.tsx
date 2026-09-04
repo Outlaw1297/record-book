@@ -5,9 +5,10 @@ import App from './App';
 import { ensureSettings } from './db/schema';
 import { isNativeApp } from './platform';
 import { startSyncScheduler } from './sync/scheduler';
+import { resumeImportIfNeeded } from './interop/applyImport';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
-void ensureSettings();
+void ensureSettings().then(() => resumeImportIfNeeded());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -199,6 +199,37 @@ export interface SyncDevice {
   isThisDevice?: boolean;
 }
 
+export type ImportTableName = 'animals' | 'cowCalf' | 'breeding' | 'treatments' | 'sales';
+
+export type ImportJobPhase = 'applying' | 'syncing' | 'done';
+
+export interface ImportJob {
+  id: 'active';
+  fileName: string;
+  fileSize: number;
+  mode: 'merge' | 'replace';
+  phase: ImportJobPhase;
+  applyTable: ImportTableName;
+  applyIndex: number;
+  replaceCleared: boolean;
+  counts: Record<ImportTableName, number>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportTableBlob {
+  name: ImportTableName;
+  rows: unknown[];
+}
+
+export interface RanchPushJob {
+  id: 'active';
+  fingerprint: string;
+  nextIndex: number;
+  total: number;
+  updatedAt: string;
+}
+
 export interface OutboxChange {
   id: string;
   entity:
@@ -263,6 +294,9 @@ class RecordBookDB extends Dexie {
   syncApplied!: EntityTable<SyncApplied, 'fileKey'>;
   syncConflicts!: EntityTable<SyncConflict, 'id'>;
   syncDevices!: EntityTable<SyncDevice, 'deviceId'>;
+  importJobs!: EntityTable<ImportJob, 'id'>;
+  importTables!: EntityTable<ImportTableBlob, 'name'>;
+  ranchPushJobs!: EntityTable<RanchPushJob, 'id'>;
 
   constructor() {
     super('recordBook');
@@ -286,6 +320,11 @@ class RecordBookDB extends Dexie {
     });
     this.version(4).stores({
       treatments: 'id, animalHerdId, date, updatedAt',
+    });
+    this.version(5).stores({
+      importJobs: 'id',
+      importTables: 'name',
+      ranchPushJobs: 'id',
     });
   }
 }

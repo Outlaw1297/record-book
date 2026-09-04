@@ -3,13 +3,30 @@ import { Capacitor } from '@capacitor/core';
 import { syncNow } from './engine';
 import { emitSyncEvent, OUTBOX_EVENT } from './types';
 
+let pauseCount = 0;
 let timer: number | undefined;
 let started = false;
 let nativeListeners = false;
 
+export function pauseSyncScheduler(): void {
+  pauseCount += 1;
+  if (typeof window !== 'undefined' && timer) {
+    window.clearTimeout(timer);
+    timer = undefined;
+  }
+}
+
+export function resumeSyncScheduler(): void {
+  pauseCount = Math.max(0, pauseCount - 1);
+}
+
+export function isSyncSchedulerPaused(): boolean {
+  return pauseCount > 0;
+}
+
 /** Debounce so a burst of calf saves becomes one copy. */
 export function scheduleSync(delayMs = 400): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || pauseCount > 0) return;
   if (timer) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     timer = undefined;

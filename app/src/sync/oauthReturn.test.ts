@@ -4,6 +4,7 @@ import {
   isOAuthCallbackLocation,
   isOAuthCallbackPath,
   parseOAuthReturnUrl,
+  takeNativeOAuthReturn,
   waitForNativeOAuthReturn,
 } from './oauthReturn';
 import { NATIVE_OAUTH_REDIRECT_URI, oauthRedirectUriFor } from './pkce';
@@ -50,5 +51,23 @@ describe('native OAuth return', () => {
     const params = await waiting;
     expect(params.get('code')).toBe('from-app');
     expect(deliverNativeOAuthReturn(new URLSearchParams('code=late'))).toBe(false);
+  });
+
+  it('keeps a Dropbox return for PKCE complete when no waiter is in memory', () => {
+    const params = new URLSearchParams('code=cold-start&state=s');
+    expect(takeNativeOAuthReturn(params)).toBe('orphan');
+    expect(takeNativeOAuthReturn(params)).toBe('none');
+  });
+
+  it('still prefers the in-flight waiter over an orphan complete', async () => {
+    const waiting = waitForNativeOAuthReturn(5_000);
+    expect(takeNativeOAuthReturn(new URLSearchParams('code=waiter-first&state=s'))).toBe(
+      'waiter',
+    );
+    const params = await waiting;
+    expect(params.get('code')).toBe('waiter-first');
+    expect(takeNativeOAuthReturn(new URLSearchParams('code=waiter-first&state=s'))).toBe(
+      'none',
+    );
   });
 });

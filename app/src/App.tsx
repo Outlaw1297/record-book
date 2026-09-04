@@ -19,9 +19,10 @@ import { ToastProvider } from './ui/Toast';
 import { BrandWordmark } from './ui/BrandMark';
 import { getSettings } from './db/schema';
 import { isNativeApp } from './platform';
+import { completeOAuthCallback } from './sync/auth';
 import {
-  deliverNativeOAuthReturn,
   isOAuthCallbackLocation,
+  takeNativeOAuthReturn,
 } from './sync/oauthReturn';
 
 function NativeOAuthBounce() {
@@ -29,8 +30,28 @@ function NativeOAuthBounce() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const delivered = deliverNativeOAuthReturn(params);
-    navigate(delivered ? '/settings?sync=connected' : '/settings', { replace: true });
+    let cancelled = false;
+    void (async () => {
+      const taken = takeNativeOAuthReturn(params);
+      if (taken === 'waiter') {
+        navigate('/settings?sync=connected', { replace: true });
+        return;
+      }
+      if (taken !== 'orphan') {
+        navigate('/settings', { replace: true });
+        return;
+      }
+      try {
+        const result = await completeOAuthCallback(params);
+        if (cancelled) return;
+        navigate(result.ok ? '/settings?sync=connected' : '/settings', { replace: true });
+      } catch {
+        if (!cancelled) navigate('/settings', { replace: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate, params]);
 
   return (

@@ -9,6 +9,17 @@ type PendingReturn = {
 
 let pending: PendingReturn | null = null;
 let listening = false;
+let lastHandledKey: string | null = null;
+
+function oauthReturnKey(params: URLSearchParams): string {
+  return `${params.get('code') ?? ''}|${params.get('state') ?? ''}|${params.get('error') ?? ''}|${params.get('error_description') ?? ''}`;
+}
+
+function hasOAuthResult(params: URLSearchParams): boolean {
+  return Boolean(
+    params.get('code') || params.get('error') || params.get('error_description'),
+  );
+}
 
 /** Path used by the PWA, and by the APK if the WebView follows the redirect. */
 export function isOAuthCallbackPath(pathname: string): boolean {
@@ -72,16 +83,64 @@ export function deliverNativeOAuthReturn(params: URLSearchParams): boolean {
   return true;
 }
 
+/**
+ * Consumes a native OAuth return once.
+ * `waiter` — startOAuth is still running and will exchange the code.
+ * `orphan` — the PKCE session is in localStorage; caller must completeOAuthCallback.
+ * `none` — already handled, or not an OAuth result.
+ */
+export function takeNativeOAuthReturn(
+  params: URLSearchParams,
+): 'waiter' | 'orphan' | 'none' {
+  if (!hasOAuthResult(params)) return 'none';
+  const key = oauthReturnKey(params);
+  if (lastHandledKey === key) return 'none';
+  if (deliverNativeOAuthReturn(params)) {
+    lastHandledKey = key;
+    return 'waiter';
+  }
+  lastHandledKey = key;
+  return 'orphan';
+}
+
+async function completeOrphanedNativeOAuth(params: URLSearchParams): Promise<void> {
+  try {
+    const { completeOAuthCallback } = await import('./auth');
+    const result = await completeOAuthCallback(params);
+    if (result.ok && typeof window !== 'undefined') {
+      window.location.replace('/settings?sync=connected');
+    }
+  } catch {
+    /* Settings can start sign-in again. */
+  }
+}
+
+function receiveNativeOAuthReturn(params: URLSearchParams): void {
+  if (takeNativeOAuthReturn(params) === 'orphan') {
+    void completeOrphanedNativeOAuth(params);
+  }
+}
+
 export async function prepareNativeOAuthReturn(): Promise<void> {
   if (!isNativeApp() || listening || typeof window === 'undefined') return;
   listening = true;
   try {
     await App.addListener('appUrlOpen', ({ url }) => {
       const params = parseOAuthReturnUrl(url);
-      if (params) deliverNativeOAuthReturn(params);
+      if (params) receiveNativeOAuthReturn(params);
     });
   } catch {
     listening = false;
+    return;
+  }
+  try {
+    const launch = await App.getLaunchUrl();
+    if (launch?.url) {
+      const params = parseOAuthReturnUrl(launch.url);
+      if (params) receiveNativeOAuthReturn(params);
+    }
+  } catch {
+    /* Launch URL is best-effort; the listener still receives later returns. */
   }
 }
 

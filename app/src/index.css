@@ -145,6 +145,16 @@
   .topbar-brand .brand-mark {
     flex-shrink: 0;
     display: block;
+    width: 2.25rem;
+    height: 2.25rem;
+    object-fit: contain;
+  }
+
+  .brand-wordmark {
+    display: block;
+    width: min(24rem, 100%);
+    height: auto;
+    object-fit: contain;
   }
 
   .brand-lockup {
@@ -183,13 +193,8 @@
     text-align: center;
   }
 
-  .brand-about .wordmark {
-    font-size: 1.05rem;
-    letter-spacing: 0.16em;
-  }
-
-  .brand-about .tagline {
-    margin: 0;
+  .brand-about .brand-wordmark {
+    width: min(18rem, 100%);
   }
 
   .main {

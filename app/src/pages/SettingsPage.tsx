@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { DEFAULT_RANCH_NAME, PRODUCT_NAME, PRODUCT_WORDMARK, TAGLINE } from '../brand';
+import { DEFAULT_RANCH_NAME, PRODUCT_NAME } from '../brand';
 import {
   db,
   getSettings,
@@ -34,6 +34,7 @@ import {
 } from '../sync/ranchServer';
 import type { CloudProvider } from '../sync/types';
 import { Field } from '../ui/Field';
+import { BrandWordmark } from '../ui/BrandMark';
 import { useToast } from '../ui/Toast';
 
 export function SettingsPage() {
@@ -507,8 +508,7 @@ export function SettingsPage() {
       ) : null}
 
       <aside className="brand-about" aria-label={`About ${PRODUCT_NAME}`}>
-        <p className="wordmark">{PRODUCT_WORDMARK}</p>
-        <p className="tagline">{TAGLINE}</p>
+        <BrandWordmark />
       </aside>
     </div>
   );

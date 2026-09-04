@@ -3,28 +3,43 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
+  findAnimalByHerdId,
   newId,
   nowIso,
   todayIsoDate,
   upsertAnimalByHerdId,
   queueChange,
   softDeleteRecord,
+  type Animal,
   type CowCalfRecord,
   type Sex,
 } from '../db/schema';
 import {
   BIRTH_CODE_CHOICES,
+  BREED_CHOICES,
   CALVING_EASE_CODE_CHOICES,
+  COLOR_CHOICES,
+  TAG_COLOR_CHOICES,
+  TATTOO_LOC_CHOICES,
   mergeChoices,
   rankedLabels,
 } from '../lib/choices';
 import { listHerdIds } from '../lib/herd';
-import { calfRowLabel } from '../lib/cowCalf';
+import {
+  animalEaseFromCode,
+  calfRowLabel,
+  codeFromAnimalEase,
+} from '../lib/cowCalf';
 import { recordYear, uniqueYears } from '../lib/year';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { RecordToolbar, matchesQuery, matchesYear } from '../ui/RecordToolbar';
 import { SuggestSelect } from '../ui/SuggestSelect';
+import {
+  AnimalRecordFields,
+  ANIMAL_FIELD_TABS,
+  type AnimalFieldTab,
+} from '../ui/AnimalRecordFields';
 import { useToast } from '../ui/Toast';
 
 const REMARK_CHIPS = ['poll', 'GAGM', 'FAGM', 'open', 'preme pull', 'BB'];
@@ -184,6 +199,10 @@ export function CowCalfFormPage() {
     [id],
   );
   const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const catalog = useLiveQuery(
+    () => db.animals.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
   const usedBirthCodes = useLiveQuery(
     () => db.cowCalf.filter((row) => !row.deletedAt).toArray(),
     [],
@@ -196,38 +215,92 @@ export function CowCalfFormPage() {
       ),
     [usedBirthCodes],
   );
-  const sireOptions = useMemo(
-    () => rankedLabels((usedBirthCodes ?? []).map((row) => row.sireId)),
-    [usedBirthCodes],
+  const animalOptions = useMemo(
+    () => ({
+      location: rankedLabels((catalog ?? []).map((row) => row.location)),
+      group: rankedLabels((catalog ?? []).map((row) => row.groupName)),
+      color: mergeChoices(rankedLabels((catalog ?? []).map((row) => row.color)), COLOR_CHOICES),
+      breed: mergeChoices(rankedLabels((catalog ?? []).map((row) => row.breed)), BREED_CHOICES),
+      tagColor: mergeChoices(
+        rankedLabels((catalog ?? []).map((row) => row.tagColor)),
+        TAG_COLOR_CHOICES,
+      ),
+      tattooLoc: mergeChoices(
+        rankedLabels((catalog ?? []).map((row) => row.tattooLoc)),
+        TATTOO_LOC_CHOICES,
+      ),
+    }),
+    [catalog],
   );
 
+  const [tab, setTab] = useState<AnimalFieldTab>('identity');
   const [cowId, setCowId] = useState('');
-  const [calfId, setCalfId] = useState('');
-  const [sireId, setSireId] = useState('');
-  const [sex, setSex] = useState<Sex>('');
-  const [calvingDate, setCalvingDate] = useState(todayIsoDate());
-  const [birthWeight, setBirthWeight] = useState('');
   const [birthCodes, setBirthCodes] = useState('');
   const [calvingEase, setCalvingEase] = useState('1');
   const [remarks, setRemarks] = useState('');
   const [openWithoutCalf, setOpenWithoutCalf] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [error, setError] = useState('');
+  const [calf, setCalf] = useState<Animal>(() => ({
+    id: newId(),
+    herdId: '',
+    sex: '',
+    status: 'active',
+    animalType: 'Nursing Calf',
+    birthDate: todayIsoDate(),
+    yearBorn: new Date().getFullYear(),
+    updatedAt: nowIso(),
+  }));
 
   useEffect(() => {
     if (!existing) return;
     setCowId(existing.cowId);
-    setCalfId(existing.calfId ?? '');
-    setSireId(existing.sireId ?? '');
-    setSex(existing.sex);
-    setCalvingDate(existing.calvingDate ?? todayIsoDate());
-    setBirthWeight(existing.birthWeight ?? '');
     setBirthCodes(existing.birthCodes ?? '');
     setCalvingEase(existing.calvingEase ?? '1');
     setRemarks(existing.remarks ?? '');
     setOpenWithoutCalf(existing.openWithoutCalf);
     setFlagged(existing.flagged);
+    const calfKey = existing.calfId;
+    void (async () => {
+      const found = calfKey ? await findAnimalByHerdId(calfKey) : undefined;
+      setCalf((current) => ({
+        ...(found ?? current),
+        herdId: existing.calfId || current.herdId,
+        damId: existing.cowId,
+        sireId: existing.openWithoutCalf ? undefined : existing.sireId || found?.sireId,
+        sex: existing.sex || found?.sex || '',
+        birthDate: existing.calvingDate || found?.birthDate || todayIsoDate(),
+        yearBorn: recordYear(existing.calvingDate, existing.year),
+        birthWeight: existing.birthWeight || found?.birthWeight,
+        calvingEase:
+          found?.calvingEase || animalEaseFromCode(existing.calvingEase ?? ''),
+      }));
+    })();
   }, [existing]);
+
+  function patchCalf(partial: Partial<Animal>) {
+    setCalf((current) => ({ ...current, ...partial }));
+    if (partial.damId !== undefined) {
+      setCowId(partial.damId);
+      setError('');
+    }
+    if (partial.calvingEase) {
+      const code = codeFromAnimalEase(partial.calvingEase);
+      if (code) setCalvingEase(code);
+    }
+  }
+
+  function setDam(value: string) {
+    setCowId(value);
+    setError('');
+    setCalf((current) => ({ ...current, damId: value.trim() || undefined }));
+  }
+
+  function setPaperEase(value: string) {
+    setCalvingEase(value);
+    const label = animalEaseFromCode(value);
+    if (label) setCalf((current) => ({ ...current, calvingEase: label }));
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -236,15 +309,16 @@ export function CowCalfFormPage() {
       return;
     }
 
+    const calvingDate = calf.birthDate || todayIsoDate();
     const record: CowCalfRecord = {
       id: existing?.id ?? newId(),
       year: recordYear(calvingDate, existing?.year),
       cowId: cowId.trim(),
-      calfId: openWithoutCalf ? undefined : calfId.trim() || undefined,
-      sireId: openWithoutCalf ? 'open' : sireId.trim() || undefined,
-      sex,
+      calfId: openWithoutCalf ? undefined : calf.herdId.trim() || undefined,
+      sireId: openWithoutCalf ? 'open' : calf.sireId?.trim() || undefined,
+      sex: openWithoutCalf ? '' : calf.sex,
       calvingDate: calvingDate || undefined,
-      birthWeight: birthWeight.trim() || undefined,
+      birthWeight: openWithoutCalf ? undefined : calf.birthWeight?.trim() || undefined,
       birthCodes: birthCodes.trim() || undefined,
       calvingEase: calvingEase.trim() || undefined,
       remarks: remarks.trim() || undefined,
@@ -257,13 +331,23 @@ export function CowCalfFormPage() {
     await queueChange('cowCalf', record.id, 'upsert', record);
     await upsertAnimalByHerdId(record.cowId);
     if (record.calfId) {
+      const { id: _id, herdId: _herdId, updatedAt: _updatedAt, deletedAt: _deletedAt, ...extras } =
+        calf;
       await upsertAnimalByHerdId(record.calfId, {
-        sex,
+        ...extras,
+        damId: record.cowId,
+        sireId: record.sireId === 'open' ? extras.sireId : record.sireId,
+        sex: record.sex,
+        birthDate: record.calvingDate,
         yearBorn: record.year,
+        birthWeight: record.birthWeight,
+        calvingEase: extras.calvingEase || animalEaseFromCode(record.calvingEase ?? ''),
+        animalType: extras.animalType || 'Nursing Calf',
+        status: extras.status || 'active',
       });
     }
     if (record.sireId && record.sireId !== 'open') {
-      await upsertAnimalByHerdId(record.sireId);
+      await upsertAnimalByHerdId(record.sireId, { sex: 'M' });
     }
     toast(existing ? 'Calf row updated' : 'Calf saved on this device');
     navigate('/cow-calf');
@@ -285,7 +369,8 @@ export function CowCalfFormPage() {
       <header className="page-header">
         <h1>{existing ? 'Edit calf row' : 'Log calf'}</h1>
         <p className="lede">
-          Same columns as the paper cow–calf page. Date defaults to today.
+          Paper calving columns, then the same Identity, Traits, Performance, and
+          Notes fields as the cow’s herd record.
         </p>
       </header>
 
@@ -302,11 +387,8 @@ export function CowCalfFormPage() {
         <Field label="Cow I.D." error={error}>
           <input
             value={cowId}
-            onChange={(e) => {
-              setCowId(e.target.value);
-              setError('');
-            }}
-            list="herd-ids"
+            onChange={(e) => setDam(e.target.value)}
+            list="log-calf-herd-ids"
             placeholder="Helen / 90bk"
             autoCapitalize="characters"
             autoCorrect="off"
@@ -314,18 +396,18 @@ export function CowCalfFormPage() {
             required
           />
         </Field>
-        <datalist id="herd-ids">
+        <datalist id="log-calf-herd-ids">
           {(herdIds ?? []).map((herdId) => (
             <option key={herdId} value={herdId} />
           ))}
         </datalist>
 
-        {!openWithoutCalf && (
+        {!openWithoutCalf ? (
           <>
             <Field label="Calf I.D.">
               <input
-                value={calfId}
-                onChange={(e) => setCalfId(e.target.value)}
+                value={calf.herdId}
+                onChange={(e) => patchCalf({ herdId: e.target.value })}
                 placeholder="67y / 247w"
                 autoCapitalize="characters"
                 autoCorrect="off"
@@ -335,8 +417,8 @@ export function CowCalfFormPage() {
             <Field label="Sex">
               <Segmented
                 ariaLabel="Calf sex"
-                value={sex || ''}
-                onChange={(value) => setSex(value as Sex)}
+                value={calf.sex || ''}
+                onChange={(value) => patchCalf({ sex: value as Sex })}
                 options={[
                   { value: '', label: 'Skip' },
                   { value: 'F', label: 'Heifer' },
@@ -347,31 +429,33 @@ export function CowCalfFormPage() {
             <Field label="Calving date">
               <input
                 type="date"
-                value={calvingDate}
-                onChange={(e) => setCalvingDate(e.target.value)}
+                value={calf.birthDate || ''}
+                onChange={(e) =>
+                  patchCalf({
+                    birthDate: e.target.value || undefined,
+                    yearBorn: e.target.value
+                      ? Number(e.target.value.slice(0, 4))
+                      : calf.yearBorn,
+                  })
+                }
               />
             </Field>
             <Field label="Bred by sire I.D.">
               <input
-                value={sireId}
-                onChange={(e) => setSireId(e.target.value)}
-                list="sire-ids"
+                value={calf.sireId || ''}
+                onChange={(e) => patchCalf({ sireId: e.target.value || undefined })}
+                list="log-calf-herd-ids"
                 placeholder="Diablo / 5/5"
                 autoCapitalize="characters"
                 autoCorrect="off"
                 spellCheck={false}
               />
             </Field>
-            <datalist id="sire-ids">
-              {sireOptions.map((id) => (
-                <option key={id} value={id} />
-              ))}
-            </datalist>
             <div className="form-row">
               <Field label="Birth weight">
                 <input
-                  value={birthWeight}
-                  onChange={(e) => setBirthWeight(e.target.value)}
+                  value={calf.birthWeight || ''}
+                  onChange={(e) => patchCalf({ birthWeight: e.target.value || undefined })}
                   placeholder="80"
                   inputMode="decimal"
                 />
@@ -379,7 +463,7 @@ export function CowCalfFormPage() {
               <SuggestSelect
                 label="Calv EZ"
                 value={calvingEase}
-                onChange={setCalvingEase}
+                onChange={setPaperEase}
                 options={CALVING_EASE_CODE_CHOICES}
                 placeholder="Select"
               />
@@ -391,7 +475,7 @@ export function CowCalfFormPage() {
               options={birthCodeOptions}
             />
           </>
-        )}
+        ) : null}
 
         <Field label="Remarks">
           <textarea
@@ -428,6 +512,41 @@ export function CowCalfFormPage() {
           />
           <span>Flagged (circled on paper)</span>
         </label>
+
+        {!openWithoutCalf ? (
+          <>
+            <p className="due-kicker" style={{ marginTop: '0.35rem' }}>
+              Calf record
+            </p>
+            <p className="hint">
+              Same fields as Herd → the cow. Visual ID is this calf. Treatments stay
+              on the herd record after you save.
+            </p>
+            <nav className="book-tabs" aria-label="Calf record">
+              {ANIMAL_FIELD_TABS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={tab === item.id ? 'active' : undefined}
+                  onClick={() => setTab(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            <AnimalRecordFields
+              animal={calf}
+              patch={patchCalf}
+              tab={tab}
+              herdIds={herdIds ?? []}
+              options={animalOptions}
+              excludeAnimalId={calf.id}
+              listId="log-calf-herd-ids"
+              includeDatalist={false}
+              requireHerdId={false}
+            />
+          </>
+        ) : null}
 
         <div className="sticky-actions">
           <Link className="btn ghost" to="/cow-calf">

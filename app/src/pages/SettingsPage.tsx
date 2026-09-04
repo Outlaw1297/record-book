@@ -54,7 +54,6 @@ export function SettingsPage() {
   const [ranchName, setRanchName] = useState('');
   const [operatorName, setOperatorName] = useState('');
   const [deviceName, setDeviceName] = useState('');
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
@@ -71,7 +70,6 @@ export function SettingsPage() {
         settings.deviceName ||
           defaultDeviceName(settings.deviceKind, settings.operatorName),
       );
-      setCurrentYear(settings.currentYear);
       setRanchApiUrl(getRanchApiUrl());
       setRanchApiKey(getRanchApiKey());
       setHydrated(true);
@@ -106,15 +104,12 @@ export function SettingsPage() {
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
     const nextRanch = ranchName.trim() || 'Record Book';
-    const nextYear = currentYear;
-    const ranchChanged =
-      nextRanch !== settings.ranchName || nextYear !== settings.currentYear;
+    const ranchChanged = nextRanch !== settings.ranchName;
     const next = {
       ...settings,
       ranchName: nextRanch,
       operatorName: operatorName.trim(),
       deviceName: deviceName.trim() || defaultDeviceName(settings.deviceKind, operatorName),
-      currentYear: nextYear,
       updatedAt: ranchChanged ? nowIso() : settings.updatedAt,
     };
     await db.settings.put(next);
@@ -243,17 +238,9 @@ export function SettingsPage() {
             placeholder="Field phone"
           />
         </Field>
-        <Field label="Working year">
-          <input
-            type="number"
-            inputMode="numeric"
-            value={currentYear}
-            onChange={(e) => setCurrentYear(Number(e.target.value))}
-          />
-        </Field>
         <p className="hint">
-          Ranch name and year stay with this ranch’s book. Your name and this
-          device label stay with you so two people on the same ranch can share.
+          Ranch name stays with this ranch’s book. Your name and this device
+          label stay with you so two people on the same ranch can share.
         </p>
         <div className="sticky-actions">
           <button type="button" className="btn secondary" onClick={downloadBackup}>

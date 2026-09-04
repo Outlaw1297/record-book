@@ -1,12 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState } from '../ui/Field';
+import { RecordToolbar, matchesQuery, matchesYear } from '../ui/RecordToolbar';
+import { SuggestSelect } from '../ui/SuggestSelect';
 import { useToast } from '../ui/Toast';
+import { rankedLabels } from '../lib/choices';
+import { listHerdIds } from '../lib/herd';
+import { recordYear, uniqueYears } from '../lib/year';
 import {
   db,
-  getSettings,
   newId,
   nowIso,
   queueChange,
@@ -19,15 +23,23 @@ import {
 } from '../db/schema';
 
 export function PastureListPage() {
-  const settings = useLiveQuery(() => getSettings());
-  const year = settings?.currentYear ?? new Date().getFullYear();
+  const [query, setQuery] = useState('');
+  const [year, setYear] = useState<'all' | number>('all');
   const rows = useLiveQuery(
+    () => db.pastures.filter((r) => !r.deletedAt).reverse().sortBy('updatedAt'),
+    [],
+  );
+  const years = useMemo(() => uniqueYears((rows ?? []).map((row) => row.year)), [rows]);
+  const visible = useMemo(
     () =>
-      db.pastures
-        .filter((r) => !r.deletedAt && r.year === year)
-        .reverse()
-        .sortBy('updatedAt'),
-    [year],
+      (rows ?? []).filter((row) => {
+        if (!matchesYear(row.year, year)) return false;
+        return matchesQuery(
+          [row.pastureName, row.bullInDate, row.bullOutDate, row.notes, row.year],
+          query,
+        );
+      }),
+    [query, rows, year],
   );
 
   return (
@@ -35,31 +47,44 @@ export function PastureListPage() {
       <header className="page-header row-between">
         <div>
           <h1>Pasture Exposure</h1>
-          <p className="lede">Pasture · bull in / out · animal lists · {year}</p>
+          <p className="lede">Pasture · bull in / out · animal lists. Every year stays here.</p>
         </div>
         <Link className="btn primary" to="/pasture/new">
           Add pasture
         </Link>
       </header>
 
-      <div className="card-list">
-        {(rows ?? []).map((row) => (
-          <Link key={row.id} className="list-card" to={`/pasture/${row.id}`}>
-            <h2>{row.pastureName}</h2>
-            <p>
-              Bull in {row.bullInDate || '—'} · Bull out {row.bullOutDate || '—'}
-            </p>
-          </Link>
-        ))}
-        {(rows?.length ?? 0) === 0 && (
-          <EmptyState
-            title="No pastures yet"
-            body="Name the pasture, bull in/out, then add animals one at a time."
-            actionTo="/pasture/new"
-            actionLabel="Add pasture"
-          />
-        )}
-      </div>
+      <RecordToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Pasture / dates / notes"
+        year={year}
+        onYear={setYear}
+        years={years}
+      />
+
+      {(rows?.length ?? 0) === 0 ? (
+        <EmptyState
+          title="No pastures yet"
+          body="Name the pasture, bull in/out, then add animals one at a time."
+          actionTo="/pasture/new"
+          actionLabel="Add pasture"
+        />
+      ) : visible.length === 0 ? (
+        <p className="empty-match">No pastures match that search.</p>
+      ) : (
+        <div className="card-list">
+          {visible.map((row) => (
+            <Link key={row.id} className="list-card" to={`/pasture/${row.id}`}>
+              <h2>{row.pastureName}</h2>
+              <p>
+                {row.year ? `${row.year} · ` : ''}
+                Bull in {row.bullInDate || '—'} · Bull out {row.bullOutDate || '—'}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -68,7 +93,6 @@ export function PastureFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.pastures.get(id) : undefined),
     [id],
@@ -83,6 +107,15 @@ export function PastureFormPage() {
     [existing?.id],
   );
 
+  const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const usedPastures = useLiveQuery(
+    () => db.pastures.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const pastureNames = useMemo(
+    () => rankedLabels((usedPastures ?? []).map((row) => row.pastureName)),
+    [usedPastures],
+  );
   const [pastureName, setPastureName] = useState('');
   const [bullInDate, setBullInDate] = useState('');
   const [bullOutDate, setBullOutDate] = useState('');
@@ -109,7 +142,7 @@ export function PastureFormPage() {
 
     const record: PastureExposure = {
       id: existing?.id ?? newId(),
-      year: settings?.currentYear ?? new Date().getFullYear(),
+      year: recordYear(bullInDate, existing?.year),
       pastureName: pastureName.trim(),
       bullInDate: bullInDate || undefined,
       bullOutDate: bullOutDate || undefined,
@@ -176,15 +209,14 @@ export function PastureFormPage() {
       </header>
 
       <form className="form" onSubmit={savePasture}>
-        <label>
-          Pasture
-          <input
-            value={pastureName}
-            onChange={(e) => setPastureName(e.target.value)}
-            placeholder="OLD COWS"
-            required
-          />
-        </label>
+        <SuggestSelect
+          label="Pasture"
+          value={pastureName}
+          onChange={setPastureName}
+          options={pastureNames}
+          placeholder="OLD COWS"
+          autoCapitalize="characters"
+        />
         <div className="form-row">
           <label>
             Bull in
@@ -272,10 +304,16 @@ export function PastureFormPage() {
                 <input
                   value={animalHerdId}
                   onChange={(e) => setAnimalHerdId(e.target.value)}
+                  list="herd-ids"
                   placeholder="241w / 509w"
                 />
               </label>
             </div>
+            <datalist id="herd-ids">
+              {(herdIds ?? []).map((herdId) => (
+                <option key={herdId} value={herdId} />
+              ))}
+            </datalist>
             <div className="form-row">
               <label>
                 Metric

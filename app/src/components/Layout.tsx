@@ -26,9 +26,7 @@ export function Layout() {
       <header className="topbar">
         <div>
           <p className="brand">{settings?.ranchName || 'Record Book'}</p>
-          <p className="brand-sub">
-            {settings?.currentYear} · works without signal
-          </p>
+          <p className="brand-sub">works without signal</p>
         </div>
         <nav className="nav-desktop" aria-label="Main">
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>

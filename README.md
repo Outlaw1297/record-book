@@ -1,6 +1,10 @@
-# record-book
+# HerdLedger
 
-Offline-first digital **myHERD / AHA pocket calving book** for phone and desktop. This is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** The same APK or Docker image on another ranch is a different book. There is no product Drive, Dropbox, or server.
+HerdLedger is an offline-first digital cattle record book and herd management application built for ranch operations.
+
+**Know your herd. Know your numbers.**
+
+This is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** The same APK or Docker image on another ranch is a different book. There is no product Drive, Dropbox, or server. The GitHub repository remains `record-book`.
 
 Data stays on the device (IndexedDB). The **Android APK** is the field app (no website required). With no ranch server, phones on **this** ranch sign into **this ranch’s** Google Drive or Dropbox (native OAuth, not the phone’s file picker). A ranch can also run **its own** optional **Docker / Portainer** stack so Postgres on **that** NAS is **that** ranch’s book.
 

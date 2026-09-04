@@ -41,7 +41,7 @@ function asError(error: unknown, fallback: string): Error {
       /403/.test(message)
     ) {
       return new Error(
-        'Google is not asking you to pay for verification. Keep Record Book in Testing. On a computer open console.cloud.google.com → Google Auth Platform → Audience. Publishing status must say Testing (do not Publish). Add THIS Gmail under Test users, wait a minute, try Sign in again. If Google shows “this app isn’t verified,” tap Advanced, then Go to Record Book.',
+        'Google is not asking you to pay for verification. Keep HerdLedger in Testing. On a computer open console.cloud.google.com → Google Auth Platform → Audience. Publishing status must say Testing (do not Publish). Add THIS Gmail under Test users, wait a minute, try Sign in again. If Google shows “this app isn’t verified,” tap Advanced, then continue to HerdLedger (Google may still say Go to Record Book until the OAuth app name is renamed).',
       );
     }
     return new Error(message);

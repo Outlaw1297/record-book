@@ -1,5 +1,5 @@
-const CACHE = 'record-book-v3';
-const APP_SHELL = ['/manifest.webmanifest', '/icon.svg', '/favicon.svg'];
+const CACHE = 'record-book-v5';
+const APP_SHELL = ['/manifest.webmanifest', '/icon.png', '/favicon.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

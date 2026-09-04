@@ -1,6 +1,6 @@
 # Sync setup
 
-Record Book is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** One ranch’s Drive, Dropbox, or NAS is never used for another ranch’s herd.
+HerdLedger is a tool any ranch can install. **Each ranch’s cattle stay on that ranch.** One ranch’s Drive, Dropbox, or NAS is never used for another ranch’s herd.
 
 Each phone keeps a local IndexedDB copy for offline work.
 

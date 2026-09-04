@@ -2,12 +2,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'me.flyingjranch.recordbook',
-  appName: 'Record Book',
+  appName: 'HerdLedger',
   webDir: 'dist',
-  backgroundColor: '#f4eee6',
+  backgroundColor: '#F5F0E6',
   android: {
     allowMixedContent: true,
-    backgroundColor: '#f4eee6',
+    backgroundColor: '#F5F0E6',
   },
   plugins: {
     CapacitorHttp: {

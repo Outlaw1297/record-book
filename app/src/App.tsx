@@ -12,8 +12,10 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { AccountPage } from './pages/AccountPage';
 import { HerdDetailPage, HerdListPage } from './pages/HerdPages';
 import { InteropPage } from './pages/InteropPage';
+import { ScanEidPage } from './pages/ScanEidPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
+import { BrandWordmark } from './ui/BrandMark';
 import { getSettings } from './db/schema';
 
 function AppGate() {
@@ -30,7 +32,12 @@ function MainApp() {
   if (!settings) {
     return (
       <div className="onboard">
-        <p className="hint">Opening record book…</p>
+        <div className="onboard-card" style={{ textAlign: 'center' }}>
+          <BrandWordmark />
+          <p className="hint" style={{ marginTop: '1rem' }}>
+            Opening HerdLedger…
+          </p>
+        </div>
       </div>
     );
   }
@@ -59,6 +66,7 @@ function MainApp() {
         <Route path="gestation" element={<GestationPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="import" element={<InteropPage />} />
+        <Route path="eid" element={<ScanEidPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="book" element={<Navigate to="/cow-calf" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,9 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  getSettings,
   newId,
   nowIso,
   todayIsoDate,
@@ -13,23 +12,42 @@ import {
   type CowCalfRecord,
   type Sex,
 } from '../db/schema';
+import {
+  BIRTH_CODE_CHOICES,
+  CALVING_EASE_CODE_CHOICES,
+  mergeChoices,
+  rankedLabels,
+} from '../lib/choices';
 import { listHerdIds } from '../lib/herd';
+import { recordYear, uniqueYears } from '../lib/year';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
+import { RecordToolbar, matchesQuery, matchesYear } from '../ui/RecordToolbar';
+import { SuggestSelect } from '../ui/SuggestSelect';
 import { useToast } from '../ui/Toast';
 
 const REMARK_CHIPS = ['poll', 'GAGM', 'FAGM', 'open', 'preme pull', 'BB'];
 
 export function CowCalfListPage() {
-  const settings = useLiveQuery(() => getSettings());
-  const year = settings?.currentYear ?? new Date().getFullYear();
+  const [query, setQuery] = useState('');
+  const [year, setYear] = useState<'all' | number>('all');
+  const [sex, setSex] = useState<'all' | Sex>('all');
   const rows = useLiveQuery(
+    () => db.cowCalf.filter((r) => !r.deletedAt).reverse().sortBy('updatedAt'),
+    [],
+  );
+  const years = useMemo(() => uniqueYears((rows ?? []).map((row) => row.year)), [rows]);
+  const visible = useMemo(
     () =>
-      db.cowCalf
-        .filter((r) => !r.deletedAt && r.year === year)
-        .reverse()
-        .sortBy('updatedAt'),
-    [year],
+      (rows ?? []).filter((row) => {
+        if (!matchesYear(row.year, year)) return false;
+        if (sex !== 'all' && row.sex !== sex) return false;
+        return matchesQuery(
+          [row.calfId, row.cowId, row.sireId, row.sex, row.calvingDate, row.remarks, row.year],
+          query,
+        );
+      }),
+    [query, rows, sex, year],
   );
 
   return (
@@ -37,12 +55,30 @@ export function CowCalfListPage() {
       <header className="page-header row-between" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h1>Cow – Calf</h1>
-          <p className="lede">This year’s calving page · {year}</p>
+          <p className="lede">Every calving year stays in this book. Search or filter to find a row.</p>
         </div>
         <Link className="btn primary" to="/cow-calf/new">
           Log calf
         </Link>
       </header>
+
+      <RecordToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Cow / calf / sire / remarks"
+        year={year}
+        onYear={setYear}
+        years={years}
+      >
+        <label className="filter-field">
+          <span className="sr-only">Sex</span>
+          <select value={sex} onChange={(event) => setSex(event.target.value as 'all' | Sex)}>
+            <option value="all">All sexes</option>
+            <option value="F">Heifer</option>
+            <option value="M">Bull</option>
+          </select>
+        </label>
+      </RecordToolbar>
 
       {(rows?.length ?? 0) === 0 ? (
         <div style={{ marginTop: '1rem' }}>
@@ -53,14 +89,17 @@ export function CowCalfListPage() {
             actionLabel="Log calf"
           />
         </div>
+      ) : visible.length === 0 ? (
+        <p className="empty-match">No calf rows match that search.</p>
       ) : (
         <>
           <div className="card-list card-mobile" style={{ marginTop: '1rem' }}>
-            {rows?.map((row) => (
+            {visible.map((row) => (
               <Link key={row.id} className="list-card" to={`/cow-calf/${row.id}`}>
                 <h2>{row.openWithoutCalf ? row.cowId : row.calfId || 'Calf'}</h2>
                 <p>
                   Dam {row.cowId}
+                  {row.year ? ` · ${row.year}` : ''}
                   {row.sex ? ` · ${row.sex}` : ''}
                   {row.calvingDate ? ` · ${row.calvingDate}` : ''}
                 </p>
@@ -82,7 +121,7 @@ export function CowCalfListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows?.map((row) => (
+                {visible.map((row) => (
                   <tr key={row.id} className={row.flagged ? 'flagged' : undefined}>
                     <td>
                       <Link to={`/cow-calf/${row.id}`}>
@@ -114,12 +153,27 @@ export function CowCalfFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.cowCalf.get(id) : undefined),
     [id],
   );
   const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const usedBirthCodes = useLiveQuery(
+    () => db.cowCalf.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const birthCodeOptions = useMemo(
+    () =>
+      mergeChoices(
+        rankedLabels((usedBirthCodes ?? []).map((row) => row.birthCodes)),
+        BIRTH_CODE_CHOICES,
+      ),
+    [usedBirthCodes],
+  );
+  const sireOptions = useMemo(
+    () => rankedLabels((usedBirthCodes ?? []).map((row) => row.sireId)),
+    [usedBirthCodes],
+  );
 
   const [cowId, setCowId] = useState('');
   const [calfId, setCalfId] = useState('');
@@ -158,7 +212,7 @@ export function CowCalfFormPage() {
 
     const record: CowCalfRecord = {
       id: existing?.id ?? newId(),
-      year: settings?.currentYear ?? new Date().getFullYear(),
+      year: recordYear(calvingDate, existing?.year),
       cowId: cowId.trim(),
       calfId: openWithoutCalf ? undefined : calfId.trim() || undefined,
       sireId: openWithoutCalf ? 'open' : sireId.trim() || undefined,
@@ -275,12 +329,18 @@ export function CowCalfFormPage() {
               <input
                 value={sireId}
                 onChange={(e) => setSireId(e.target.value)}
+                list="sire-ids"
                 placeholder="Diablo / 5/5"
                 autoCapitalize="characters"
                 autoCorrect="off"
                 spellCheck={false}
               />
             </Field>
+            <datalist id="sire-ids">
+              {sireOptions.map((id) => (
+                <option key={id} value={id} />
+              ))}
+            </datalist>
             <div className="form-row">
               <Field label="Birth weight">
                 <input
@@ -290,22 +350,20 @@ export function CowCalfFormPage() {
                   inputMode="decimal"
                 />
               </Field>
-              <Field label="Calv EZ">
-                <input
-                  value={calvingEase}
-                  onChange={(e) => setCalvingEase(e.target.value)}
-                  placeholder="1"
-                  inputMode="numeric"
-                />
-              </Field>
-            </div>
-            <Field label="Birth codes">
-              <input
-                value={birthCodes}
-                onChange={(e) => setBirthCodes(e.target.value)}
-                placeholder="BB / RN / BEF"
+              <SuggestSelect
+                label="Calv EZ"
+                value={calvingEase}
+                onChange={setCalvingEase}
+                options={CALVING_EASE_CODE_CHOICES}
+                placeholder="Select"
               />
-            </Field>
+            </div>
+            <SuggestSelect
+              label="Birth codes"
+              value={birthCodes}
+              onChange={setBirthCodes}
+              options={birthCodeOptions}
+            />
           </>
         )}
 

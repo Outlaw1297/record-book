@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DEFAULT_RANCH_NAME, PRODUCT_NAME } from '../brand';
 import {
   db,
   getSettings,
@@ -33,6 +34,7 @@ import {
 } from '../sync/ranchServer';
 import type { CloudProvider } from '../sync/types';
 import { Field } from '../ui/Field';
+import { BrandWordmark } from '../ui/BrandMark';
 import { useToast } from '../ui/Toast';
 
 export function SettingsPage() {
@@ -54,7 +56,6 @@ export function SettingsPage() {
   const [ranchName, setRanchName] = useState('');
   const [operatorName, setOperatorName] = useState('');
   const [deviceName, setDeviceName] = useState('');
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [ranchApiUrl, setRanchApiUrl] = useState('');
   const [ranchApiKey, setRanchApiKey] = useState('');
   const [hydrated, setHydrated] = useState(false);
@@ -71,7 +72,6 @@ export function SettingsPage() {
         settings.deviceName ||
           defaultDeviceName(settings.deviceKind, settings.operatorName),
       );
-      setCurrentYear(settings.currentYear);
       setRanchApiUrl(getRanchApiUrl());
       setRanchApiKey(getRanchApiKey());
       setHydrated(true);
@@ -105,16 +105,13 @@ export function SettingsPage() {
     if (!settings) return;
     saveRanchApiUrl(ranchApiUrl);
     saveRanchApiKey(ranchApiKey);
-    const nextRanch = ranchName.trim() || 'Record Book';
-    const nextYear = currentYear;
-    const ranchChanged =
-      nextRanch !== settings.ranchName || nextYear !== settings.currentYear;
+    const nextRanch = ranchName.trim() || DEFAULT_RANCH_NAME;
+    const ranchChanged = nextRanch !== settings.ranchName;
     const next = {
       ...settings,
       ranchName: nextRanch,
       operatorName: operatorName.trim(),
       deviceName: deviceName.trim() || defaultDeviceName(settings.deviceKind, operatorName),
-      currentYear: nextYear,
       updatedAt: ranchChanged ? nowIso() : settings.updatedAt,
     };
     await db.settings.put(next);
@@ -243,17 +240,9 @@ export function SettingsPage() {
             placeholder="Field phone"
           />
         </Field>
-        <Field label="Working year">
-          <input
-            type="number"
-            inputMode="numeric"
-            value={currentYear}
-            onChange={(e) => setCurrentYear(Number(e.target.value))}
-          />
-        </Field>
         <p className="hint">
-          Ranch name and year stay with this ranch’s book. Your name and this
-          device label stay with you so two people on the same ranch can share.
+          Ranch name stays with this ranch’s book. Your name and this device
+          label stay with you so two people on the same ranch can share.
         </p>
         <div className="sticky-actions">
           <button type="button" className="btn secondary" onClick={downloadBackup}>
@@ -438,7 +427,7 @@ export function SettingsPage() {
           </>
         ) : (
           <p className="hint" style={{ marginTop: '0.75rem' }}>
-            Open Record Book on the phone, set this host as the ranch API, then
+            Open HerdLedger on the phone, set this host as the ranch API, then
             Sign in with Google or Dropbox there. After that, this NAS copies
             the herd to that account by itself.
           </p>
@@ -517,6 +506,10 @@ export function SettingsPage() {
           </div>
         </section>
       ) : null}
+
+      <aside className="brand-about" aria-label={`About ${PRODUCT_NAME}`}>
+        <BrandWordmark />
+      </aside>
     </div>
   );
 }

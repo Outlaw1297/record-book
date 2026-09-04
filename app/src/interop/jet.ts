@@ -414,7 +414,7 @@ export function parseJetHerd(bytes: Uint8Array): ParsedHerd {
   parsed.tables = names;
   if (bytes.byteLength > 40_000_000) {
     parsed.warnings.unshift(
-      'This Cow Sense file is large. Import on a computer if a phone runs out of memory. Record Book only reads a copy; it does not change the original .csh.',
+      'This Cow Sense file is large. Import on a computer if a phone runs out of memory. HerdLedger only reads a copy; it does not change the original .csh.',
     );
   }
   return parsed;

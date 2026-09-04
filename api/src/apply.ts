@@ -376,7 +376,7 @@ export async function upsertRanch(payload: Json): Promise<'applied' | 'kept'> {
        current_year = EXCLUDED.current_year,
        updated_at = EXCLUDED.updated_at`,
     [
-      String(payload.ranchName ?? 'Record Book'),
+      String(payload.ranchName ?? 'HerdLedger'),
       asInt(payload.currentYear) ?? new Date().getFullYear(),
       updatedAt,
     ],

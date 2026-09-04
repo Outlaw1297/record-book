@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { sanitizeSettingsForSync } from '../sync/settingsPayload';
 import { emitOutboxEvent } from '../sync/types';
 
@@ -12,6 +13,11 @@ export type AnimalStatus =
   | 'culled'
   | 'flagged'
   | 'reference';
+
+/** Still in the herd: Active or Open. Sold, dead, culled, and reference stay in the book. */
+export function isActiveCattle(status: AnimalStatus): boolean {
+  return status === 'active' || status === 'open';
+}
 
 export interface Animal {
   id: string;
@@ -311,7 +317,7 @@ export async function ensureSettings(): Promise<AppSettings> {
 
   const settings: AppSettings = {
     id: 1,
-    ranchName: 'Record Book',
+    ranchName: DEFAULT_RANCH_NAME,
     operatorName: '',
     currentYear: new Date().getFullYear(),
     syncProvider: 'none',
@@ -391,6 +397,17 @@ export async function findAnimalByHerdId(herdId: string): Promise<Animal | undef
   if (!key) return undefined;
   return db.animals
     .filter((animal) => !animal.deletedAt && animal.herdId.toLowerCase() === key)
+    .first();
+}
+
+export async function findAnimalByElectronicId(eid: string): Promise<Animal | undefined> {
+  const key = eid.replace(/\D/g, '');
+  if (key.length < 8) return undefined;
+  return db.animals
+    .filter(
+      (animal) =>
+        !animal.deletedAt && (animal.electronicId || '').replace(/\D/g, '') === key,
+    )
     .first();
 }
 

@@ -1,8 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { getSettings } from '../db/schema';
 import { SyncBanner } from './SyncBanner';
 import { BookTabs, isBookNavActive } from '../ui/BookTabs';
+import { BrandMark } from '../ui/BrandMark';
 import {
   IconBook,
   IconHome,
@@ -12,8 +14,8 @@ import {
 } from '../ui/icons';
 
 function initials(name?: string) {
-  const parts = (name || 'RB').trim().split(/\s+/).slice(0, 2);
-  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('') || 'RB';
+  const parts = (name || 'HL').trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('') || 'HL';
 }
 
 export function Layout() {
@@ -24,11 +26,12 @@ export function Layout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <div>
-          <p className="brand">{settings?.ranchName || 'Record Book'}</p>
-          <p className="brand-sub">
-            {settings?.currentYear} · works without signal
-          </p>
+        <div className="topbar-brand">
+          <BrandMark size={36} className="brand-mark" />
+          <div>
+            <p className="brand">{settings?.ranchName || DEFAULT_RANCH_NAME}</p>
+            <p className="brand-sub">works without signal</p>
+          </div>
         </div>
         <nav className="nav-desktop" aria-label="Main">
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>

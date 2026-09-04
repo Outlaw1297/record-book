@@ -129,10 +129,10 @@ export function SettingsPage() {
       const result = await startOAuth(provider);
       if (!result.navigated) {
         toast(result.detail || 'Signed in.');
-        setBusy(null);
       }
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not start sign-in.');
+    } finally {
       setBusy(null);
     }
   }

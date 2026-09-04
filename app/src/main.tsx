@@ -4,11 +4,22 @@ import './index.css';
 import App from './App';
 import { ensureSettings } from './db/schema';
 import { isNativeApp } from './platform';
-import { startSyncScheduler } from './sync/scheduler';
+import {
+  pauseSyncScheduler,
+  resumeSyncScheduler,
+  scheduleSync,
+  startSyncScheduler,
+} from './sync/scheduler';
 import { resumeImportIfNeeded } from './interop/applyImport';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 
-void ensureSettings().then(() => resumeImportIfNeeded());
+pauseSyncScheduler();
+void ensureSettings()
+  .then(() => resumeImportIfNeeded())
+  .finally(() => {
+    resumeSyncScheduler();
+    scheduleSync(800);
+  });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

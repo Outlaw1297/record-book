@@ -5,6 +5,7 @@ import {
   type SyncDevice,
   type SyncProvider,
 } from '../db/schema';
+import { getActiveImportJob } from '../interop/importJob';
 import { serializeJsonl } from './apply';
 import { getValidAccessToken, hasUsableSession, listCloudAuths } from './auth';
 import { preferredCloudProvider } from './authStore';
@@ -76,6 +77,15 @@ export type SyncStatus = {
 
 let inflight: Promise<SyncRunResult> | null = null;
 let lastError: string | undefined;
+
+export async function waitForInflightSync(): Promise<void> {
+  if (!inflight) return;
+  try {
+    await inflight;
+  } catch {
+    // A failed ranch copy must not block saving a Cow Sense import.
+  }
+}
 
 function isCloudProvider(value: SyncProvider): value is CloudProvider {
   return value === 'google-drive' || value === 'dropbox';
@@ -367,6 +377,15 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
 
 async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
   const settings = await ensureSettings();
+  if (await getActiveImportJob()) {
+    return {
+      ok: false,
+      detail: 'Cow Sense import is still saving on this computer — ranch copy will wait.',
+      pulled: 0,
+      pushed: 0,
+      conflicts: 0,
+    };
+  }
   const ranchConfigured = hasRanchServer();
   const connectedClouds = await connectedCloudProviders();
   const preferred = preferredCloudProvider(settings.syncProvider, connectedClouds);

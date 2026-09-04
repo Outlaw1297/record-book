@@ -11,6 +11,7 @@ import {
   type TreatmentRecord,
 } from '../db/schema';
 import { scheduleSync, pauseSyncScheduler, resumeSyncScheduler } from '../sync/scheduler';
+import { waitForInflightSync } from '../sync/engine';
 import {
   clearSyncProgress,
   logSyncError,
@@ -44,6 +45,31 @@ export const IMPORT_BATCH = 400;
 
 function fresherStamp(): string {
   return nowIso();
+}
+
+export function applyLinkedAnimal(
+  existing: Animal | undefined,
+  herdId: string,
+  extras: Partial<Animal>,
+  stamp: string,
+): Animal {
+  return {
+    ...(existing ?? {
+      id: newId(),
+      herdId,
+      sex: '',
+      status: 'active',
+      updatedAt: stamp,
+    }),
+    ...Object.fromEntries(
+      Object.entries(extras).filter(([, value]) => value !== undefined),
+    ),
+    herdId: existing?.herdId ?? herdId,
+    sex: extras.sex || existing?.sex || '',
+    status: extras.status ?? existing?.status ?? 'active',
+    updatedAt: stamp,
+    deletedAt: undefined,
+  };
 }
 
 export function mergeIncomingAnimal(
@@ -140,6 +166,7 @@ async function continueImportBody(): Promise<ImportResult | null> {
   const job = await getActiveImportJob();
   if (!job) return null;
   pauseSyncScheduler();
+  await waitForInflightSync();
   const unload = (event: BeforeUnloadEvent) => {
     event.preventDefault();
     event.returnValue = '';
@@ -333,33 +360,42 @@ async function ensureStubAnimals(animalMap: Map<string, Animal>, stamp: string):
   const breeding = await loadStagedTable<BreedingService>('breeding');
   const treatments = await loadStagedTable<TreatmentRecord>('treatments');
   const sales = await loadStagedTable<SaleRecord>('sales');
-  const stubs: Animal[] = [];
+  const dirty = new Map<string, Animal>();
+  let added = 0;
 
   const ensure = (herdId: string | undefined, extras: Partial<Animal> = {}) => {
     const trimmed = herdId?.trim();
     if (!trimmed || trimmed === 'open') return;
     const key = trimmed.toLowerCase();
     const existing = animalMap.get(key);
-    if (existing) {
-      if (extras.sex && !existing.sex) existing.sex = extras.sex;
-      if (extras.animalType && !existing.animalType) existing.animalType = extras.animalType;
-      return;
-    }
-    const stub: Animal = {
-      id: newId(),
-      herdId: trimmed,
-      sex: extras.sex || '',
-      status: extras.status ?? 'active',
-      animalType: extras.animalType,
-      updatedAt: stamp,
-    };
-    animalMap.set(key, stub);
-    stubs.push(stub);
+    const hasExtras = Object.values(extras).some((value) => value !== undefined && value !== '');
+    if (existing && !hasExtras) return;
+    const record = applyLinkedAnimal(existing, trimmed, extras, stamp);
+    animalMap.set(key, record);
+    dirty.set(key, record);
+    if (!existing) added += 1;
   };
 
   for (const row of cowCalf) {
-    ensure(row.cowId, { sex: 'F', animalType: 'Cow' });
-    if (row.calfId) ensure(row.calfId, { sex: row.sex, animalType: 'Calf' });
+    const cowKey = row.cowId.trim().toLowerCase();
+    ensure(row.cowId, {
+      sex: 'F',
+      animalType: animalMap.get(cowKey)?.animalType ? undefined : 'Cow',
+    });
+    if (row.calfId) {
+      const calfKey = row.calfId.trim().toLowerCase();
+      const calf = animalMap.get(calfKey);
+      ensure(row.calfId, {
+        sex: row.sex || calf?.sex,
+        yearBorn: row.year,
+        damId: row.cowId,
+        sireId: row.sireId,
+        birthDate: row.calvingDate,
+        birthWeight: row.birthWeight,
+        calvingEase: row.calvingEase,
+        ...(calf?.animalType ? {} : { animalType: 'Calf' }),
+      });
+    }
     if (row.sireId) ensure(row.sireId, { sex: 'M', animalType: 'Bull' });
   }
   for (const row of breeding) {
@@ -369,9 +405,11 @@ async function ensureStubAnimals(animalMap: Map<string, Animal>, stamp: string):
   for (const row of treatments) ensure(row.animalHerdId);
   for (const row of sales) ensure(row.calfId, { sex: row.sex, status: 'sold' });
 
-  if (stubs.length > 0) {
-    await db.animals.bulkPut(stubs);
-    logSyncInfo(`Added ${stubs.length} linked Visual IDs that were not on the animal list`);
+  if (dirty.size > 0) {
+    await db.animals.bulkPut([...dirty.values()]);
+    if (added > 0) {
+      logSyncInfo(`Added ${added} linked Visual IDs that were not on the animal list`);
+    }
   }
 }
 

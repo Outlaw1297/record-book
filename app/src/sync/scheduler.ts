@@ -30,6 +30,7 @@ export function scheduleSync(delayMs = 400): void {
   if (timer) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     timer = undefined;
+    if (pauseCount > 0) return;
     void syncNow().catch(() => emitSyncEvent());
   }, delayMs);
 }

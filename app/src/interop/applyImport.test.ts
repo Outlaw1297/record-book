@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyLinkedAnimal,
   breedingKey,
   cowCalfKey,
   mergeIncomingAnimal,
@@ -48,6 +49,58 @@ describe('Cow Sense import merge', () => {
     expect(replaced.id).toBe('live');
     expect(replaced.name).toBe('New');
     expect(replaced.updatedAt).toBe('2026-09-04T00:00:00.000Z');
+  });
+
+  it('marks an existing calf sold and copies calving onto the animal row', () => {
+    const stamp = '2026-09-04T00:00:00.000Z';
+    const calf = animal({ id: 'live', herdId: '67Y', sex: '', status: 'active' });
+    const sold = applyLinkedAnimal(calf, '67Y', { sex: 'F', status: 'sold' }, stamp);
+    expect(sold.id).toBe('live');
+    expect(sold.status).toBe('sold');
+    expect(sold.sex).toBe('F');
+    const withCalving = applyLinkedAnimal(
+      sold,
+      '67Y',
+      {
+        sex: 'F',
+        yearBorn: 2026,
+        damId: 'Helen',
+        sireId: 'Houdini',
+        birthDate: '2026-03-12',
+        birthWeight: '78',
+        calvingEase: '1',
+        animalType: 'Calf',
+      },
+      stamp,
+    );
+    expect(withCalving.status).toBe('sold');
+    expect(withCalving.damId).toBe('Helen');
+    expect(withCalving.sireId).toBe('Houdini');
+    expect(withCalving.birthDate).toBe('2026-03-12');
+    expect(withCalving.birthWeight).toBe('78');
+    expect(withCalving.yearBorn).toBe(2026);
+  });
+
+  it('writes pedigree onto a Visual ID that was missing from the animal list', () => {
+    const stub = applyLinkedAnimal(
+      undefined,
+      '67Y',
+      {
+        sex: 'F',
+        animalType: 'Calf',
+        yearBorn: 2026,
+        damId: 'Helen',
+        sireId: 'Houdini',
+        birthDate: '2026-03-12',
+        birthWeight: '78',
+      },
+      '2026-09-04T00:00:00.000Z',
+    );
+    expect(stub.herdId).toBe('67Y');
+    expect(stub.status).toBe('active');
+    expect(stub.damId).toBe('Helen');
+    expect(stub.birthWeight).toBe('78');
+    expect(stub.animalType).toBe('Calf');
   });
 
   it('keys calving, breeding, treatments, and sales without scanning the whole table', () => {

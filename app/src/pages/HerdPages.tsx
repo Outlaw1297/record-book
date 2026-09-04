@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
   findAnimalByHerdId,
+  isActiveCattle,
   newId,
   nowIso,
   queueChange,
@@ -16,11 +17,25 @@ import {
 } from '../db/schema';
 import { EidCapture } from '../eid/EidCapture';
 import { takeScannedEid } from '../eid/wand';
-import { getLifetime } from '../lib/herd';
+import {
+  BODY_CONDITION_CHOICES,
+  BREED_CHOICES,
+  CHUTE_SCORE_CHOICES,
+  COLOR_CHOICES,
+  TAG_COLOR_CHOICES,
+  TATTOO_LOC_CHOICES,
+  TREATMENT_PRODUCT_CHOICES,
+  TREATMENT_ROUTE_CHOICES,
+  mergeChoices,
+  rankedLabels,
+} from '../lib/choices';
+import { getLifetime, listHerdIds } from '../lib/herd';
+import { uniqueYears } from '../lib/year';
 import { COW_SENSE_STATUS, COW_SENSE_TYPE, cowSenseSex, cowSenseStatus } from '../interop/fields';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
-import { IconSearch } from '../ui/icons';
+import { RecordToolbar, matchesQuery } from '../ui/RecordToolbar';
+import { SuggestSelect } from '../ui/SuggestSelect';
 import { useToast } from '../ui/Toast';
 
 type AnimalTab = 'identity' | 'traits' | 'performance' | 'notes' | 'treatments' | 'history';
@@ -44,37 +59,55 @@ export function HerdListPage() {
   const [query, setQuery] = useState('');
   const [tagEid, setTagEid] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'gone'>('active');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState<'all' | number>('all');
   const animals = useLiveQuery(
     () => db.animals.filter((row) => !row.deletedAt).sortBy('herdId'),
     [],
   );
 
+  const years = useMemo(
+    () => uniqueYears((animals ?? []).map((animal) => animal.yearBorn)),
+    [animals],
+  );
+  const types = useMemo(
+    () => rankedLabels((animals ?? []).map((animal) => animal.animalType)),
+    [animals],
+  );
+  const locations = useMemo(
+    () => rankedLabels((animals ?? []).map((animal) => animal.location)),
+    [animals],
+  );
+
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     return (animals ?? []).filter((animal) => {
-      if (filter === 'active' && animal.status !== 'active' && animal.status !== 'open') {
+      if (filter === 'active' && !isActiveCattle(animal.status)) {
         return false;
       }
-      if (filter === 'gone' && (animal.status === 'active' || animal.status === 'open')) {
+      if (filter === 'gone' && isActiveCattle(animal.status)) {
         return false;
       }
-      if (!needle) return true;
-      const hay = [
-        animal.herdId,
-        animal.name,
-        animal.electronicId,
-        animal.tattoo,
-        animal.location,
-        animal.damId,
-        animal.sireId,
-        animal.animalType,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(needle);
+      if (typeFilter !== 'all' && (animal.animalType || '') !== typeFilter) return false;
+      if (locationFilter !== 'all' && (animal.location || '') !== locationFilter) return false;
+      if (yearFilter !== 'all' && animal.yearBorn !== yearFilter) return false;
+      return matchesQuery(
+        [
+          animal.herdId,
+          animal.name,
+          animal.electronicId,
+          animal.tattoo,
+          animal.location,
+          animal.damId,
+          animal.sireId,
+          animal.animalType,
+          animal.groupName,
+          animal.yearBorn,
+        ],
+        query,
+      );
     });
-  }, [animals, filter, query]);
+  }, [animals, filter, locationFilter, query, typeFilter, yearFilter]);
 
   const openFoundAnimal = useCallback(
     (animal: Animal) => {
@@ -107,19 +140,40 @@ export function HerdListPage() {
         </div>
       </header>
 
-      <label className="search-wrap" style={{ margin: '1rem 0 0.75rem' }}>
-        <span className="sr-only">Search herd</span>
-        <IconSearch />
-        <input
-          className="search-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Visual ID / EID / dam / location"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </label>
+      <RecordToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Visual ID / EID / dam / location"
+        year={yearFilter}
+        onYear={setYearFilter}
+        years={years}
+      >
+        <label className="filter-field">
+          <span className="sr-only">Type</span>
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            <option value="all">All types</option>
+            {types.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-field">
+          <span className="sr-only">Location</span>
+          <select
+            value={locationFilter}
+            onChange={(event) => setLocationFilter(event.target.value)}
+          >
+            <option value="all">All locations</option>
+            {locations.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
+        </label>
+      </RecordToolbar>
 
       <section className="eid-find" aria-label="Find by EID tag">
         <p className="field-label">Lost a tag?</p>
@@ -145,7 +199,7 @@ export function HerdListPage() {
         ]}
       />
 
-      {(visible.length ?? 0) === 0 ? (
+      {(animals?.length ?? 0) === 0 ? (
         <div style={{ marginTop: '1rem' }}>
           <EmptyState
             title="No animals yet"
@@ -154,6 +208,8 @@ export function HerdListPage() {
             actionLabel="Import Cow Sense"
           />
         </div>
+      ) : visible.length === 0 ? (
+        <p className="empty-match">No animals match that search.</p>
       ) : (
         <div className="card-list" style={{ marginTop: '1rem' }}>
           {visible.map((animal) => (
@@ -217,12 +273,55 @@ export function HerdDetailPage() {
         : [],
     [decoded],
   );
+  const catalog = useLiveQuery(
+    () => db.animals.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const allTreatments = useLiveQuery(
+    () => db.treatments.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const locationOptions = useMemo(
+    () => rankedLabels((catalog ?? []).map((row) => row.location)),
+    [catalog],
+  );
+  const groupOptions = useMemo(
+    () => rankedLabels((catalog ?? []).map((row) => row.groupName)),
+    [catalog],
+  );
+  const colorOptions = useMemo(
+    () => mergeChoices(rankedLabels((catalog ?? []).map((row) => row.color)), COLOR_CHOICES),
+    [catalog],
+  );
+  const breedOptions = useMemo(
+    () => mergeChoices(rankedLabels((catalog ?? []).map((row) => row.breed)), BREED_CHOICES),
+    [catalog],
+  );
+  const tagColorOptions = useMemo(
+    () => mergeChoices(rankedLabels((catalog ?? []).map((row) => row.tagColor)), TAG_COLOR_CHOICES),
+    [catalog],
+  );
+  const tattooLocOptions = useMemo(
+    () =>
+      mergeChoices(rankedLabels((catalog ?? []).map((row) => row.tattooLoc)), TATTOO_LOC_CHOICES),
+    [catalog],
+  );
+  const productOptions = useMemo(
+    () =>
+      mergeChoices(
+        rankedLabels((allTreatments ?? []).map((row) => row.product)),
+        TREATMENT_PRODUCT_CHOICES,
+      ),
+    [allTreatments],
+  );
 
   const [tab, setTab] = useState<AnimalTab>('identity');
   const [animal, setAnimal] = useState<Animal>(blankAnimal());
   const [txDate, setTxDate] = useState(todayIsoDate());
   const [txProduct, setTxProduct] = useState('');
   const [txDose, setTxDose] = useState('');
+  const [txRoute, setTxRoute] = useState('');
   const [txNotes, setTxNotes] = useState('');
   const [error, setError] = useState('');
   const pendingEid = useRef(takeScannedEid());
@@ -297,6 +396,7 @@ export function HerdDetailPage() {
       date: txDate || undefined,
       product: txProduct.trim(),
       dose: txDose.trim() || undefined,
+      route: txRoute.trim() || undefined,
       notes: txNotes.trim() || undefined,
       updatedAt: nowIso(),
     };
@@ -304,6 +404,7 @@ export function HerdDetailPage() {
     await queueChange('treatments', row.id, 'upsert', row);
     setTxProduct('');
     setTxDose('');
+    setTxRoute('');
     setTxNotes('');
     toast('Treatment saved');
   }
@@ -437,18 +538,18 @@ export function HerdDetailPage() {
               </Field>
             </div>
             <div className="form-row">
-              <Field label="Location">
-                <input
-                  value={animal.location || ''}
-                  onChange={(e) => patch({ location: e.target.value || undefined })}
-                />
-              </Field>
-              <Field label="Group">
-                <input
-                  value={animal.groupName || ''}
-                  onChange={(e) => patch({ groupName: e.target.value || undefined })}
-                />
-              </Field>
+              <SuggestSelect
+                label="Location"
+                value={animal.location || ''}
+                onChange={(value) => patch({ location: value || undefined })}
+                options={locationOptions}
+              />
+              <SuggestSelect
+                label="Group"
+                value={animal.groupName || ''}
+                onChange={(value) => patch({ groupName: value || undefined })}
+                options={groupOptions}
+              />
             </div>
             <div className="field">
               <span className="field-label">Electronic ID</span>
@@ -464,6 +565,7 @@ export function HerdDetailPage() {
                 <input
                   value={animal.sireId || ''}
                   onChange={(e) => patch({ sireId: e.target.value || undefined })}
+                  list="herd-ids"
                   autoCapitalize="characters"
                 />
               </Field>
@@ -471,10 +573,16 @@ export function HerdDetailPage() {
                 <input
                   value={animal.damId || ''}
                   onChange={(e) => patch({ damId: e.target.value || undefined })}
+                  list="herd-ids"
                   autoCapitalize="characters"
                 />
               </Field>
             </div>
+            <datalist id="herd-ids">
+              {(herdIds ?? []).map((id) => (
+                <option key={id} value={id} />
+              ))}
+            </datalist>
             <Field label="Name">
               <input
                 value={animal.name || ''}
@@ -496,12 +604,13 @@ export function HerdDetailPage() {
               </Field>
             </div>
             <div className="form-row">
-              <Field label="Tattoo 1 Loc">
-                <input
-                  value={animal.tattooLoc || ''}
-                  onChange={(e) => patch({ tattooLoc: e.target.value || undefined })}
-                />
-              </Field>
+              <SuggestSelect
+                label="Tattoo 1 Loc"
+                value={animal.tattooLoc || ''}
+                onChange={(value) => patch({ tattooLoc: value || undefined })}
+                options={tattooLocOptions}
+                autoCapitalize="characters"
+              />
               <Field label="Brand">
                 <input
                   value={animal.brand || ''}
@@ -515,18 +624,18 @@ export function HerdDetailPage() {
         {tab === 'traits' ? (
           <>
             <div className="form-row">
-              <Field label="Color">
-                <input
-                  value={animal.color || ''}
-                  onChange={(e) => patch({ color: e.target.value || undefined })}
-                />
-              </Field>
-              <Field label="Breed 1">
-                <input
-                  value={animal.breed || ''}
-                  onChange={(e) => patch({ breed: e.target.value || undefined })}
-                />
-              </Field>
+              <SuggestSelect
+                label="Color"
+                value={animal.color || ''}
+                onChange={(value) => patch({ color: value || undefined })}
+                options={colorOptions}
+              />
+              <SuggestSelect
+                label="Breed 1"
+                value={animal.breed || ''}
+                onChange={(value) => patch({ breed: value || undefined })}
+                options={breedOptions}
+              />
             </div>
             <div className="form-row">
               <Field label="Horn Code">
@@ -584,20 +693,20 @@ export function HerdDetailPage() {
               </select>
             </Field>
             <div className="form-row">
-              <Field label="Chute Score">
-                <input
-                  value={animal.disposition || ''}
-                  onChange={(e) => patch({ disposition: e.target.value || undefined })}
-                  placeholder="1–6"
-                />
-              </Field>
-              <Field label="Body Condition">
-                <input
-                  value={animal.bodyCondition || ''}
-                  onChange={(e) => patch({ bodyCondition: e.target.value || undefined })}
-                  placeholder="1–9"
-                />
-              </Field>
+              <SuggestSelect
+                label="Chute Score"
+                value={animal.disposition || ''}
+                onChange={(value) => patch({ disposition: value || undefined })}
+                options={CHUTE_SCORE_CHOICES}
+                allowOther={false}
+              />
+              <SuggestSelect
+                label="Body Condition"
+                value={animal.bodyCondition || ''}
+                onChange={(value) => patch({ bodyCondition: value || undefined })}
+                options={BODY_CONDITION_CHOICES}
+                allowOther={false}
+              />
             </div>
             <Field label="Identity comment / phenotype">
               <input
@@ -605,12 +714,12 @@ export function HerdDetailPage() {
                 onChange={(e) => patch({ phenotype: e.target.value || undefined })}
               />
             </Field>
-            <Field label="Tag color">
-              <input
-                value={animal.tagColor || ''}
-                onChange={(e) => patch({ tagColor: e.target.value || undefined })}
-              />
-            </Field>
+            <SuggestSelect
+              label="Tag color"
+              value={animal.tagColor || ''}
+              onChange={(value) => patch({ tagColor: value || undefined })}
+              options={tagColorOptions}
+            />
           </>
         ) : null}
 
@@ -725,17 +834,26 @@ export function HerdDetailPage() {
           <Field label="Date">
             <input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} />
           </Field>
-          <Field label="Product">
-            <input value={txProduct} onChange={(e) => setTxProduct(e.target.value)} />
-          </Field>
+          <SuggestSelect
+            label="Product"
+            value={txProduct}
+            onChange={setTxProduct}
+            options={productOptions}
+          />
           <div className="form-row">
             <Field label="Dose">
               <input value={txDose} onChange={(e) => setTxDose(e.target.value)} />
             </Field>
-            <Field label="Notes">
-              <input value={txNotes} onChange={(e) => setTxNotes(e.target.value)} />
-            </Field>
+            <SuggestSelect
+              label="Route"
+              value={txRoute}
+              onChange={setTxRoute}
+              options={TREATMENT_ROUTE_CHOICES}
+            />
           </div>
+          <Field label="Notes">
+            <input value={txNotes} onChange={(e) => setTxNotes(e.target.value)} />
+          </Field>
           <div className="sticky-actions">
             <Link className="btn secondary" to="/herd">
               Back to herd

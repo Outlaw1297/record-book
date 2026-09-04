@@ -9,7 +9,6 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const [ranchName, setRanchName] = useState('');
   const [operatorName, setOperatorName] = useState('');
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [role, setRole] = useState<'phone' | 'desk'>('phone');
   const [error, setError] = useState('');
 
@@ -24,7 +23,7 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
       ...settings,
       ranchName: ranchName.trim(),
       operatorName: operatorName.trim(),
-      currentYear,
+      currentYear: new Date().getFullYear(),
       deviceKind: role,
       deviceName: defaultDeviceName(role, operatorName),
       onboardingComplete: true,
@@ -91,14 +90,6 @@ export function OnboardingPage({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setOperatorName(e.target.value)}
                 placeholder="Alex"
                 autoComplete="name"
-              />
-            </Field>
-            <Field label="Working year">
-              <input
-                type="number"
-                inputMode="numeric"
-                value={currentYear}
-                onChange={(e) => setCurrentYear(Number(e.target.value))}
               />
             </Field>
             <div className="sticky-actions">

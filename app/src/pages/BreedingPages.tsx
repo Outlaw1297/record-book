@@ -1,9 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  getSettings,
   newId,
   nowIso,
   todayIsoDate,
@@ -13,10 +12,13 @@ import {
   type BreedingKind,
   type BreedingService,
 } from '../db/schema';
+import { rankedLabels } from '../lib/choices';
 import { dueDateFromService, formatDisplayDate } from '../lib/gestation';
 import { listHerdIds } from '../lib/herd';
+import { recordYear, uniqueYears } from '../lib/year';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
+import { RecordToolbar, matchesQuery, matchesYear } from '../ui/RecordToolbar';
 import { useToast } from '../ui/Toast';
 
 const KIND_LABEL: Record<BreedingKind, string> = {
@@ -26,15 +28,25 @@ const KIND_LABEL: Record<BreedingKind, string> = {
 };
 
 export function BreedingListPage() {
-  const settings = useLiveQuery(() => getSettings());
-  const year = settings?.currentYear ?? new Date().getFullYear();
+  const [query, setQuery] = useState('');
+  const [year, setYear] = useState<'all' | number>('all');
+  const [kind, setKind] = useState<'all' | BreedingKind>('all');
   const rows = useLiveQuery(
+    () => db.breeding.filter((r) => !r.deletedAt).reverse().sortBy('updatedAt'),
+    [],
+  );
+  const years = useMemo(() => uniqueYears((rows ?? []).map((row) => row.year)), [rows]);
+  const visible = useMemo(
     () =>
-      db.breeding
-        .filter((r) => !r.deletedAt && r.year === year)
-        .reverse()
-        .sortBy('updatedAt'),
-    [year],
+      (rows ?? []).filter((row) => {
+        if (!matchesYear(row.year, year)) return false;
+        if (kind !== 'all' && row.kind !== kind) return false;
+        return matchesQuery(
+          [row.cowId, row.sireId, KIND_LABEL[row.kind], row.serviceDate, row.year],
+          query,
+        );
+      }),
+    [kind, query, rows, year],
   );
 
   return (
@@ -45,12 +57,34 @@ export function BreedingListPage() {
       >
         <div>
           <h1>Breeding</h1>
-          <p className="lede">Year {year} · AI and pasture service</p>
+          <p className="lede">AI and pasture service for every year in this book.</p>
         </div>
         <Link className="btn primary" to="/breeding/new">
           Add service
         </Link>
       </header>
+
+      <RecordToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Cow / sire / date"
+        year={year}
+        onYear={setYear}
+        years={years}
+      >
+        <label className="filter-field">
+          <span className="sr-only">Service</span>
+          <select
+            value={kind}
+            onChange={(event) => setKind(event.target.value as 'all' | BreedingKind)}
+          >
+            <option value="all">All services</option>
+            <option value="ai1">AI 1st</option>
+            <option value="ai2">AI 2nd</option>
+            <option value="pasture">Pasture</option>
+          </select>
+        </label>
+      </RecordToolbar>
 
       {(rows?.length ?? 0) === 0 ? (
         <div style={{ marginTop: '1rem' }}>
@@ -61,10 +95,12 @@ export function BreedingListPage() {
             actionLabel="Add service"
           />
         </div>
+      ) : visible.length === 0 ? (
+        <p className="empty-match">No breeding rows match that search.</p>
       ) : (
         <>
           <div className="card-list card-mobile" style={{ marginTop: '1rem' }}>
-            {rows?.map((row) => {
+            {visible.map((row) => {
               const due = row.serviceDate
                 ? dueDateFromService(row.serviceDate)
                 : null;
@@ -73,6 +109,7 @@ export function BreedingListPage() {
                   <h2>{row.cowId}</h2>
                   <p>
                     {KIND_LABEL[row.kind]}
+                    {row.year ? ` · ${row.year}` : ''}
                     {row.serviceDate ? ` · ${row.serviceDate}` : ''}
                     {due ? ` · due ${formatDisplayDate(due)}` : ''}
                   </p>
@@ -92,7 +129,7 @@ export function BreedingListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows?.map((row) => {
+                {visible.map((row) => {
                   const due = row.serviceDate
                     ? dueDateFromService(row.serviceDate)
                     : null;
@@ -121,12 +158,19 @@ export function BreedingFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.breeding.get(id) : undefined),
     [id],
   );
   const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const usedSires = useLiveQuery(
+    () => db.breeding.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const sireOptions = useMemo(
+    () => rankedLabels((usedSires ?? []).map((row) => row.sireId)),
+    [usedSires],
+  );
 
   const [cowId, setCowId] = useState('');
   const [kind, setKind] = useState<BreedingKind>('ai1');
@@ -154,7 +198,7 @@ export function BreedingFormPage() {
 
     const record: BreedingService = {
       id: existing?.id ?? newId(),
-      year: settings?.currentYear ?? new Date().getFullYear(),
+      year: recordYear(serviceDate, existing?.year),
       cowId: cowId.trim(),
       kind,
       sireId: sireId.trim() || undefined,
@@ -226,12 +270,18 @@ export function BreedingFormPage() {
           <input
             value={sireId}
             onChange={(e) => setSireId(e.target.value)}
+            list="breeding-sires"
             placeholder="100 / 99"
             autoCapitalize="characters"
             autoCorrect="off"
             spellCheck={false}
           />
         </Field>
+        <datalist id="breeding-sires">
+          {sireOptions.map((id) => (
+            <option key={id} value={id} />
+          ))}
+        </datalist>
         <Field label="Date">
           <input
             type="date"

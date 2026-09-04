@@ -439,25 +439,220 @@ function asArray(value: unknown): Json[] {
   return Array.isArray(value) ? (value as Json[]) : [];
 }
 
+type PgType = 'text' | 'int4' | 'bool' | 'timestamptz';
+
+type BulkColumn = {
+  column: string;
+  type: PgType;
+  value: (row: Json) => unknown;
+};
+
+async function bulkUpsert(
+  table: DataTable,
+  columns: BulkColumn[],
+  rows: Json[],
+): Promise<number> {
+  const filtered = rows.filter((row) => String(row.id || ''));
+  if (filtered.length === 0) return 0;
+  const params = columns.map((col) => filtered.map((row) => col.value(row)));
+  const colList = columns.map((col) => col.column).join(', ');
+  const aliases = columns.map((_, index) => `c${index}`).join(', ');
+  const unnest = columns
+    .map((col, index) => `$${index + 1}::${col.type}[]`)
+    .join(', ');
+  const updates = columns
+    .filter((col) => col.column !== 'id')
+    .map((col) => `${col.column} = EXCLUDED.${col.column}`)
+    .join(',\n       ');
+  const result = await query(
+    `INSERT INTO ${table} (${colList})
+     SELECT ${aliases} FROM unnest(${unnest}) AS t(${aliases})
+     ON CONFLICT (id) DO UPDATE SET
+       ${updates}
+     WHERE ${table}.updated_at IS NULL OR EXCLUDED.updated_at >= ${table}.updated_at`,
+    params,
+  );
+  return result.rowCount ?? filtered.length;
+}
+
+function animalColumns(): BulkColumn[] {
+  return [
+    { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+    { column: 'herd_id', type: 'text', value: (row) => String(row.herdId ?? '') },
+    { column: 'tag_color', type: 'text', value: (row) => asText(row.tagColor) },
+    { column: 'phenotype', type: 'text', value: (row) => asText(row.phenotype) },
+    { column: 'name', type: 'text', value: (row) => asText(row.name) },
+    { column: 'sex', type: 'text', value: (row) => String(row.sex ?? '') },
+    { column: 'status', type: 'text', value: (row) => String(row.status ?? 'active') },
+    { column: 'notes', type: 'text', value: (row) => asText(row.notes) },
+    { column: 'year_born', type: 'int4', value: (row) => asInt(row.yearBorn) },
+    { column: 'animal_type', type: 'text', value: (row) => asText(row.animalType) },
+    { column: 'birth_date', type: 'text', value: (row) => asText(row.birthDate) },
+    { column: 'location', type: 'text', value: (row) => asText(row.location) },
+    { column: 'group_name', type: 'text', value: (row) => asText(row.groupName) },
+    { column: 'electronic_id', type: 'text', value: (row) => asText(row.electronicId) },
+    { column: 'registration', type: 'text', value: (row) => asText(row.registration) },
+    { column: 'tattoo', type: 'text', value: (row) => asText(row.tattoo) },
+    { column: 'tattoo_loc', type: 'text', value: (row) => asText(row.tattooLoc) },
+    { column: 'brand', type: 'text', value: (row) => asText(row.brand) },
+    { column: 'color', type: 'text', value: (row) => asText(row.color) },
+    { column: 'breed', type: 'text', value: (row) => asText(row.breed) },
+    { column: 'horned', type: 'text', value: (row) => asText(row.horned) },
+    { column: 'birth_type', type: 'text', value: (row) => asText(row.birthType) },
+    { column: 'calving_ease', type: 'text', value: (row) => asText(row.calvingEase) },
+    { column: 'service_type', type: 'text', value: (row) => asText(row.serviceType) },
+    { column: 'disposition', type: 'text', value: (row) => asText(row.disposition) },
+    { column: 'body_condition', type: 'text', value: (row) => asText(row.bodyCondition) },
+    { column: 'sire_id', type: 'text', value: (row) => asText(row.sireId) },
+    { column: 'dam_id', type: 'text', value: (row) => asText(row.damId) },
+    { column: 'birth_weight', type: 'text', value: (row) => asText(row.birthWeight) },
+    { column: 'weaning_weight', type: 'text', value: (row) => asText(row.weaningWeight) },
+    { column: 'weaning_date', type: 'text', value: (row) => asText(row.weaningDate) },
+    { column: 'yearling_weight', type: 'text', value: (row) => asText(row.yearlingWeight) },
+    { column: 'yearling_date', type: 'text', value: (row) => asText(row.yearlingDate) },
+    { column: 'extra_json', type: 'text', value: (row) => asText(row.extraJson) },
+    {
+      column: 'updated_at',
+      type: 'timestamptz',
+      value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+    },
+    { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+  ];
+}
+
 export async function applySnapshot(snapshot: Json): Promise<{ applied: number; kept: number }> {
   return withTransaction(async () => {
     let applied = 0;
-    let kept = 0;
-    const bump = async (result: 'applied' | 'kept') => {
-      if (result === 'applied') applied += 1;
-      else kept += 1;
-    };
     if (snapshot.settings && typeof snapshot.settings === 'object') {
-      await bump(await upsertRanch(snapshot.settings as Json));
+      const result = await upsertRanch(snapshot.settings as Json);
+      if (result === 'applied') applied += 1;
     }
-    for (const row of asArray(snapshot.animals)) await bump(await upsertAnimal(row));
-    for (const row of asArray(snapshot.cowCalf)) await bump(await upsertCowCalf(row));
-    for (const row of asArray(snapshot.breeding)) await bump(await upsertBreeding(row));
-    for (const row of asArray(snapshot.pastures)) await bump(await upsertPasture(row));
-    for (const row of asArray(snapshot.pastureAnimals)) await bump(await upsertPastureAnimal(row));
-    for (const row of asArray(snapshot.sales)) await bump(await upsertSale(row));
-    for (const row of asArray(snapshot.treatments)) await bump(await upsertTreatment(row));
-    return { applied, kept };
+    applied += await bulkUpsert('animals', animalColumns(), asArray(snapshot.animals));
+    applied += await bulkUpsert(
+      'cow_calf',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'year', type: 'int4', value: (row) => asInt(row.year) ?? new Date().getFullYear() },
+        { column: 'calf_id', type: 'text', value: (row) => asText(row.calfId) },
+        { column: 'cow_id', type: 'text', value: (row) => String(row.cowId ?? '') },
+        { column: 'sire_id', type: 'text', value: (row) => asText(row.sireId) },
+        { column: 'sex', type: 'text', value: (row) => String(row.sex ?? '') },
+        { column: 'calving_date', type: 'text', value: (row) => asText(row.calvingDate) },
+        { column: 'birth_weight', type: 'text', value: (row) => asText(row.birthWeight) },
+        { column: 'birth_codes', type: 'text', value: (row) => asText(row.birthCodes) },
+        { column: 'calving_ease', type: 'text', value: (row) => asText(row.calvingEase) },
+        { column: 'remarks', type: 'text', value: (row) => asText(row.remarks) },
+        { column: 'open_without_calf', type: 'bool', value: (row) => asBool(row.openWithoutCalf) },
+        { column: 'flagged', type: 'bool', value: (row) => asBool(row.flagged) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.cowCalf),
+    );
+    applied += await bulkUpsert(
+      'breeding',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'year', type: 'int4', value: (row) => asInt(row.year) ?? new Date().getFullYear() },
+        { column: 'cow_id', type: 'text', value: (row) => String(row.cowId ?? '') },
+        { column: 'kind', type: 'text', value: (row) => String(row.kind ?? 'pasture') },
+        { column: 'sire_id', type: 'text', value: (row) => asText(row.sireId) },
+        { column: 'service_date', type: 'text', value: (row) => asText(row.serviceDate) },
+        { column: 'flagged', type: 'bool', value: (row) => asBool(row.flagged) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.breeding),
+    );
+    applied += await bulkUpsert(
+      'pastures',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'year', type: 'int4', value: (row) => asInt(row.year) ?? new Date().getFullYear() },
+        { column: 'pasture_name', type: 'text', value: (row) => String(row.pastureName ?? '') },
+        { column: 'bull_in_date', type: 'text', value: (row) => asText(row.bullInDate) },
+        { column: 'bull_out_date', type: 'text', value: (row) => asText(row.bullOutDate) },
+        { column: 'notes', type: 'text', value: (row) => asText(row.notes) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.pastures),
+    );
+    applied += await bulkUpsert(
+      'pasture_animals',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'exposure_id', type: 'text', value: (row) => String(row.exposureId ?? '') },
+        { column: 'animal_herd_id', type: 'text', value: (row) => String(row.animalHerdId ?? '') },
+        { column: 'role', type: 'text', value: (row) => String(row.role ?? 'cow') },
+        { column: 'note', type: 'text', value: (row) => asText(row.note) },
+        { column: 'metric', type: 'text', value: (row) => asText(row.metric) },
+        { column: 'flagged', type: 'bool', value: (row) => asBool(row.flagged) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.pastureAnimals),
+    );
+    applied += await bulkUpsert(
+      'sales',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'year', type: 'int4', value: (row) => asInt(row.year) ?? new Date().getFullYear() },
+        { column: 'calf_id', type: 'text', value: (row) => String(row.calfId ?? '') },
+        { column: 'sex', type: 'text', value: (row) => String(row.sex ?? '') },
+        { column: 'buyer', type: 'text', value: (row) => asText(row.buyer) },
+        { column: 'sale_date', type: 'text', value: (row) => asText(row.saleDate) },
+        { column: 'price', type: 'text', value: (row) => asText(row.price) },
+        { column: 'notes', type: 'text', value: (row) => asText(row.notes) },
+        { column: 'list_mark', type: 'text', value: (row) => asText(row.listMark) },
+        { column: 'flagged', type: 'bool', value: (row) => asBool(row.flagged) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.sales),
+    );
+    applied += await bulkUpsert(
+      'treatments',
+      [
+        { column: 'id', type: 'text', value: (row) => String(row.id || '') },
+        { column: 'animal_herd_id', type: 'text', value: (row) => String(row.animalHerdId ?? '') },
+        { column: 'date', type: 'text', value: (row) => asText(row.date) },
+        { column: 'product', type: 'text', value: (row) => asText(row.product) },
+        { column: 'dose', type: 'text', value: (row) => asText(row.dose) },
+        { column: 'route', type: 'text', value: (row) => asText(row.route) },
+        { column: 'location', type: 'text', value: (row) => asText(row.location) },
+        { column: 'withdrawal', type: 'text', value: (row) => asText(row.withdrawal) },
+        { column: 'notes', type: 'text', value: (row) => asText(row.notes) },
+        {
+          column: 'updated_at',
+          type: 'timestamptz',
+          value: (row) => iso(row.updatedAt) || new Date().toISOString(),
+        },
+        { column: 'deleted_at', type: 'timestamptz', value: (row) => iso(row.deletedAt) },
+      ],
+      asArray(snapshot.treatments),
+    );
+    return { applied, kept: 0 };
   });
 }
 

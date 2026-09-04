@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies } from './ranchServer';
+import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotFingerprint, snapshotPushBodies } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -54,7 +54,7 @@ describe('ranchRequestInit', () => {
 describe('Cow Sense ranch snapshot chunks', () => {
   it('splits a large herd so nginx does not 504 one POST', () => {
     expect(chunkList([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
-    const animals = Array.from({ length: 501 }, (_, i) => ({ id: String(i) }));
+    const animals = Array.from({ length: 1501 }, (_, i) => ({ id: String(i) }));
     const bodies = snapshotPushBodies({
       format: 'record-book-snapshot',
       version: 1,
@@ -101,5 +101,31 @@ describe('Cow Sense ranch snapshot chunks', () => {
   it('explains a 504 as a NAS timeout on a large herd write', () => {
     expect(ranchHttpDetail(504)).toMatch(/timed out/i);
     expect(ranchHttpDetail(504)).toMatch(/504/);
+  });
+
+  it('fingerprints a herd so a closed tab can skip chunks already copied', () => {
+    const snapshot = {
+      format: 'record-book-snapshot' as const,
+      version: 1 as const,
+      exportedAt: '2026-01-01T00:00:00.000Z',
+      animals: [{ id: 'a' }, { id: 'b' }],
+      cowCalf: [],
+      breeding: [],
+      pastures: [],
+      pastureAnimals: [],
+      sales: [],
+      treatments: [],
+      settings: { ranchName: 'Flying J', currentYear: 2026 },
+    };
+    const same = snapshotFingerprint(snapshot);
+    expect(snapshotFingerprint({ ...snapshot, exportedAt: '2026-09-04T00:00:00.000Z' })).toBe(
+      same,
+    );
+    expect(
+      snapshotFingerprint({
+        ...snapshot,
+        animals: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+      }),
+    ).not.toBe(same);
   });
 });

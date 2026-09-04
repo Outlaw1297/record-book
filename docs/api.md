@@ -27,7 +27,7 @@ A browser check is `http://YOUR-HOST:8180/api/health` (or `/api/`). Opening `/ap
 | GET | `/ready` | Postgres ping |
 | GET | `/v1/` | Catalog |
 | GET | `/v1/export` | Full snapshot JSON |
-| POST | `/v1/sync/snapshot` | Upsert a PWA snapshot (last `updatedAt` wins). Large Cow Sense imports are sent in chunks; `?backup=0` skips Dropbox/Drive copy until the last chunk. The PWA status bar logs each chunk path, HTTP status, and applied count. Then the NAS copies to Dropbox/Drive |
+| POST | `/v1/sync/snapshot` | Upsert a PWA snapshot (last `updatedAt` wins). Large Cow Sense imports are sent in 1,000-row chunks; `?backup=0` skips Dropbox/Drive copy until the last chunk. Each chunk is one bulk upsert. A closed tab resumes at the last successful chunk. Then the NAS copies to Dropbox/Drive |
 | POST | `/v1/sync/changes` | Apply outbox-style change lines |
 | GET | `/v1/cloud-backup` | NAS Dropbox/Drive backup status (no tokens) |
 | PUT/DELETE | `/v1/cloud-backup/:provider` | Phone stores a Dropbox or Google login on this NAS (`google-drive` or `dropbox`) |

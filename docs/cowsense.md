@@ -23,7 +23,9 @@ This ranch’s file uses Cow Sense words:
 
 A 160 MB herd file needs a computer (or the office PWA). A phone WebView may run out of memory. CSV from Manage → List still works.
 
-After import, this ranch’s NAS copies the herd into Postgres. That used to 504 (timeout) on ~10,000 animals. The PWA now sends the herd in pieces, and the API commits them in one database transaction. The status bar at the top of every page shows a progress bar (chunk 12/88, percent) and a **Details** log with each HTTP path, status, and error so a timeout is visible without opening DevTools.
+After import, this ranch’s NAS copies the herd into Postgres. The PWA saves the parsed herd on this computer first, then writes IndexedDB in batches of 400, then copies the ranch database in 1,000-row chunks. Closing the tab, a power blink, or a 504 does not restart the .csh parse — reopen Record Book and it continues. The status bar shows progress and a Details log.
+
+The importer used to write one animal at a time and kick off a ranch copy after every row. That made a 10,000-animal file take more than a day. Sync is paused until the local save finishes, then the NAS copy skips chunks it already wrote.
 
 ## Pull the herd in
 

@@ -1,24 +1,34 @@
 import {
   db,
-  findAnimalByHerdId,
   newId,
   nowIso,
-  queueChange,
-  upsertAnimalByHerdId,
   type Animal,
   type BreedingService,
   type CowCalfRecord,
+  type ImportJob,
+  type ImportTableName,
   type SaleRecord,
   type TreatmentRecord,
 } from '../db/schema';
-import { scheduleSync } from '../sync/scheduler';
+import { scheduleSync, pauseSyncScheduler, resumeSyncScheduler } from '../sync/scheduler';
 import {
   clearSyncProgress,
   logSyncError,
   logSyncInfo,
   setSyncProgress,
 } from '../sync/activity';
+import { hasRanchServer, pushToRanchServer, requestNasBackup } from '../sync/ranchServer';
 import type { ParsedHerd } from './parse';
+import {
+  IMPORT_TABLES,
+  clearImportJob,
+  getActiveImportJob,
+  importJobDone,
+  importJobTotal,
+  loadStagedTable,
+  saveImportProgress,
+  stageImport,
+} from './importJob';
 
 export type ImportMode = 'merge' | 'replace';
 
@@ -30,14 +40,20 @@ export type ImportResult = {
   sales: number;
 };
 
+export const IMPORT_BATCH = 400;
+
 function fresherStamp(): string {
   return nowIso();
 }
 
-async function putAnimal(incoming: Animal, mode: ImportMode): Promise<boolean> {
-  const existing = await findAnimalByHerdId(incoming.herdId);
+export function mergeIncomingAnimal(
+  incoming: Animal,
+  existing: Animal | undefined,
+  mode: ImportMode,
+  stamp: string,
+): Animal {
   if (existing && mode === 'merge') {
-    const merged: Animal = {
+    return {
       ...incoming,
       ...existing,
       ...Object.fromEntries(
@@ -45,226 +61,120 @@ async function putAnimal(incoming: Animal, mode: ImportMode): Promise<boolean> {
       ),
       id: existing.id,
       herdId: existing.herdId,
-      updatedAt: fresherStamp(),
+      updatedAt: stamp,
       deletedAt: undefined,
     };
-    await db.animals.put(merged);
-    await queueChange('animals', merged.id, 'upsert', merged);
-    return true;
   }
-  const record: Animal = {
+  return {
     ...incoming,
     id: existing?.id ?? incoming.id ?? newId(),
-    updatedAt: fresherStamp(),
+    updatedAt: stamp,
     deletedAt: undefined,
   };
-  await db.animals.put(record);
-  await queueChange('animals', record.id, 'upsert', record);
-  return true;
 }
 
-async function putCowCalf(incoming: CowCalfRecord): Promise<void> {
-  const existing = await db.cowCalf
-    .filter(
-      (row) =>
-        !row.deletedAt &&
-        row.year === incoming.year &&
-        row.cowId.toLowerCase() === incoming.cowId.toLowerCase() &&
-        (row.calfId || '').toLowerCase() === (incoming.calfId || '').toLowerCase(),
-    )
-    .first();
-  const record: CowCalfRecord = {
-    ...incoming,
-    id: existing?.id ?? incoming.id,
-    updatedAt: fresherStamp(),
-    deletedAt: undefined,
-  };
-  await db.cowCalf.put(record);
-  await queueChange('cowCalf', record.id, 'upsert', record);
-  await upsertAnimalByHerdId(record.cowId, { animalType: existing ? undefined : 'Cow', sex: 'F' });
-  if (record.calfId) {
-    const calf = await findAnimalByHerdId(record.calfId);
-    await upsertAnimalByHerdId(record.calfId, {
-      sex: record.sex || calf?.sex,
-      yearBorn: record.year,
-      damId: record.cowId,
-      sireId: record.sireId,
-      birthDate: record.calvingDate,
-      birthWeight: record.birthWeight,
-      calvingEase: record.calvingEase,
-      ...(calf?.animalType ? {} : { animalType: 'Calf' }),
-    });
-  }
-  if (record.sireId && record.sireId !== 'open') {
-    await upsertAnimalByHerdId(record.sireId, { sex: 'M', animalType: 'Bull' });
-  }
+export function cowCalfKey(row: Pick<CowCalfRecord, 'year' | 'cowId' | 'calfId'>): string {
+  return `${row.year}|${row.cowId.toLowerCase()}|${(row.calfId || '').toLowerCase()}`;
 }
 
-async function putBreeding(incoming: BreedingService): Promise<void> {
-  const existing = await db.breeding
-    .filter(
-      (row) =>
-        !row.deletedAt &&
-        row.year === incoming.year &&
-        row.cowId.toLowerCase() === incoming.cowId.toLowerCase() &&
-        row.kind === incoming.kind &&
-        (row.serviceDate || '') === (incoming.serviceDate || ''),
-    )
-    .first();
-  const record: BreedingService = {
-    ...incoming,
-    id: existing?.id ?? incoming.id,
-    updatedAt: fresherStamp(),
-    deletedAt: undefined,
-  };
-  await db.breeding.put(record);
-  await queueChange('breeding', record.id, 'upsert', record);
-  await upsertAnimalByHerdId(record.cowId);
-  if (record.sireId) await upsertAnimalByHerdId(record.sireId, { sex: 'M' });
+export function breedingKey(
+  row: Pick<BreedingService, 'year' | 'cowId' | 'kind' | 'serviceDate'>,
+): string {
+  return `${row.year}|${row.cowId.toLowerCase()}|${row.kind}|${row.serviceDate || ''}`;
 }
 
-async function putTreatment(incoming: TreatmentRecord): Promise<void> {
-  const existing = await db.treatments
-    .filter(
-      (row) =>
-        !row.deletedAt &&
-        row.animalHerdId.toLowerCase() === incoming.animalHerdId.toLowerCase() &&
-        (row.date || '') === (incoming.date || '') &&
-        (row.product || '').toLowerCase() === (incoming.product || '').toLowerCase(),
-    )
-    .first();
-  const record: TreatmentRecord = {
-    ...incoming,
-    id: existing?.id ?? incoming.id,
-    updatedAt: fresherStamp(),
-    deletedAt: undefined,
-  };
-  await db.treatments.put(record);
-  await queueChange('treatments', record.id, 'upsert', record);
-  await upsertAnimalByHerdId(record.animalHerdId);
+export function treatmentKey(
+  row: Pick<TreatmentRecord, 'animalHerdId' | 'date' | 'product'>,
+): string {
+  return `${row.animalHerdId.toLowerCase()}|${row.date || ''}|${(row.product || '').toLowerCase()}`;
 }
 
-async function putSale(incoming: SaleRecord): Promise<void> {
-  const existing = await db.sales
-    .filter(
-      (row) =>
-        !row.deletedAt &&
-        row.year === incoming.year &&
-        row.calfId.toLowerCase() === incoming.calfId.toLowerCase(),
-    )
-    .first();
-  const record: SaleRecord = {
-    ...incoming,
-    id: existing?.id ?? incoming.id,
-    updatedAt: fresherStamp(),
-    deletedAt: undefined,
-  };
-  await db.sales.put(record);
-  await queueChange('sales', record.id, 'upsert', record);
-  await upsertAnimalByHerdId(record.calfId, { sex: record.sex, status: 'sold' });
+export function saleKey(row: Pick<SaleRecord, 'year' | 'calfId'>): string {
+  return `${row.year}|${row.calfId.toLowerCase()}`;
 }
+
+function nextTable(name: ImportTableName): ImportTableName | undefined {
+  const index = IMPORT_TABLES.indexOf(name);
+  return IMPORT_TABLES[index + 1];
+}
+
+let inflight: Promise<ImportResult | null> | null = null;
 
 export async function applyCowSenseImport(
   parsed: ParsedHerd,
   mode: ImportMode,
+  meta: { fileName: string; fileSize: number } = { fileName: 'herd', fileSize: 0 },
 ): Promise<ImportResult> {
-  const existingCount =
-    mode === 'replace'
-      ? await db.animals.filter((row) => !row.deletedAt).count()
-      : 0;
-  const total =
-    existingCount +
-    parsed.animals.length +
-    parsed.cowCalf.length +
-    parsed.breeding.length +
-    parsed.treatments.length +
-    parsed.sales.length;
-  let done = 0;
-
-  function tick(label: string, forceLog = false, currentInStep?: number, stepTotal?: number) {
-    done += 1;
-    const show =
-      forceLog ||
-      done === 1 ||
-      done === total ||
-      done % 200 === 0;
-    setSyncProgress({
-      phase: 'import',
-      current: done,
-      total: Math.max(total, 1),
-      label:
-        currentInStep != null && stepTotal != null
-          ? `${label} (${currentInStep}/${stepTotal})`
-          : label,
-    });
-    if (show) {
-      logSyncInfo(
-        `${label}` +
-          (currentInStep != null && stepTotal != null
-            ? ` ${currentInStep}/${stepTotal}`
-            : '') +
-          ` · ${done}/${Math.max(total, 1)} saved on this device`,
-      );
-    }
+  logSyncInfo(
+    `Staging ${meta.fileName} so this import can continue after a closed tab`,
+  );
+  await stageImport(parsed, mode, meta);
+  const result = await continueImport();
+  if (!result) {
+    throw new Error('Import did not start.');
   }
+  return result;
+}
 
+export async function continueImport(): Promise<ImportResult | null> {
+  if (inflight) return inflight;
+  inflight = continueImportBody().finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+export async function resumeImportIfNeeded(): Promise<ImportResult | null> {
+  const job = await getActiveImportJob();
+  if (!job) return null;
+  logSyncInfo(
+    `Resuming ${job.fileName} from ${job.phase}` +
+      (job.phase === 'applying'
+        ? ` · ${importJobDone(job)}/${importJobTotal(job)} saved on this device`
+        : ' · copying to the ranch database'),
+  );
+  return continueImport();
+}
+
+async function continueImportBody(): Promise<ImportResult | null> {
+  const job = await getActiveImportJob();
+  if (!job) return null;
+  pauseSyncScheduler();
+  const unload = (event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = '';
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', unload);
+  }
   try {
-    logSyncInfo(
-      `Import ${mode}: ${parsed.animals.length} animals, ${parsed.cowCalf.length} calving, ${parsed.breeding.length} breeding, ${parsed.treatments.length} treatments, ${parsed.sales.length} sales`,
-    );
-    if (mode === 'replace') {
-      const now = fresherStamp();
-      const animals = await db.animals.filter((row) => !row.deletedAt).toArray();
-      logSyncInfo(`Replace herd: marking ${animals.length} animals gone`);
-      for (let i = 0; i < animals.length; i += 1) {
-        const row = animals[i];
-        const next = { ...row, updatedAt: now, deletedAt: now };
-        await db.animals.put(next);
-        await queueChange('animals', next.id, 'delete', next);
-        tick('Clearing this ranch’s animals', i === 0, i + 1, animals.length);
+    if (job.phase === 'applying') {
+      const finished = await applyStaged(job);
+      if (!finished) return job.counts;
+      const still = await getActiveImportJob();
+      if (!still) return job.counts;
+      await saveImportProgress({ phase: 'syncing' });
+    }
+    if (hasRanchServer()) {
+      const ranch = await pushToRanchServer();
+      if (!ranch.ok && !ranch.skipped) {
+        logSyncError(
+          'Herd is on this computer. Ranch copy will retry when you open Record Book.',
+          ranch.detail,
+        );
+        return job.counts;
       }
+      const nas = await requestNasBackup();
+      if (nas.ok) logSyncInfo(nas.detail);
+    } else {
+      resumeSyncScheduler();
+      scheduleSync(400);
     }
-    let animals = 0;
-    for (const animal of parsed.animals) {
-      await putAnimal(animal, mode);
-      animals += 1;
-      tick('Saving animals', animals === 1, animals, parsed.animals.length);
-    }
-    let cowCalf = 0;
-    for (const row of parsed.cowCalf) {
-      await putCowCalf(row);
-      cowCalf += 1;
-      tick('Saving calving', cowCalf === 1, cowCalf, parsed.cowCalf.length);
-    }
-    let breeding = 0;
-    for (const row of parsed.breeding) {
-      await putBreeding(row);
-      breeding += 1;
-      tick('Saving breeding', breeding === 1, breeding, parsed.breeding.length);
-    }
-    let treatments = 0;
-    for (const row of parsed.treatments) {
-      await putTreatment(row);
-      treatments += 1;
-      tick('Saving treatments', treatments === 1, treatments, parsed.treatments.length);
-    }
-    let sales = 0;
-    for (const row of parsed.sales) {
-      await putSale(row);
-      sales += 1;
-      tick('Saving sales', sales === 1, sales, parsed.sales.length);
-    }
+    await clearImportJob();
     logSyncInfo(
-      `Imported ${animals} animals, ${cowCalf} calving, ${breeding} breeding, ${treatments} treatments, ${sales} sales on this device`,
+      `Imported ${job.counts.animals} animals, ${job.counts.cowCalf} calving, ${job.counts.breeding} breeding, ${job.counts.treatments} treatments, ${job.counts.sales} sales`,
     );
-    scheduleSync(parsed.animals.length > 200 ? 2000 : 400);
-    return {
-      animals,
-      cowCalf,
-      breeding,
-      treatments,
-      sales,
-    };
+    return job.counts;
   } catch (error) {
     logSyncError(
       'Cow Sense import failed while saving this ranch’s book',
@@ -272,6 +182,252 @@ export async function applyCowSenseImport(
     );
     throw error;
   } finally {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', unload);
+    }
     clearSyncProgress();
+    resumeSyncScheduler();
   }
+}
+
+async function applyStaged(start: ImportJob): Promise<boolean> {
+  const stamp = fresherStamp();
+  let job = { ...start };
+  const total = importJobTotal(job) + (job.mode === 'replace' && !job.replaceCleared ? 1 : 0);
+
+  const tick = (label: string, current: number, stepTotal: number) => {
+    const done = importJobDone(job);
+    setSyncProgress({
+      phase: 'import',
+      current: done,
+      total: Math.max(total, 1),
+      label: `${label} (${current}/${stepTotal})`,
+    });
+    if (current === 1 || current === stepTotal || current % IMPORT_BATCH === 0) {
+      logSyncInfo(
+        `${label} ${current}/${stepTotal} · ${done}/${Math.max(total, 1)} saved on this device`,
+      );
+    }
+  };
+
+  if (job.mode === 'replace' && !job.replaceCleared) {
+    logSyncInfo('Replace herd: marking current animals gone (batched)');
+    const existing = await db.animals.filter((row) => !row.deletedAt).toArray();
+    for (let i = 0; i < existing.length; i += IMPORT_BATCH) {
+      const chunk = existing.slice(i, i + IMPORT_BATCH).map((row) => ({
+        ...row,
+        updatedAt: stamp,
+        deletedAt: stamp,
+      }));
+      await db.animals.bulkPut(chunk);
+    }
+    job = { ...job, replaceCleared: true };
+    await saveImportProgress({ replaceCleared: true });
+  }
+
+  const animalMap = new Map<string, Animal>();
+  for (const row of await db.animals.filter((row) => !row.deletedAt).toArray()) {
+    animalMap.set(row.herdId.toLowerCase(), row);
+  }
+
+  const incomingAnimals = await loadStagedTable<Animal>('animals');
+  if (job.applyTable === 'animals') {
+    for (let i = job.applyIndex; i < incomingAnimals.length; i += IMPORT_BATCH) {
+      const slice = incomingAnimals.slice(i, i + IMPORT_BATCH);
+      const prepared = slice.map((incoming) => {
+        const merged = mergeIncomingAnimal(
+          incoming,
+          animalMap.get(incoming.herdId.toLowerCase()),
+          job.mode,
+          stamp,
+        );
+        animalMap.set(merged.herdId.toLowerCase(), merged);
+        return merged;
+      });
+      await db.animals.bulkPut(prepared);
+      job = { ...job, applyIndex: i + slice.length };
+      await saveImportProgress({ applyIndex: job.applyIndex });
+      if (!(await getActiveImportJob())) return false;
+      tick('Saving animals', job.applyIndex, incomingAnimals.length);
+    }
+    const next = nextTable('animals');
+    job = { ...job, applyTable: next ?? 'cowCalf', applyIndex: 0 };
+    await saveImportProgress({ applyTable: job.applyTable, applyIndex: 0 });
+  }
+
+  await ensureStubAnimals(animalMap, stamp);
+
+  if (
+    !(await applyKeyedTable<CowCalfRecord>({
+      job,
+      table: 'cowCalf',
+      label: 'Saving calving',
+      dexie: db.cowCalf,
+      keyOf: cowCalfKey,
+      existingRows: () => db.cowCalf.filter((row) => !row.deletedAt).toArray(),
+      stamp,
+      tick,
+      onJob: (next) => {
+        job = next;
+      },
+    }))
+  ) {
+    return false;
+  }
+  if (
+    !(await applyKeyedTable<BreedingService>({
+      job,
+      table: 'breeding',
+      label: 'Saving breeding',
+      dexie: db.breeding,
+      keyOf: breedingKey,
+      existingRows: () => db.breeding.filter((row) => !row.deletedAt).toArray(),
+      stamp,
+      tick,
+      onJob: (next) => {
+        job = next;
+      },
+    }))
+  ) {
+    return false;
+  }
+  if (
+    !(await applyKeyedTable<TreatmentRecord>({
+      job,
+      table: 'treatments',
+      label: 'Saving treatments',
+      dexie: db.treatments,
+      keyOf: treatmentKey,
+      existingRows: () => db.treatments.filter((row) => !row.deletedAt).toArray(),
+      stamp,
+      tick,
+      onJob: (next) => {
+        job = next;
+      },
+    }))
+  ) {
+    return false;
+  }
+  if (
+    !(await applyKeyedTable<SaleRecord>({
+      job,
+      table: 'sales',
+      label: 'Saving sales',
+      dexie: db.sales,
+      keyOf: saleKey,
+      existingRows: () => db.sales.filter((row) => !row.deletedAt).toArray(),
+      stamp,
+      tick,
+      onJob: (next) => {
+        job = next;
+      },
+    }))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function ensureStubAnimals(animalMap: Map<string, Animal>, stamp: string): Promise<void> {
+  const cowCalf = await loadStagedTable<CowCalfRecord>('cowCalf');
+  const breeding = await loadStagedTable<BreedingService>('breeding');
+  const treatments = await loadStagedTable<TreatmentRecord>('treatments');
+  const sales = await loadStagedTable<SaleRecord>('sales');
+  const stubs: Animal[] = [];
+
+  const ensure = (herdId: string | undefined, extras: Partial<Animal> = {}) => {
+    const trimmed = herdId?.trim();
+    if (!trimmed || trimmed === 'open') return;
+    const key = trimmed.toLowerCase();
+    const existing = animalMap.get(key);
+    if (existing) {
+      if (extras.sex && !existing.sex) existing.sex = extras.sex;
+      if (extras.animalType && !existing.animalType) existing.animalType = extras.animalType;
+      return;
+    }
+    const stub: Animal = {
+      id: newId(),
+      herdId: trimmed,
+      sex: extras.sex || '',
+      status: extras.status ?? 'active',
+      animalType: extras.animalType,
+      updatedAt: stamp,
+    };
+    animalMap.set(key, stub);
+    stubs.push(stub);
+  };
+
+  for (const row of cowCalf) {
+    ensure(row.cowId, { sex: 'F', animalType: 'Cow' });
+    if (row.calfId) ensure(row.calfId, { sex: row.sex, animalType: 'Calf' });
+    if (row.sireId) ensure(row.sireId, { sex: 'M', animalType: 'Bull' });
+  }
+  for (const row of breeding) {
+    ensure(row.cowId);
+    if (row.sireId) ensure(row.sireId, { sex: 'M' });
+  }
+  for (const row of treatments) ensure(row.animalHerdId);
+  for (const row of sales) ensure(row.calfId, { sex: row.sex, status: 'sold' });
+
+  if (stubs.length > 0) {
+    await db.animals.bulkPut(stubs);
+    logSyncInfo(`Added ${stubs.length} linked Visual IDs that were not on the animal list`);
+  }
+}
+
+async function applyKeyedTable<T extends { id: string; updatedAt: string; deletedAt?: string }>(options: {
+  job: ImportJob;
+  table: ImportTableName;
+  label: string;
+  dexie: { bulkPut: (rows: T[]) => Promise<unknown> };
+  keyOf: (row: T) => string;
+  existingRows: () => Promise<T[]>;
+  stamp: string;
+  tick: (label: string, current: number, total: number) => void;
+  onJob: (job: ImportJob) => void;
+}): Promise<boolean> {
+  let job = options.job;
+  const order = IMPORT_TABLES.indexOf(job.applyTable);
+  const target = IMPORT_TABLES.indexOf(options.table);
+  if (order > target) return true;
+  if (job.applyTable !== options.table) {
+    job = { ...job, applyTable: options.table, applyIndex: 0 };
+    await saveImportProgress({ applyTable: options.table, applyIndex: 0 });
+    options.onJob(job);
+  }
+
+  const incoming = await loadStagedTable<T>(options.table);
+  const existing = new Map<string, T>();
+  for (const row of await options.existingRows()) {
+    existing.set(options.keyOf(row), row);
+  }
+
+  for (let i = job.applyIndex; i < incoming.length; i += IMPORT_BATCH) {
+    const slice = incoming.slice(i, i + IMPORT_BATCH);
+    const prepared = slice.map((row) => {
+      const prior = existing.get(options.keyOf(row));
+      const record = {
+        ...row,
+        id: prior?.id ?? row.id,
+        updatedAt: options.stamp,
+        deletedAt: undefined,
+      } as T;
+      existing.set(options.keyOf(record), record);
+      return record;
+    });
+    await options.dexie.bulkPut(prepared);
+    job = { ...job, applyIndex: i + slice.length };
+    await saveImportProgress({ applyIndex: job.applyIndex });
+    if (!(await getActiveImportJob())) return false;
+    options.onJob(job);
+    options.tick(options.label, job.applyIndex, incoming.length);
+  }
+
+  const next = nextTable(options.table);
+  if (next) {
+    job = { ...job, applyTable: next, applyIndex: 0 };
+    await saveImportProgress({ applyTable: next, applyIndex: 0 });
+    options.onJob(job);
+  }
+  return true;
 }

@@ -1,7 +1,7 @@
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
-import { ensureSettings } from '../db/schema';
+import { db, ensureSettings, nowIso } from '../db/schema';
 import {
   clearSyncProgress,
   logSyncError,
@@ -13,7 +13,7 @@ import {
 const URL_KEY = 'record-book.ranchApiUrl';
 const API_KEY = 'record-book.ranchApiKey';
 /** Rows per POST so nginx does not 504 a 35k-row Cow Sense import. */
-export const RANCH_SNAPSHOT_CHUNK = 250;
+export const RANCH_SNAPSHOT_CHUNK = 1000;
 
 function fromEnv(name: 'VITE_RANCH_API_URL' | 'VITE_RANCH_API_KEY'): string {
   const value = import.meta.env[name];
@@ -288,6 +288,21 @@ export function snapshotChunkLabel(body: Record<string, unknown>): string {
   return 'snapshot';
 }
 
+export function snapshotFingerprint(snapshot: HerdSnapshot): string {
+  const parts = SNAPSHOT_KEYS.map((key) => {
+    const rows = snapshot[key] ?? [];
+    let hash = rows.length;
+    for (const row of rows) {
+      const id = String((row as { id?: string }).id || '');
+      for (let i = 0; i < id.length; i += 1) {
+        hash = (Math.imul(hash, 33) + id.charCodeAt(i)) >>> 0;
+      }
+    }
+    return `${key}:${rows.length}:${hash.toString(16)}`;
+  });
+  return parts.join('|');
+}
+
 export function snapshotPushBodies(snapshot: HerdSnapshot): Array<Record<string, unknown>> {
   const rows = SNAPSHOT_KEYS.reduce((sum, key) => sum + (snapshot[key]?.length ?? 0), 0);
   if (rows <= RANCH_SNAPSHOT_CHUNK) {
@@ -339,12 +354,34 @@ export async function pushToRanchServer(): Promise<{
   const settings = await ensureSettings();
   const snapshot = await buildSnapshot();
   const bodies = snapshotPushBodies(snapshot);
+  const fingerprint = snapshotFingerprint(snapshot);
   try {
     let applied = 0;
+    const prior = await db.ranchPushJobs.get('active');
+    let start = 0;
+    if (
+      prior &&
+      prior.fingerprint === fingerprint &&
+      prior.nextIndex > 0 &&
+      prior.nextIndex < bodies.length
+    ) {
+      start = prior.nextIndex;
+      logSyncInfo(
+        `Resuming ranch copy at chunk ${start + 1}/${bodies.length} (already wrote ${start})`,
+      );
+    }
+    await db.ranchPushJobs.put({
+      id: 'active',
+      fingerprint,
+      nextIndex: start,
+      total: bodies.length,
+      updatedAt: nowIso(),
+    });
     logSyncInfo(
-      `Writing ranch database · ${bodies.length} request${bodies.length === 1 ? '' : 's'}`,
+      `Writing ranch database · ${bodies.length} request${bodies.length === 1 ? '' : 's'}` +
+        (start ? ` · skipping ${start} already copied` : ''),
     );
-    for (let index = 0; index < bodies.length; index += 1) {
+    for (let index = start; index < bodies.length; index += 1) {
       const last = index === bodies.length - 1;
       const path = last ? '/v1/sync/snapshot' : '/v1/sync/snapshot?backup=0';
       const label = snapshotChunkLabel(bodies[index]);
@@ -384,7 +421,15 @@ export async function pushToRanchServer(): Promise<{
       logSyncInfo(
         `HTTP ${response.status} · chunk ${index + 1}/${bodies.length} applied ${body.applied ?? 0} (total ${applied})`,
       );
+      await db.ranchPushJobs.put({
+        id: 'active',
+        fingerprint,
+        nextIndex: index + 1,
+        total: bodies.length,
+        updatedAt: nowIso(),
+      });
     }
+    await db.ranchPushJobs.delete('active');
     await ranchFetch(
       `/v1/devices/${encodeURIComponent(settings.deviceId)}`,
       'PUT',

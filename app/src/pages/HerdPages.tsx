@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -14,13 +14,14 @@ import {
   type AnimalStatus,
   type TreatmentRecord,
 } from '../db/schema';
+import { EidCapture } from '../eid/EidCapture';
+import { takeScannedEid } from '../eid/wand';
 import { getLifetime } from '../lib/herd';
 import { COW_SENSE_STATUS, COW_SENSE_TYPE, cowSenseSex, cowSenseStatus } from '../interop/fields';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { IconSearch } from '../ui/icons';
 import { useToast } from '../ui/Toast';
-import { takeScannedEid } from '../eid/wand';
 
 type AnimalTab = 'identity' | 'traits' | 'performance' | 'notes' | 'treatments' | 'history';
 
@@ -38,7 +39,10 @@ function statusLabel(status: AnimalStatus): string {
 }
 
 export function HerdListPage() {
+  const navigate = useNavigate();
+  const toast = useToast();
   const [query, setQuery] = useState('');
+  const [tagEid, setTagEid] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'gone'>('active');
   const animals = useLiveQuery(
     () => db.animals.filter((row) => !row.deletedAt).sortBy('herdId'),
@@ -72,6 +76,14 @@ export function HerdListPage() {
     });
   }, [animals, filter, query]);
 
+  const openFoundAnimal = useCallback(
+    (animal: Animal) => {
+      toast(`That’s ${animal.herdId}`);
+      navigate(`/herd/${encodeURIComponent(animal.herdId)}`);
+    },
+    [navigate, toast],
+  );
+
   return (
     <div className="page">
       <header className="page-header row-between" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
@@ -87,7 +99,7 @@ export function HerdListPage() {
             Import / export
           </Link>
           <Link className="btn secondary" to="/eid">
-            Read EID
+            Find by tag
           </Link>
           <Link className="btn primary" to="/herd/new">
             Add animal
@@ -95,7 +107,7 @@ export function HerdListPage() {
         </div>
       </header>
 
-      <label className="search-wrap" style={{ margin: '1rem 0' }}>
+      <label className="search-wrap" style={{ margin: '1rem 0 0.75rem' }}>
         <span className="sr-only">Search herd</span>
         <IconSearch />
         <input
@@ -108,6 +120,19 @@ export function HerdListPage() {
           spellCheck={false}
         />
       </label>
+
+      <section className="eid-find" aria-label="Find by EID tag">
+        <p className="field-label">Lost a tag?</p>
+        <p className="hint">Photo the disc or scan with the wand to see who it belongs to.</p>
+        <EidCapture
+          variant="lookup"
+          methods={['photo', 'wand']}
+          value={tagEid}
+          onChange={setTagEid}
+          autoOpen
+          onOpenAnimal={openFoundAnimal}
+        />
+      </section>
 
       <Segmented
         ariaLabel="Herd filter"
@@ -427,22 +452,12 @@ export function HerdDetailPage() {
             </div>
             <div className="field">
               <span className="field-label">Electronic ID</span>
-              <div className="eid-field">
-                <input
-                  value={animal.electronicId || ''}
-                  onChange={(e) => patch({ electronicId: e.target.value || undefined })}
-                  inputMode="numeric"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-                <Link
-                  className="btn secondary"
-                  to={`/eid?return=${encodeURIComponent(isNew ? '/herd/new' : `/herd/${encodeURIComponent(animal.herdId || decoded)}`)}`}
-                >
-                  Read tag
-                </Link>
-              </div>
+              <EidCapture
+                variant="fill"
+                value={animal.electronicId || ''}
+                onChange={(eid) => patch({ electronicId: eid.trim() || undefined })}
+                excludeAnimalId={existing?.id ?? animal.id}
+              />
             </div>
             <div className="form-row">
               <Field label="Sire">

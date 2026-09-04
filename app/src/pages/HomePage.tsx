@@ -72,8 +72,8 @@ export function HomePage() {
 
       <section className="quick-grid">
         <Link className="quick-card" to="/eid">
-          <h2>Read EID tag</h2>
-          <p>Photo the yellow disc, or scan with an XRS2i wand</p>
+          <h2>Find a lost tag</h2>
+          <p>Photo or wand an EID to see which animal it belongs to</p>
         </Link>
         <Link className="quick-card" to="/herd">
           <h2>Look up an animal</h2>

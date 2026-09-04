@@ -912,12 +912,38 @@
   }
 
   .eid-panel,
-  .eid-result {
+  .eid-result,
+  .eid-find {
     background: #fff;
     border: 1px solid var(--color-line);
     border-radius: 1rem;
     padding: 1rem 1.05rem;
+  }
+
+  .eid-find {
+    margin: 0 0 1rem;
+  }
+
+  .eid-find .field-label {
+    margin: 0;
+  }
+
+  .eid-find > .hint {
+    margin: 0.2rem 0 0.7rem;
+  }
+
+  .eid-result {
+    margin-top: 0.75rem;
+  }
+
+  .page > .eid-capture {
     margin-top: 1rem;
+  }
+
+  .eid-find .eid-result {
+    border: 0;
+    padding: 0.65rem 0 0;
+    background: transparent;
   }
 
   .eid-panel h2,
@@ -930,26 +956,52 @@
     font-size: 1.25rem;
   }
 
+  .eid-capture {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .eid-capture input:not([type='file']) {
+    width: 100%;
+    min-height: 52px;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.7rem;
+    background: #fff;
+    color: var(--color-ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
+
+  .eid-capture-tools {
+    display: grid;
+    gap: 0.5rem;
+  }
+
   .eid-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
-    margin-top: 0.75rem;
+    margin-top: 0.15rem;
   }
 
   .eid-preview {
     display: block;
     width: 100%;
-    max-width: 280px;
-    margin-top: 0.85rem;
+    max-width: 180px;
+    margin-top: 0.35rem;
     border-radius: 50%;
     border: 1px solid var(--color-line);
     background: #111;
   }
 
+  .eid-capture-fill .eid-preview {
+    max-width: 140px;
+  }
+
   .eid-digits {
     margin: 0.15rem 0 0.5rem;
-    font-size: 1.85rem;
+    font-size: 1.65rem;
     letter-spacing: 0.04em;
     font-variant-numeric: tabular-nums;
   }
@@ -959,21 +1011,12 @@
     letter-spacing: 0.06em;
   }
 
-  .eid-field {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.55rem;
-    align-items: stretch;
+  .eid-owner {
+    margin: 0;
+    font-size: 0.92rem;
   }
 
-  .eid-field .btn {
-    min-height: 52px;
-    white-space: nowrap;
-  }
-
-  @media (max-width: 839px) {
-    .eid-field {
-      grid-template-columns: 1fr;
-    }
+  .eid-owner.warn {
+    color: #8b2e1f;
   }
 }

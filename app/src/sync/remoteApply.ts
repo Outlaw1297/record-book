@@ -6,9 +6,9 @@ import {
 } from '../db/schema';
 import { decideWrite, mergeRemoteSettings, parseJsonl } from './apply';
 import {
+  animalNaturalKey,
   breedingNaturalKey,
   cowCalfNaturalKey,
-  normId,
   pastureAnimalNaturalKey,
   pastureNaturalKey,
   pickIdentityWinner,
@@ -88,103 +88,202 @@ function newest(rows: RecordWithMeta[]): RecordWithMeta | undefined {
   return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
 
+export function naturalKeyFor(
+  entity: RecordEntity,
+  payload: Record<string, unknown> | RecordWithMeta,
+): string | undefined {
+  const row = payload as Record<string, unknown>;
+  switch (entity) {
+    case 'animals': {
+      const herdId = String(row.herdId ?? '');
+      return herdId.trim() ? animalNaturalKey(herdId) : undefined;
+    }
+    case 'cowCalf':
+      return cowCalfNaturalKey({
+        year: Number(row.year),
+        cowId: String(row.cowId ?? ''),
+        calfId: typeof row.calfId === 'string' ? row.calfId : '',
+        openWithoutCalf: Boolean(row.openWithoutCalf),
+      });
+    case 'breeding':
+      return breedingNaturalKey({
+        year: Number(row.year),
+        cowId: String(row.cowId ?? ''),
+        kind: String(row.kind ?? ''),
+      });
+    case 'pastures':
+      return pastureNaturalKey({
+        year: Number(row.year),
+        pastureName: String(row.pastureName ?? ''),
+      });
+    case 'pastureAnimals':
+      return pastureAnimalNaturalKey({
+        exposureId: String(row.exposureId ?? ''),
+        animalHerdId: String(row.animalHerdId ?? ''),
+        role: String(row.role ?? ''),
+      });
+    case 'sales':
+      return saleNaturalKey({
+        year: Number(row.year),
+        calfId: String(row.calfId ?? ''),
+      });
+    case 'treatments':
+      return treatmentNaturalKey({
+        animalHerdId: String(row.animalHerdId ?? ''),
+        date: typeof row.date === 'string' ? row.date : '',
+        product: typeof row.product === 'string' ? row.product : '',
+      });
+  }
+}
+
 async function findNaturalDuplicate(
   entity: RecordEntity,
   payload: Record<string, unknown>,
   remoteId: string,
 ): Promise<RecordWithMeta | undefined> {
-  switch (entity) {
-    case 'animals': {
-      const herdId = String(payload.herdId ?? '');
-      if (!herdId.trim()) return undefined;
-      const key = normId(herdId);
-      const matches = asMeta(
-        await db.animals
-          .filter((row) => row.id !== remoteId && normId(row.herdId) === key)
-          .toArray(),
-      );
-      return newest(matches);
+  const key = naturalKeyFor(entity, payload);
+  if (!key) return undefined;
+  const matches = asMeta(
+    ((await tableFor(entity).filter((row) => row.id !== remoteId).toArray()) as RecordWithMeta[]).filter(
+      (row) => naturalKeyFor(entity, row) === key,
+    ),
+  );
+  return newest(matches);
+}
+
+export type SnapshotConflictLog = {
+  entity: string;
+  entityId: string;
+  kept: 'local' | 'remote';
+  localUpdatedAt?: string;
+  remoteUpdatedAt: string;
+};
+
+export type SnapshotApplyPlan = {
+  puts: RecordWithMeta[];
+  applied: number;
+  conflicts: number;
+  retargets: Array<{ fromId: string; toId: string; at: string }>;
+  conflictLogs: SnapshotConflictLog[];
+};
+
+/** In-memory merge so a 10k-animal ranch copy is O(n), not a table scan per row. */
+export function planSnapshotApply(
+  entity: RecordEntity,
+  localRows: RecordWithMeta[],
+  remoteRows: unknown[],
+  now: string,
+): SnapshotApplyPlan {
+  const byId = new Map<string, RecordWithMeta>();
+  const byKey = new Map<string, RecordWithMeta>();
+  for (const row of localRows) {
+    byId.set(row.id, row);
+    const key = naturalKeyFor(entity, row);
+    if (!key) continue;
+    const prev = byKey.get(key);
+    if (!prev || pickIdentityWinner(prev, row) === 'remote') byKey.set(key, row);
+  }
+
+  const puts: RecordWithMeta[] = [];
+  const retargets: SnapshotApplyPlan['retargets'] = [];
+  const conflictLogs: SnapshotConflictLog[] = [];
+  let applied = 0;
+  let conflicts = 0;
+
+  function write(row: RecordWithMeta): void {
+    puts.push(row);
+    byId.set(row.id, row);
+    const key = naturalKeyFor(entity, row);
+    if (key) byKey.set(key, row);
+  }
+
+  for (const raw of remoteRows) {
+    if (!raw || typeof raw !== 'object' || !('id' in raw)) continue;
+    const record = raw as RecordWithMeta;
+    if (!record.id) continue;
+    const updatedAt = record.updatedAt || now;
+    const localById = byId.get(record.id);
+    const key = naturalKeyFor(entity, record);
+    const keyed = key ? byKey.get(key) : undefined;
+    const duplicate = keyed && keyed.id !== record.id ? keyed : undefined;
+    const candidates = [localById, duplicate].filter(
+      (row, index, rows): row is RecordWithMeta =>
+        Boolean(row) && rows.findIndex((other) => other?.id === row?.id) === index,
+    );
+
+    let bestLocal: RecordWithMeta | undefined;
+    for (const candidate of candidates) {
+      if (!bestLocal) bestLocal = candidate;
+      else if (pickIdentityWinner(bestLocal, candidate) === 'remote') bestLocal = candidate;
     }
-    case 'cowCalf': {
-      const key = cowCalfNaturalKey({
-        year: Number(payload.year),
-        cowId: String(payload.cowId ?? ''),
-        calfId: typeof payload.calfId === 'string' ? payload.calfId : '',
-        openWithoutCalf: Boolean(payload.openWithoutCalf),
-      });
-      const matches = asMeta(
-        await db.cowCalf
-          .filter((row) => row.id !== remoteId && cowCalfNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
+
+    if (bestLocal && bestLocal.id === record.id && bestLocal.updatedAt === updatedAt) {
+      applied += 1;
+      continue;
     }
-    case 'breeding': {
-      const key = breedingNaturalKey({
-        year: Number(payload.year),
-        cowId: String(payload.cowId ?? ''),
-        kind: String(payload.kind ?? ''),
+
+    const remoteMeta = { id: record.id, updatedAt };
+    if (bestLocal && pickIdentityWinner(bestLocal, remoteMeta) === 'local') {
+      conflicts += 1;
+      conflictLogs.push({
+        entity,
+        entityId: record.id,
+        kept: 'local',
+        localUpdatedAt: bestLocal.updatedAt,
+        remoteUpdatedAt: updatedAt,
       });
-      const matches = asMeta(
-        await db.breeding
-          .filter((row) => row.id !== remoteId && breedingNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
+      for (const candidate of candidates) {
+        if (candidate.id !== bestLocal.id) {
+          write({
+            ...candidate,
+            updatedAt: bestLocal.updatedAt,
+            deletedAt: candidate.deletedAt ?? bestLocal.updatedAt,
+          });
+        }
+      }
+      continue;
     }
-    case 'pastures': {
-      const key = pastureNaturalKey({
-        year: Number(payload.year),
-        pastureName: String(payload.pastureName ?? ''),
+
+    const hadDifferentLocal =
+      Boolean(bestLocal?.updatedAt) && bestLocal?.updatedAt !== updatedAt;
+    const next: RecordWithMeta = record.deletedAt
+      ? {
+          ...(bestLocal ?? { id: record.id, updatedAt }),
+          ...record,
+          id: record.id,
+          updatedAt,
+          deletedAt: record.deletedAt || updatedAt,
+        }
+      : { ...record, id: record.id, updatedAt };
+    write(next);
+
+    for (const candidate of candidates) {
+      if (candidate.id === record.id) continue;
+      if (entity === 'pastures') {
+        retargets.push({ fromId: candidate.id, toId: record.id, at: updatedAt });
+      }
+      write({
+        ...candidate,
+        updatedAt,
+        deletedAt: candidate.deletedAt ?? updatedAt,
       });
-      const matches = asMeta(
-        await db.pastures
-          .filter((row) => row.id !== remoteId && pastureNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
     }
-    case 'pastureAnimals': {
-      const key = pastureAnimalNaturalKey({
-        exposureId: String(payload.exposureId ?? ''),
-        animalHerdId: String(payload.animalHerdId ?? ''),
-        role: String(payload.role ?? ''),
+
+    if (hadDifferentLocal) {
+      conflicts += 1;
+      conflictLogs.push({
+        entity,
+        entityId: record.id,
+        kept: 'remote',
+        localUpdatedAt: bestLocal?.updatedAt,
+        remoteUpdatedAt: updatedAt,
       });
-      const matches = asMeta(
-        await db.pastureAnimals
-          .filter(
-            (row) => row.id !== remoteId && pastureAnimalNaturalKey(row) === key,
-          )
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'sales': {
-      const key = saleNaturalKey({
-        year: Number(payload.year),
-        calfId: String(payload.calfId ?? ''),
-      });
-      const matches = asMeta(
-        await db.sales
-          .filter((row) => row.id !== remoteId && saleNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'treatments': {
-      const key = treatmentNaturalKey({
-        animalHerdId: String(payload.animalHerdId ?? ''),
-        date: typeof payload.date === 'string' ? payload.date : '',
-        product: typeof payload.product === 'string' ? payload.product : '',
-      });
-      const matches = asMeta(
-        await db.treatments
-          .filter((row) => row.id !== remoteId && treatmentNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
+    } else {
+      applied += 1;
     }
   }
+
+  return { puts, applied, conflicts, retargets, conflictLogs };
 }
 
 async function tombstone(
@@ -406,26 +505,28 @@ export async function applyRemoteFile(
   return { applied, conflicts };
 }
 
+const SNAPSHOT_PUT_CHUNK = 400;
+
 export async function applySnapshotRows(
   entity: RecordEntity,
   rows: unknown[],
 ): Promise<{ applied: number; conflicts: number }> {
-  let applied = 0;
-  let conflicts = 0;
-  for (const row of rows) {
-    if (!row || typeof row !== 'object' || !('id' in row)) continue;
-    const record = row as RecordWithMeta;
-    const result = await applyRemoteChange({
-      v: 1,
-      deviceId: 'snapshot',
-      entity,
-      entityId: record.id,
-      op: record.deletedAt ? 'delete' : 'upsert',
-      updatedAt: record.updatedAt || nowIso(),
-      payload: record,
-    });
-    if (result === 'applied') applied += 1;
-    if (result === 'conflict') conflicts += 1;
+  const table = tableFor(entity) as unknown as {
+    toArray: () => Promise<RecordWithMeta[]>;
+    bulkPut: (items: RecordWithMeta[]) => Promise<unknown>;
+  };
+  const localRows = asMeta(await table.toArray());
+  const plan = planSnapshotApply(entity, localRows, rows, nowIso());
+  for (let index = 0; index < plan.puts.length; index += SNAPSHOT_PUT_CHUNK) {
+    await table.bulkPut(plan.puts.slice(index, index + SNAPSHOT_PUT_CHUNK));
   }
-  return { applied, conflicts };
+  if (entity === 'pastures') {
+    for (const move of plan.retargets) {
+      await retargetPastureAnimals(move.fromId, move.toId, move.at);
+    }
+  }
+  for (const item of plan.conflictLogs) {
+    await logConflict(item);
+  }
+  return { applied: plan.applied, conflicts: plan.conflicts };
 }

@@ -72,9 +72,14 @@ describe('looksLikeLanUrl', () => {
 });
 
 describe('ranchRequestInit', () => {
-  it('does not let the phone reuse a cached ranch export', () => {
-    expect(ranchRequestInit('GET').cache).toBe('no-store');
-    expect(ranchRequestInit('POST', '{}').cache).toBe('no-store');
+  it('omits cache headers that ranch OPTIONS does not allow', () => {
+    const getInit = ranchRequestInit('GET');
+    const postInit = ranchRequestInit('POST', '{}');
+    expect(getInit.cache).toBeUndefined();
+    expect(postInit.cache).toBeUndefined();
+    expect(new Headers(getInit.headers).has('Cache-Control')).toBe(false);
+    expect(new Headers(getInit.headers).has('Pragma')).toBe(false);
+    expect(new Headers(postInit.headers).get('Content-Type')).toBe('application/json');
   });
 });
 

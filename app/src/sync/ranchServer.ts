@@ -58,10 +58,7 @@ export function joinRanchApiBase(raw: string, origin: string): string {
 }
 
 function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Cache-Control': 'no-store',
-    Pragma: 'no-cache',
-  };
+  const headers: Record<string, string> = {};
   if (method !== 'GET') headers['Content-Type'] = 'application/json';
   const key = getRanchApiKey();
   if (key) headers.Authorization = `Bearer ${key}`;
@@ -72,13 +69,15 @@ function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'G
   return appFetch(ranchUrl(path), ranchRequestInit(method, body));
 }
 
+// Chromium fetch CORS-preflights Cache-Control/Pragma. Ranch OPTIONS only
+// allows Authorization, Content-Type, and X-Api-Key. cache:'no-store' adds
+// the same headers, so omit it or preflight fails from https://localhost.
 export function ranchRequestInit(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   body?: string,
 ): RequestInit {
   return {
     method,
-    cache: 'no-store',
     headers: ranchHeaders(method),
     body,
   };

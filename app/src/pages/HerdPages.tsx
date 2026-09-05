@@ -18,9 +18,7 @@ import {
 import { EidCapture } from '../eid/EidCapture';
 import { takeScannedEid } from '../eid/wand';
 import {
-  BODY_CONDITION_CHOICES,
   BREED_CHOICES,
-  CHUTE_SCORE_CHOICES,
   COLOR_CHOICES,
   TAG_COLOR_CHOICES,
   TATTOO_LOC_CHOICES,
@@ -31,20 +29,22 @@ import {
 } from '../lib/choices';
 import { getLifetime, listHerdIds } from '../lib/herd';
 import { uniqueYears } from '../lib/year';
-import { COW_SENSE_STATUS, COW_SENSE_TYPE, cowSenseSex, cowSenseStatus } from '../interop/fields';
+import { cowSenseStatus } from '../interop/fields';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
 import { RecordToolbar, matchesQuery } from '../ui/RecordToolbar';
 import { SuggestSelect } from '../ui/SuggestSelect';
+import {
+  AnimalRecordFields,
+  ANIMAL_FIELD_TABS,
+  type AnimalFieldTab,
+} from '../ui/AnimalRecordFields';
 import { useToast } from '../ui/Toast';
 
-type AnimalTab = 'identity' | 'traits' | 'performance' | 'notes' | 'treatments' | 'history';
+type AnimalTab = AnimalFieldTab | 'treatments' | 'history';
 
 const TABS: Array<{ id: AnimalTab; label: string }> = [
-  { id: 'identity', label: 'Identity' },
-  { id: 'traits', label: 'Traits' },
-  { id: 'performance', label: 'Performance' },
-  { id: 'notes', label: 'Notes' },
+  ...ANIMAL_FIELD_TABS,
   { id: 'treatments', label: 'Treatments' },
   { id: 'history', label: 'History' },
 ];
@@ -409,8 +409,6 @@ export function HerdDetailPage() {
     toast('Treatment saved');
   }
 
-  const sexWord = cowSenseSex(animal.sex, animal.animalType) || '';
-
   return (
     <div className="page">
       <header className="page-header">
@@ -436,344 +434,23 @@ export function HerdDetailPage() {
       </nav>
 
       <form className="form" onSubmit={onSubmit}>
-        {tab === 'identity' ? (
-          <>
-            <Field label="Visual ID" error={error && !animal.herdId.trim() ? error : undefined}>
-              <input
-                value={animal.herdId}
-                onChange={(e) => patch({ herdId: e.target.value })}
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                required
-              />
-            </Field>
-            <div className="form-row">
-              <Field label="Sex">
-                <select
-                  value={sexWord}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const next: Partial<Animal> = {
-                      sex: value === 'Cow' || value === 'Heifer' ? 'F' : value ? 'M' : '',
-                    };
-                    if (value === 'Cow' && !animal.animalType) next.animalType = 'Cow';
-                    if (value === 'Steer') next.animalType = animal.animalType || 'Steer';
-                    patch(next);
-                  }}
-                >
-                  <option value="">Select</option>
-                  <option value="Heifer">Heifer</option>
-                  <option value="Cow">Cow</option>
-                  <option value="Bull">Bull</option>
-                  <option value="Steer">Steer</option>
-                </select>
-              </Field>
-              <Field label="Type">
-                <select
-                  value={animal.animalType || ''}
-                  onChange={(e) => patch({ animalType: e.target.value })}
-                >
-                  <option value="">Select</option>
-                  {animal.animalType &&
-                  !(COW_SENSE_TYPE as readonly string[]).includes(animal.animalType) ? (
-                    <option value={animal.animalType}>{animal.animalType}</option>
-                  ) : null}
-                  {COW_SENSE_TYPE.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <Field label="Status">
-              <select
-                value={cowSenseStatus(animal.status)}
-                onChange={(e) => {
-                  const value = e.target.value as (typeof COW_SENSE_STATUS)[number];
-                  const map: Record<string, AnimalStatus> = {
-                    Active: 'active',
-                    Sold: 'sold',
-                    Dead: 'dead',
-                    Culled: 'culled',
-                    Disposed: 'culled',
-                    Reference: 'reference',
-                    Open: 'open',
-                  };
-                  patch({ status: map[value] || 'active' });
-                }}
-              >
-                {COW_SENSE_STATUS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="form-row">
-              <Field label="Birth date">
-                <input
-                  type="date"
-                  value={animal.birthDate || ''}
-                  onChange={(e) =>
-                    patch({
-                      birthDate: e.target.value || undefined,
-                      yearBorn: e.target.value
-                        ? Number(e.target.value.slice(0, 4))
-                        : animal.yearBorn,
-                    })
-                  }
-                />
-              </Field>
-              <Field label="Birth year">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={animal.yearBorn ?? ''}
-                  onChange={(e) =>
-                    patch({ yearBorn: e.target.value ? Number(e.target.value) : undefined })
-                  }
-                />
-              </Field>
-            </div>
-            <div className="form-row">
-              <SuggestSelect
-                label="Location"
-                value={animal.location || ''}
-                onChange={(value) => patch({ location: value || undefined })}
-                options={locationOptions}
-              />
-              <SuggestSelect
-                label="Group"
-                value={animal.groupName || ''}
-                onChange={(value) => patch({ groupName: value || undefined })}
-                options={groupOptions}
-              />
-            </div>
-            <div className="field">
-              <span className="field-label">Electronic ID</span>
-              <EidCapture
-                variant="fill"
-                value={animal.electronicId || ''}
-                onChange={(eid) => patch({ electronicId: eid.trim() || undefined })}
-                excludeAnimalId={existing?.id ?? animal.id}
-              />
-            </div>
-            <div className="form-row">
-              <Field label="Sire">
-                <input
-                  value={animal.sireId || ''}
-                  onChange={(e) => patch({ sireId: e.target.value || undefined })}
-                  list="herd-ids"
-                  autoCapitalize="characters"
-                />
-              </Field>
-              <Field label="Dam">
-                <input
-                  value={animal.damId || ''}
-                  onChange={(e) => patch({ damId: e.target.value || undefined })}
-                  list="herd-ids"
-                  autoCapitalize="characters"
-                />
-              </Field>
-            </div>
-            <datalist id="herd-ids">
-              {(herdIds ?? []).map((id) => (
-                <option key={id} value={id} />
-              ))}
-            </datalist>
-            <Field label="Name">
-              <input
-                value={animal.name || ''}
-                onChange={(e) => patch({ name: e.target.value || undefined })}
-              />
-            </Field>
-            <div className="form-row">
-              <Field label="Registration - Primary">
-                <input
-                  value={animal.registration || ''}
-                  onChange={(e) => patch({ registration: e.target.value || undefined })}
-                />
-              </Field>
-              <Field label="Tattoo 1">
-                <input
-                  value={animal.tattoo || ''}
-                  onChange={(e) => patch({ tattoo: e.target.value || undefined })}
-                />
-              </Field>
-            </div>
-            <div className="form-row">
-              <SuggestSelect
-                label="Tattoo 1 Loc"
-                value={animal.tattooLoc || ''}
-                onChange={(value) => patch({ tattooLoc: value || undefined })}
-                options={tattooLocOptions}
-                autoCapitalize="characters"
-              />
-              <Field label="Brand">
-                <input
-                  value={animal.brand || ''}
-                  onChange={(e) => patch({ brand: e.target.value || undefined })}
-                />
-              </Field>
-            </div>
-          </>
-        ) : null}
-
-        {tab === 'traits' ? (
-          <>
-            <div className="form-row">
-              <SuggestSelect
-                label="Color"
-                value={animal.color || ''}
-                onChange={(value) => patch({ color: value || undefined })}
-                options={colorOptions}
-              />
-              <SuggestSelect
-                label="Breed 1"
-                value={animal.breed || ''}
-                onChange={(value) => patch({ breed: value || undefined })}
-                options={breedOptions}
-              />
-            </div>
-            <div className="form-row">
-              <Field label="Horn Code">
-                <select
-                  value={animal.horned || ''}
-                  onChange={(e) => patch({ horned: e.target.value || undefined })}
-                >
-                  <option value="">Select</option>
-                  <option value="Horned">Horned</option>
-                  <option value="Polled">Polled</option>
-                  <option value="Scurred">Scurred</option>
-                </select>
-              </Field>
-              <Field label="Twin Code">
-                <select
-                  value={animal.birthType || ''}
-                  onChange={(e) => patch({ birthType: e.target.value || undefined })}
-                >
-                  <option value="">Select</option>
-                  <option value="Single">Single</option>
-                  <option value="Twin to heifer calf">Twin to heifer calf</option>
-                  <option value="Twin to a bull calf">Twin to a bull calf</option>
-                  <option value="Multiple Birth">Multiple Birth</option>
-                </select>
-              </Field>
-            </div>
-            <Field label="Calving Ease">
-              <select
-                value={animal.calvingEase || ''}
-                onChange={(e) => patch({ calvingEase: e.target.value || undefined })}
-              >
-                <option value="">Select</option>
-                <option value="No difficulty - no assistance">No difficulty - no assistance</option>
-                <option value="Minor difficulty - some assistance">
-                  Minor difficulty - some assistance
-                </option>
-                <option value="Major difficulty - mechanical assistance">
-                  Major difficulty - mechanical assistance
-                </option>
-                <option value="Cesarean section or other surgery">
-                  Cesarean section or other surgery
-                </option>
-                <option value="Abnormal presentation">Abnormal presentation</option>
-              </select>
-            </Field>
-            <Field label="Service Type">
-              <select
-                value={animal.serviceType || ''}
-                onChange={(e) => patch({ serviceType: e.target.value || undefined })}
-              >
-                <option value="">Select</option>
-                <option value="Natural">Natural</option>
-                <option value="AI">AI</option>
-                <option value="ET">ET</option>
-              </select>
-            </Field>
-            <div className="form-row">
-              <SuggestSelect
-                label="Chute Score"
-                value={animal.disposition || ''}
-                onChange={(value) => patch({ disposition: value || undefined })}
-                options={CHUTE_SCORE_CHOICES}
-                allowOther={false}
-              />
-              <SuggestSelect
-                label="Body Condition"
-                value={animal.bodyCondition || ''}
-                onChange={(value) => patch({ bodyCondition: value || undefined })}
-                options={BODY_CONDITION_CHOICES}
-                allowOther={false}
-              />
-            </div>
-            <Field label="Identity comment / phenotype">
-              <input
-                value={animal.phenotype || ''}
-                onChange={(e) => patch({ phenotype: e.target.value || undefined })}
-              />
-            </Field>
-            <SuggestSelect
-              label="Tag color"
-              value={animal.tagColor || ''}
-              onChange={(value) => patch({ tagColor: value || undefined })}
-              options={tagColorOptions}
-            />
-          </>
-        ) : null}
-
-        {tab === 'performance' ? (
-          <>
-            <Field label="Birth weight">
-              <input
-                value={animal.birthWeight || ''}
-                onChange={(e) => patch({ birthWeight: e.target.value || undefined })}
-                inputMode="decimal"
-              />
-            </Field>
-            <div className="form-row">
-              <Field label="Weaning weight">
-                <input
-                  value={animal.weaningWeight || ''}
-                  onChange={(e) => patch({ weaningWeight: e.target.value || undefined })}
-                  inputMode="decimal"
-                />
-              </Field>
-              <Field label="Weaning date">
-                <input
-                  type="date"
-                  value={animal.weaningDate || ''}
-                  onChange={(e) => patch({ weaningDate: e.target.value || undefined })}
-                />
-              </Field>
-            </div>
-            <div className="form-row">
-              <Field label="Yearling weight">
-                <input
-                  value={animal.yearlingWeight || ''}
-                  onChange={(e) => patch({ yearlingWeight: e.target.value || undefined })}
-                  inputMode="decimal"
-                />
-              </Field>
-              <Field label="Yearling date">
-                <input
-                  type="date"
-                  value={animal.yearlingDate || ''}
-                  onChange={(e) => patch({ yearlingDate: e.target.value || undefined })}
-                />
-              </Field>
-            </div>
-          </>
-        ) : null}
-
-        {tab === 'notes' ? (
-          <Field label="Notes">
-            <textarea
-              value={animal.notes || ''}
-              onChange={(e) => patch({ notes: e.target.value || undefined })}
-            />
-          </Field>
+        {tab === 'identity' || tab === 'traits' || tab === 'performance' || tab === 'notes' ? (
+          <AnimalRecordFields
+            animal={animal}
+            patch={patch}
+            tab={tab}
+            error={error}
+            herdIds={herdIds ?? []}
+            options={{
+              location: locationOptions,
+              group: groupOptions,
+              color: colorOptions,
+              breed: breedOptions,
+              tagColor: tagColorOptions,
+              tattooLoc: tattooLocOptions,
+            }}
+            excludeAnimalId={existing?.id ?? animal.id}
+          />
         ) : null}
 
         {error && tab === 'identity' ? <p className="field-error">{error}</p> : null}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinRanchApiBase, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies } from './ranchServer';
+import { joinRanchApiBase, looksLikeLanUrl, ranchHttpDetail, ranchRequestInit, ranchUnreachableDetail, chunkList, snapshotChunkLabel, snapshotPushBodies } from './ranchServer';
 
 describe('joinRanchApiBase', () => {
   it('turns a same-origin /api path into an absolute URL', () => {
@@ -26,21 +26,48 @@ describe('joinRanchApiBase', () => {
 });
 
 describe('ranchUnreachableDetail', () => {
-  const health = 'http://nas:8180/api/health';
+  const lanHealth = 'http://nas:8180/api/health';
+  const publicHealth = 'http://herdledger.flyingjranch.me/api/health';
 
-  it('turns Failed to fetch into a ranch Wi-Fi check', () => {
-    expect(ranchUnreachableDetail(new Error('Failed to fetch'), health)).toContain(
-      health,
+  it('turns Failed to fetch into a ranch Wi-Fi check on a LAN URL', () => {
+    expect(ranchUnreachableDetail(new Error('Failed to fetch'), lanHealth)).toContain(
+      lanHealth,
     );
-    expect(ranchUnreachableDetail(new Error('Failed to fetch'), health)).toContain(
+    expect(ranchUnreachableDetail(new Error('Failed to fetch'), lanHealth)).toContain(
       'Stay on ranch Wi-Fi',
     );
   });
 
+  it('does not tell you to stay on ranch Wi-Fi for a public ranch host', () => {
+    const detail = ranchUnreachableDetail(new Error('Failed to fetch'), publicHealth);
+    expect(detail).toContain(publicHealth);
+    expect(detail).not.toContain('Stay on ranch Wi-Fi');
+  });
+
+  it('explains a DNS miss without hiding the health URL', () => {
+    const detail = ranchUnreachableDetail(
+      new Error('Unable to resolve host "api.dropboxapi.com": No address associated with hostname'),
+      publicHealth,
+    );
+    expect(detail).toMatch(/look up the ranch host/i);
+    expect(detail).toContain(publicHealth);
+  });
+
   it('keeps a specific HTTP error message', () => {
-    expect(ranchUnreachableDetail(new Error('Ranch API 503'), health)).toBe(
+    expect(ranchUnreachableDetail(new Error('Ranch API 503'), lanHealth)).toBe(
       'Ranch API 503',
     );
+  });
+});
+
+describe('looksLikeLanUrl', () => {
+  it('treats NAS names and private IPs as LAN', () => {
+    expect(looksLikeLanUrl('http://nas:8180/api/health')).toBe(true);
+    expect(looksLikeLanUrl('http://192.168.1.10:8180/api/health')).toBe(true);
+  });
+
+  it('treats a public ranch hostname as not LAN', () => {
+    expect(looksLikeLanUrl('http://herdledger.flyingjranch.me/api/health')).toBe(false);
   });
 });
 

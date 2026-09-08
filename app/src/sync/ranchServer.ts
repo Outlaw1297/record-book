@@ -3,6 +3,7 @@ import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
+import { appFetch, isDnsFailure, isNetworkFailure } from './appFetch';
 import {
   clearSyncProgress,
   logSyncError,
@@ -68,7 +69,7 @@ function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record
 }
 
 function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: string) {
-  return fetch(ranchUrl(path), ranchRequestInit(method, body));
+  return appFetch(ranchUrl(path), ranchRequestInit(method, body));
 }
 
 export function ranchRequestInit(
@@ -99,16 +100,32 @@ export function ranchUrl(path: string): string {
   return `${base}${suffix}`;
 }
 
+export function looksLikeLanUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === 'nas' ||
+      host.endsWith('.local') ||
+      host.endsWith('.lan') ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)
+    );
+  } catch {
+    return true;
+  }
+}
+
 export function ranchUnreachableDetail(error: unknown, healthUrl: string): string {
   const check = healthUrl || `${RANCH_LAN_API_PLACEHOLDER}/health`;
   const raw = error instanceof Error ? error.message.trim() : '';
-  const blocked =
-    !raw ||
-    /failed to fetch|networkerror|load failed|not fetched|err_cleartext|err_failed|err_connection/i.test(
-      raw,
-    );
-  if (blocked) {
-    return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
+  if (isDnsFailure(error)) {
+    return `Could not look up the ranch host. Open ${check} in this phone’s browser (it should show {"ok":true}), then tap Sync again.`;
+  }
+  if (!raw || isNetworkFailure(error)) {
+    if (looksLikeLanUrl(check)) {
+      return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
+    }
+    return `Could not reach the ranch. Open ${check} in this phone’s browser. It should show {"ok":true}. Then tap Sync.`;
   }
   return raw;
 }

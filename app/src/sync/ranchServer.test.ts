@@ -53,6 +53,12 @@ describe('ranchUnreachableDetail', () => {
     expect(detail).toContain(publicHealth);
   });
 
+  it('explains a hung read that was aborted', () => {
+    const abort = new Error('The user aborted a request.');
+    abort.name = 'AbortError';
+    expect(ranchUnreachableDetail(abort, publicHealth)).toMatch(/did not finish/i);
+  });
+
   it('keeps a specific HTTP error message', () => {
     expect(ranchUnreachableDetail(new Error('Ranch API 503'), lanHealth)).toBe(
       'Ranch API 503',

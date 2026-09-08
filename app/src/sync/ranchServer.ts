@@ -307,11 +307,11 @@ export async function probeRanchServer(): Promise<{ ok: boolean; detail: string 
     return { ok: false, detail: 'Enter the ranch API URL first.' };
   }
   try {
-    const health = await ranchFetch('/health');
+    const health = await ranchFetch('/health', 'GET', undefined, RANCH_HEALTH_MS);
     if (!health.ok) {
       return { ok: false, detail: `Ranch API health check failed (${health.status}).` };
     }
-    const catalog = await ranchFetch('/v1');
+    const catalog = await ranchFetch('/v1', 'GET', undefined, RANCH_HEALTH_MS);
     if (catalog.status === 401) {
       return { ok: false, detail: 'Ranch API key was rejected.' };
     }

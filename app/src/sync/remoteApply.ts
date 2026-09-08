@@ -468,11 +468,13 @@ export function naturalKeyFromRecord(
   return null;
 }
 
-function preferKeyHolder(a: RecordWithMeta, b: RecordWithMeta): RecordWithMeta {
-  if (a.deletedAt && !b.deletedAt) return b;
-  if (b.deletedAt && !a.deletedAt) return a;
-  return pickIdentityWinner(a, b) === 'remote' ? b : a;
-}
+export type SnapshotOverlap = {
+  entity: string;
+  entityId: string;
+  kept: 'local' | 'remote';
+  localUpdatedAt?: string;
+  remoteUpdatedAt: string;
+};
 
 export function planSnapshotMerge(
   entity: RecordEntity,
@@ -483,15 +485,17 @@ export function planSnapshotMerge(
   retargets: Array<{ fromId: string; toId: string; at: string }>;
   applied: number;
   conflicts: number;
+  loggedConflicts: SnapshotOverlap[];
 } {
   const byId = new Map<string, RecordWithMeta>();
-  const byKey = new Map<string, RecordWithMeta>();
+  const byKey = new Map<string, Map<string, RecordWithMeta>>();
 
   const indexKey = (record: RecordWithMeta) => {
     const key = naturalKeyFromRecord(entity, record as Record<string, unknown>);
     if (!key) return;
-    const existing = byKey.get(key);
-    byKey.set(key, existing ? preferKeyHolder(existing, record) : record);
+    const group = byKey.get(key) ?? new Map<string, RecordWithMeta>();
+    group.set(record.id, record);
+    byKey.set(key, group);
   };
 
   for (const local of locals) {
@@ -501,6 +505,7 @@ export function planSnapshotMerge(
 
   const putsById = new Map<string, RecordWithMeta>();
   const retargets: Array<{ fromId: string; toId: string; at: string }> = [];
+  const loggedConflicts: SnapshotOverlap[] = [];
   let applied = 0;
   let conflicts = 0;
 
@@ -518,6 +523,20 @@ export function planSnapshotMerge(
     });
   };
 
+  const retireOthers = (
+    candidates: RecordWithMeta[],
+    remoteId: string,
+    at: string,
+  ) => {
+    for (const candidate of candidates) {
+      if (candidate.id === remoteId) continue;
+      if (entity === 'pastures') {
+        retargets.push({ fromId: candidate.id, toId: remoteId, at });
+      }
+      tombstoneLocal(candidate, at);
+    }
+  };
+
   for (const row of remotes) {
     if (!row || typeof row !== 'object' || !('id' in row)) continue;
     const remote = row as RecordWithMeta;
@@ -529,10 +548,12 @@ export function planSnapshotMerge(
       op === 'upsert'
         ? naturalKeyFromRecord(entity, remote as Record<string, unknown>)
         : null;
-    const duplicate = remoteKey ? byKey.get(remoteKey) : undefined;
-    const duplicateIfOther =
-      duplicate && duplicate.id !== remote.id ? duplicate : undefined;
-    const candidates = [localById, duplicateIfOther].filter(
+    const others = remoteKey
+      ? [...(byKey.get(remoteKey)?.values() ?? [])].filter(
+          (candidate) => candidate.id !== remote.id,
+        )
+      : [];
+    const candidates = [localById, ...others].filter(
       (candidate, index, rows): candidate is RecordWithMeta =>
         Boolean(candidate) &&
         rows.findIndex((other) => other?.id === candidate?.id) === index,
@@ -552,11 +573,19 @@ export function planSnapshotMerge(
       bestLocal.id === remote.id &&
       bestLocal.updatedAt === updatedAt
     ) {
+      retireOthers(candidates, remote.id, updatedAt);
       applied += 1;
       continue;
     }
     if (bestLocal && pickIdentityWinner(bestLocal, remoteMeta) === 'local') {
       conflicts += 1;
+      loggedConflicts.push({
+        entity,
+        entityId: remote.id,
+        kept: 'local',
+        localUpdatedAt: bestLocal.updatedAt,
+        remoteUpdatedAt: updatedAt,
+      });
       for (const candidate of candidates) {
         if (candidate.id !== bestLocal.id) {
           tombstoneLocal(candidate, bestLocal.updatedAt);
@@ -580,19 +609,27 @@ export function planSnapshotMerge(
       queuePut({ ...remote, id: remote.id, updatedAt });
     }
 
-    for (const candidate of candidates) {
-      if (candidate.id === remote.id) continue;
-      if (entity === 'pastures') {
-        retargets.push({ fromId: candidate.id, toId: remote.id, at: updatedAt });
-      }
-      tombstoneLocal(candidate, updatedAt);
-    }
+    retireOthers(candidates, remote.id, updatedAt);
 
-    if (hadDifferentLocal) conflicts += 1;
-    else applied += 1;
+    if (hadDifferentLocal) {
+      conflicts += 1;
+      loggedConflicts.push({
+        entity,
+        entityId: remote.id,
+        kept: 'remote',
+        localUpdatedAt: bestLocal?.updatedAt,
+        remoteUpdatedAt: updatedAt,
+      });
+    } else applied += 1;
   }
 
-  return { puts: [...putsById.values()], retargets, applied, conflicts };
+  return {
+    puts: [...putsById.values()],
+    retargets,
+    applied,
+    conflicts,
+    loggedConflicts,
+  };
 }
 
 export async function applySnapshotRows(
@@ -619,6 +656,16 @@ export async function applySnapshotRows(
   }
   for (const retarget of planned.retargets) {
     await retargetPastureAnimals(retarget.fromId, retarget.toId, retarget.at);
+  }
+  if (planned.loggedConflicts.length > 0) {
+    const createdAt = nowIso();
+    await db.syncConflicts.bulkPut(
+      planned.loggedConflicts.map((overlap) => ({
+        ...overlap,
+        id: newId(),
+        createdAt,
+      })),
+    );
   }
   return { applied: planned.applied, conflicts: planned.conflicts };
 }

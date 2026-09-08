@@ -49,6 +49,15 @@ describe('planSnapshotMerge', () => {
     expect(planned.puts).toEqual([]);
     expect(planned.conflicts).toBe(1);
     expect(planned.applied).toBe(0);
+    expect(planned.loggedConflicts).toEqual([
+      {
+        entity: 'animals',
+        entityId: 'a1',
+        kept: 'local',
+        localUpdatedAt: local.updatedAt,
+        remoteUpdatedAt: remote.updatedAt,
+      },
+    ]);
   });
 
   it('replaces an older same-id local row', () => {
@@ -63,6 +72,15 @@ describe('planSnapshotMerge', () => {
     expect(planned.puts).toEqual([remote]);
     expect(planned.conflicts).toBe(1);
     expect(planned.applied).toBe(0);
+    expect(planned.loggedConflicts).toEqual([
+      {
+        entity: 'animals',
+        entityId: 'a1',
+        kept: 'remote',
+        localUpdatedAt: local.updatedAt,
+        remoteUpdatedAt: remote.updatedAt,
+      },
+    ]);
   });
 
   it('tombstones a natural-key duplicate when the ranch row wins', () => {
@@ -74,6 +92,95 @@ describe('planSnapshotMerge', () => {
     expect(kept).toEqual(remote);
     expect(tombstone?.deletedAt).toBe('2026-02-01T00:00:00.000Z');
     expect(planned.conflicts).toBe(1);
+    expect(planned.loggedConflicts).toEqual([
+      {
+        entity: 'animals',
+        entityId: 'ranch',
+        kept: 'remote',
+        localUpdatedAt: local.updatedAt,
+        remoteUpdatedAt: remote.updatedAt,
+      },
+    ]);
+  });
+
+  it('tombstones leftover locals that share a natural key with a saved ranch id', () => {
+    const ranch = {
+      id: 'ranch',
+      herdId: '42',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const extra = {
+      id: 'phone',
+      herdId: '42',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const remote = {
+      id: 'ranch',
+      herdId: '42',
+      name: 'Belle',
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    };
+    const planned = planSnapshotMerge('animals', [ranch, extra], [remote]);
+    expect(planned.puts.find((row) => row.id === 'ranch')).toEqual(remote);
+    expect(planned.puts.find((row) => row.id === 'phone')?.deletedAt).toBe(
+      remote.updatedAt,
+    );
+  });
+
+  it('tombstones every extra natural-key row, even when the ranch id is already current', () => {
+    const ranch = {
+      id: 'ranch',
+      herdId: '42',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const extraNewer = {
+      id: 'phone1',
+      herdId: '42',
+      updatedAt: '2026-01-15T00:00:00.000Z',
+    };
+    const extraOlder = {
+      id: 'phone2',
+      herdId: '42',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const planned = planSnapshotMerge(
+      'animals',
+      [ranch, extraNewer, extraOlder],
+      [ranch],
+    );
+    expect(planned.puts.find((row) => row.id === 'ranch')).toBeUndefined();
+    expect(planned.puts.find((row) => row.id === 'phone1')?.deletedAt).toBe(
+      ranch.updatedAt,
+    );
+    expect(planned.puts.find((row) => row.id === 'phone2')?.deletedAt).toBe(
+      ranch.updatedAt,
+    );
+  });
+
+  it('retargets leftover pastures that share a year and name with the ranch id', () => {
+    const ranch = {
+      id: 'ranch',
+      year: 2026,
+      pastureName: 'North',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const extra = {
+      id: 'old',
+      year: 2026,
+      pastureName: 'North',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const remote = {
+      ...ranch,
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    };
+    const planned = planSnapshotMerge('pastures', [ranch, extra], [remote]);
+    expect(planned.retargets).toEqual([
+      { fromId: 'old', toId: 'ranch', at: remote.updatedAt },
+    ]);
+    expect(planned.puts.find((row) => row.id === 'old')?.deletedAt).toBe(
+      remote.updatedAt,
+    );
   });
 
   it('retargets pasture animals when a pasture id changes', () => {

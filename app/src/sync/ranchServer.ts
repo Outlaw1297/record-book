@@ -1,6 +1,6 @@
 import { DEFAULT_RANCH_NAME } from '../brand';
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
-import { buildSnapshot, mergeSnapshot } from './snapshot';
+import { buildSnapshot, mergeSnapshot, snapshotRowCount } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
 import {
@@ -248,14 +248,28 @@ export async function pullFromRanchServer(): Promise<{
       phase: 'ranch-pull',
       current: 0,
       total: 1,
-      label: 'Saving ranch database',
+      label: 'Unpacking ranch database',
     });
     const snapshot = asHerdSnapshot(await response.json().catch(() => null));
     if (!snapshot) {
       logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');
       return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
     }
-    const merged = await mergeSnapshot(snapshot);
+    const total = Math.max(snapshotRowCount(snapshot), 1);
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total,
+      label: 'Saving ranch database',
+    });
+    const merged = await mergeSnapshot(snapshot, (current, nextTotal, label) => {
+      setSyncProgress({
+        phase: 'ranch-pull',
+        current,
+        total: nextTotal,
+        label,
+      });
+    });
     const detail =
       merged.applied > 0
         ? `Pulled ${merged.applied} row(s) from the ranch database.`

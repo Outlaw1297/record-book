@@ -70,8 +70,32 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+const SAVE_LABELS = {
+  animals: 'Saving animals',
+  cowCalf: 'Saving calving',
+  breeding: 'Saving breeding',
+  pastures: 'Saving pastures',
+  pastureAnimals: 'Saving pasture herd',
+  sales: 'Saving sales',
+  treatments: 'Saving treatments',
+} as const;
+
+export function snapshotRowCount(snapshot: HerdSnapshot): number {
+  return (
+    asArray(snapshot.animals).length +
+    asArray(snapshot.cowCalf).length +
+    asArray(snapshot.breeding).length +
+    asArray(snapshot.pastures).length +
+    asArray(snapshot.pastureAnimals).length +
+    asArray(snapshot.sales).length +
+    asArray(snapshot.treatments).length +
+    (snapshot.settings ? 1 : 0)
+  );
+}
+
 export async function mergeSnapshot(
   snapshot: HerdSnapshot,
+  onProgress?: (current: number, total: number, label: string) => void,
 ): Promise<{ applied: number; conflicts: number }> {
   let applied = 0;
   let conflicts = 0;
@@ -95,12 +119,26 @@ export async function mergeSnapshot(
     ['sales', asArray(snapshot.sales)],
     ['treatments', asArray(snapshot.treatments)],
   ];
+  const total = Math.max(snapshotRowCount(snapshot), 1);
+  let completed = 0;
+  const report = (current: number, label: string) => {
+    onProgress?.(current, total, label);
+  };
   for (const [entity, rows] of batches) {
-    const result = await applySnapshotRows(entity, rows);
+    const label = SAVE_LABELS[entity];
+    report(completed, label);
+    const result = await applySnapshotRows(entity, rows, (written, planned) => {
+      const portion =
+        planned > 0 ? Math.round((written / planned) * rows.length) : rows.length;
+      report(completed + Math.min(portion, rows.length), label);
+    });
     applied += result.applied;
     conflicts += result.conflicts;
+    completed += rows.length;
+    report(completed, label);
   }
   if (snapshot.settings) {
+    report(completed, 'Saving settings');
     const result = await applyRemoteChange({
       v: 1,
       deviceId: 'snapshot',
@@ -112,6 +150,8 @@ export async function mergeSnapshot(
     });
     if (result === 'applied') applied += 1;
     if (result === 'conflict') conflicts += 1;
+    completed += 1;
+    report(completed, 'Saving settings');
   }
   return { applied, conflicts };
 }

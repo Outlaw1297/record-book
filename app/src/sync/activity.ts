@@ -75,6 +75,20 @@ export function clearSyncProgress(): void {
   scheduleActivityEmit({ force: true });
 }
 
+/** Keep the status bar moving while a ranch GET has no byte progress yet. */
+export function startProgressClock(baseLabel: string): () => void {
+  const started = Date.now();
+  const id = setInterval(() => {
+    if (!progress) return;
+    const secs = Math.max(1, Math.round((Date.now() - started) / 1000));
+    const nextLabel = `${baseLabel} · ${secs}s`;
+    if (progress.label === nextLabel) return;
+    progress = { ...progress, label: nextLabel };
+    scheduleActivityEmit();
+  }, 1000);
+  return () => clearInterval(id);
+}
+
 function pushLog(level: SyncLogLevel, message: string, detail?: string): void {
   seq += 1;
   logs = [

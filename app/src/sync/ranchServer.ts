@@ -3,13 +3,21 @@ import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { buildSnapshot, mergeSnapshot } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
-import { appFetch, isDnsFailure, isNetworkFailure } from './appFetch';
+import {
+  appFetch,
+  isAbortFailure,
+  isDnsFailure,
+  isNetworkFailure,
+  RANCH_EXPORT_MS,
+  RANCH_HEALTH_MS,
+} from './appFetch';
 import {
   clearSyncProgress,
   logSyncError,
   logSyncInfo,
   logSyncWarn,
   setSyncProgress,
+  startProgressClock,
 } from './activity';
 
 const URL_KEY = 'record-book.ranchApiUrl';
@@ -68,8 +76,16 @@ function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record
   return headers;
 }
 
-function ranchFetch(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: string) {
-  return appFetch(ranchUrl(path), ranchRequestInit(method, body));
+const DEFAULT_POST_MS = 120_000;
+
+function ranchFetch(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  body?: string,
+  timeoutMs?: number,
+) {
+  const ms = timeoutMs ?? (method === 'GET' ? RANCH_EXPORT_MS : DEFAULT_POST_MS);
+  return appFetch(ranchUrl(path), ranchRequestInit(method, body), ms);
 }
 
 export function ranchRequestInit(
@@ -118,6 +134,9 @@ export function looksLikeLanUrl(url: string): boolean {
 export function ranchUnreachableDetail(error: unknown, healthUrl: string): string {
   const check = healthUrl || `${RANCH_LAN_API_PLACEHOLDER}/health`;
   const raw = error instanceof Error ? error.message.trim() : '';
+  if (isAbortFailure(error)) {
+    return `The ranch read did not finish. Open ${check} in this phone’s browser (it should show {"ok":true}), then tap Sync again.`;
+  }
   if (isDnsFailure(error)) {
     return `Could not look up the ranch host. Open ${check} in this phone’s browser (it should show {"ok":true}), then tap Sync again.`;
   }
@@ -180,6 +199,27 @@ export async function pullFromRanchServer(): Promise<{
     return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
   }
   try {
+    logSyncInfo('GET /health · reaching ranch');
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total: 1,
+      label: 'Reaching ranch',
+    });
+    const stopHealth = startProgressClock('Reaching ranch');
+    let health: Response;
+    try {
+      health = await ranchFetch('/health', 'GET', undefined, RANCH_HEALTH_MS);
+    } finally {
+      stopHealth();
+    }
+    if (!health.ok) {
+      const detail = ranchHttpDetail(health.status);
+      logSyncError(`HTTP ${health.status} · GET /health`, detail);
+      return { ok: false, applied: 0, conflicts: 0, detail };
+    }
+    logSyncInfo('HTTP 200 · GET /health');
+
     logSyncInfo('GET /v1/export · reading ranch database');
     setSyncProgress({
       phase: 'ranch-pull',
@@ -187,7 +227,13 @@ export async function pullFromRanchServer(): Promise<{
       total: 1,
       label: 'Reading ranch database',
     });
-    const response = await ranchFetch('/v1/export');
+    const stopExport = startProgressClock('Reading ranch database');
+    let response: Response;
+    try {
+      response = await ranchFetch('/v1/export', 'GET', undefined, RANCH_EXPORT_MS);
+    } finally {
+      stopExport();
+    }
     if (!response.ok) {
       const detail = ranchHttpDetail(response.status);
       logSyncError(`HTTP ${response.status} · GET /v1/export`, detail);
@@ -198,6 +244,12 @@ export async function pullFromRanchServer(): Promise<{
         detail,
       };
     }
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total: 1,
+      label: 'Saving ranch database',
+    });
     const snapshot = asHerdSnapshot(await response.json().catch(() => null));
     if (!snapshot) {
       logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');

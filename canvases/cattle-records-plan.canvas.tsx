@@ -20,7 +20,7 @@ export default function CattleRecordsPlanCanvas() {
   return (
     <Stack gap={24}>
       <Stack gap={8}>
-        <H1>Cattle Record Book — Plan</H1>
+        <H1>HerdLedger — Plan</H1>
         <Text tone="secondary">
           Digital twin of your myHERD.org / American Hereford Association pocket
           book. Offline SQLite on phone and desktop; Google Drive or Dropbox

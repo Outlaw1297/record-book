@@ -1,32 +1,32 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSettings } from '../db/schema';
+import { DEFAULT_RANCH_NAME } from '../brand';
+import { db, getSettings, isActiveCattle } from '../db/schema';
 
 export function HomePage() {
   const settings = useLiveQuery(() => getSettings());
-  const year = settings?.currentYear ?? new Date().getFullYear();
 
   const counts = useLiveQuery(async () => {
     const [cowCalf, breeding, pastures, sales, animals, pending] =
       await Promise.all([
-        db.cowCalf.filter((r) => !r.deletedAt && r.year === year).count(),
-        db.breeding.filter((r) => !r.deletedAt && r.year === year).count(),
-        db.pastures.filter((r) => !r.deletedAt && r.year === year).count(),
-        db.sales.filter((r) => !r.deletedAt && r.year === year).count(),
-        db.animals.filter((r) => !r.deletedAt).count(),
+        db.cowCalf.filter((r) => !r.deletedAt).count(),
+        db.breeding.filter((r) => !r.deletedAt).count(),
+        db.pastures.filter((r) => !r.deletedAt).count(),
+        db.sales.filter((r) => !r.deletedAt).count(),
+        db.animals.filter((r) => !r.deletedAt && isActiveCattle(r.status)).count(),
         db.outbox.filter((c) => !c.syncedAt).count(),
       ]);
     return { cowCalf, breeding, pastures, sales, animals, pending };
-  }, [year]);
+  }, []);
 
   return (
     <div className="page">
       <header className="page-header">
-        <h1>{settings?.ranchName ?? 'Record Book'}</h1>
+        <h1>{settings?.ranchName ?? DEFAULT_RANCH_NAME}</h1>
         <p className="lede">
-          {year} calf book
-          {settings?.operatorName ? ` · ${settings.operatorName}` : ''}. Big
-          buttons, one row at a time.
+          Every year stays in this book
+          {settings?.operatorName ? ` · ${settings.operatorName}` : ''}. Search
+          and filter when you need one row. Big buttons, one record at a time.
         </p>
       </header>
 
@@ -54,11 +54,11 @@ export function HomePage() {
       <div className="stat-row">
         <div className="stat">
           <strong>{counts?.cowCalf ?? '—'}</strong>
-          <span>Calves this year</span>
+          <span>Calf rows</span>
         </div>
         <div className="stat">
           <strong>{counts?.animals ?? '—'}</strong>
-          <span>Herd I.D.s</span>
+          <span>Active cattle</span>
         </div>
         <div className="stat">
           <strong>{counts?.breeding ?? '—'}</strong>
@@ -71,6 +71,10 @@ export function HomePage() {
       </div>
 
       <section className="quick-grid">
+        <Link className="quick-card" to="/eid">
+          <h2>Find a lost tag</h2>
+          <p>Photo or wand an EID to see which animal it belongs to</p>
+        </Link>
         <Link className="quick-card" to="/herd">
           <h2>Look up an animal</h2>
           <p>Visual ID, Cow Sense fields, lifetime records</p>

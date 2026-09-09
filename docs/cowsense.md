@@ -1,12 +1,12 @@
 # Cow Sense import and export
 
-Record Book can pull this ranch’s herd out of Cow Sense and send updates back. Each ranch’s cattle stay on that ranch. `Nygaaard.csh` on Dropbox is **this** ranch’s Cow Sense herd file.
+HerdLedger can pull this ranch’s herd out of Cow Sense and send updates back. Each ranch’s cattle stay on that ranch. `Nygaaard.csh` on Dropbox is **this** ranch’s Cow Sense herd file.
 
-**Do not edit that Dropbox file from Record Book.** Import reads a copy. Export writes CSV for Cow Sense Tools → Import. Cow Sense owns the `.csh`.
+**Do not edit that Dropbox file from HerdLedger.** Import reads a copy. Export writes CSV for Cow Sense Tools → Import. Cow Sense owns the `.csh`.
 
 ## What a `.csh` file is
 
-Cow Sense NxGen stores the herd in a Microsoft Access (Jet) database (`File > Open`, usually under Documents → Cow Sense). Record Book reads these tables from a copy you drop on **Cow Sense** (`/import`):
+Cow Sense NxGen stores the herd in a Microsoft Access (Jet) database (`File > Open`, usually under Documents → Cow Sense). HerdLedger reads these tables from a copy you drop on **Cow Sense** (`/import`):
 
 - `Animal_Identity` — Visual ID, sex, type, status, birth, EID, sire/dam links, registration, tattoo, brand
 - `Anim_Traits` — color, breed, horn code, twin code, calving ease, EPDs
@@ -28,7 +28,7 @@ After import, this ranch’s NAS copies the herd into Postgres. That used to 504
 ## Pull the herd in
 
 1. Copy `Nygaaard.csh` somewhere else if you are testing. Leave the Dropbox original alone.
-2. Open Record Book → **Cow Sense**
+2. Open HerdLedger → **Cow Sense**
 3. Drop the **copy** of the `.csh` (or a List CSV)
 4. Check the preview (Visual ID, Type, Status, dam)
 5. **Merge** into this ranch (default) or **Replace herd**

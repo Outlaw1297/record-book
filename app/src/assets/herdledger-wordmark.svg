@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 220" fill="none">
+  <rect width="220" height="220" rx="46" fill="#3A2417"/>
+  <g transform="translate(10 10) scale(0.390625)">
+    <rect x="86" y="108" width="340" height="300" rx="28" fill="#F5F0E6"/>
+    <rect x="86" y="108" width="36" height="300" rx="10" fill="#A62F27"/>
+    <circle cx="292" cy="248" r="72" fill="#3A2417"/>
+    <circle cx="268" cy="232" r="14" fill="#F5F0E6"/>
+    <circle cx="316" cy="232" r="14" fill="#F5F0E6"/>
+    <path d="M220 212c-18-28-48-24-58-8 22 8 40 28 58 44 8-14 10-26 0-36Z" fill="#3A2417"/>
+    <path d="M364 212c18-28 48-24 58-8-22 8-40 28-58 44-8-14-10-26 0-36Z" fill="#3A2417"/>
+  </g>
+  <text x="252" y="128" fill="#3A2417" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="700" letter-spacing="4">HERDLEDGER</text>
+  <text x="252" y="172" fill="#A62F27" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-weight="700" letter-spacing="3.2">KNOW YOUR HERD. KNOW YOUR NUMBERS.</text>
+</svg>

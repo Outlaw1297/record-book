@@ -1,3 +1,4 @@
+import { DEFAULT_RANCH_NAME } from '../brand';
 import type { SyncedSettings } from './types';
 
 export function sanitizeSettingsForSync(payload: unknown): SyncedSettings {
@@ -9,7 +10,7 @@ export function sanitizeSettingsForSync(payload: unknown): SyncedSettings {
     ranchName:
       typeof record.ranchName === 'string' && record.ranchName.trim()
         ? record.ranchName
-        : 'Record Book',
+        : DEFAULT_RANCH_NAME,
     currentYear:
       typeof record.currentYear === 'number' && Number.isFinite(record.currentYear)
         ? record.currentYear

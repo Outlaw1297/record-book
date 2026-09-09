@@ -1,6 +1,6 @@
 # Sign in with Google and Dropbox — click-by-click
 
-You only do this **once**, on a computer, as the person who publishes Record Book. After that, every ranch signs into **their own** Google or Dropbox. These IDs identify the Record Book **app**, not a ranch’s cattle.
+You only do this **once**, on a computer, as the person who publishes HerdLedger. After that, every ranch signs into **their own** Google or Dropbox. These IDs identify the HerdLedger **app**, not a ranch’s cattle.
 
 You need a Google account, a Dropbox account, and owner access to [github.com/Outlaw1297/record-book](https://github.com/Outlaw1297/record-book).
 
@@ -23,14 +23,14 @@ Official pages: [Create a project](https://developers.google.com/workspace/guide
 2. If Google asks you to accept terms, accept them.
 3. At the top of the page, click the project name (or **Select a project**).
 4. Click **New project**.
-5. Project name: `Record Book`
-6. Click **Create**. Wait until the top bar shows **Record Book**.
+5. Project name: `HerdLedger` (if you already created `Record Book`, keep that project — do not make a second one)
+6. Click **Create**. Wait until the top bar shows the project name.
 
 You do **not** need to turn on billing for this.
 
 ### 1B. Turn on the Drive API
 
-1. Open [this Drive API page](https://console.cloud.google.com/apis/library/drive.googleapis.com) (it should still be in the Record Book project).
+1. Open [this Drive API page](https://console.cloud.google.com/apis/library/drive.googleapis.com) (it should still be in the HerdLedger / Record Book project).
 2. Click **Enable**. If it already says **Manage**, you are done.
 
 ### 1C. Register the app (consent screen)
@@ -39,7 +39,7 @@ Google will not let you create login IDs until this is filled in.
 
 1. Open [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding).
 2. If you see **Google Auth platform not configured yet**, click **Get started**.
-3. **App name:** `Record Book`
+3. **App name:** `HerdLedger`
 4. **User support email:** pick your Gmail from the list.
 5. Click **Next**.
 6. **Audience:** click **External** (people who are not in a Google Workspace company). Click **Next**. A later grey **Make internal** is normal on a personal Gmail. Leave it External.
@@ -48,13 +48,13 @@ Google will not let you create login IDs until this is filled in.
 
 On Branding, leave **App home page**, **Privacy policy**, **Terms of service**, and **Authorized domains** blank.
 
-If you see the gray box that says a domain “must be pre-registered here” and to check **Google Search Console**, skip it. That text only applies if you type a website (because you are Publishing). Record Book is a phone app. You do **not** register a domain and you do **not** open Search Console.
+If you see the gray box that says a domain “must be pre-registered here” and to check **Google Search Console**, skip it. That text only applies if you type a website (because you are Publishing). HerdLedger is a phone app. You do **not** register a domain and you do **not** open Search Console.
 
 ### 1D. Add yourself as a test user
 
 Adding a Gmail here does **not** put that ranch on your Drive. Google is only allowing that account to see the Allow screen and connect **their** Drive. You still cannot see their cattle.
 
-Google has two modes. Record Book is meant to be universal (unknown ranches, their own Google). That is **later**. Tonight is **Testing**:
+Google has two modes. HerdLedger is meant to be universal (unknown ranches, their own Google). That is **later**. Tonight is **Testing**:
 
 | Mode | Who can tap Sign in with Google | What you type |
 |------|----------------------------------|---------------|
@@ -70,7 +70,7 @@ While the app is in Testing, Google only lets listed accounts sign in. Add **you
 3. **User type** should say **External**. Grey **Make internal** (“Because you're not a Google Workspace user…”) is expected on a personal Gmail. Do not try to change it. This still means each ranch signs into **their** Google, not yours.
 4. If a yellow box says **Your app's OAuth configuration is incomplete** with **Go to Branding**:
    1. Click **Go to Branding**.
-   2. **App name:** `Record Book`
+   2. **App name:** `HerdLedger`
    3. **User support email:** pick your Gmail.
    4. **Developer contact information:** the same email.
    5. Click **Save**. Leave home page, privacy, terms, and Authorized domains blank (same as 1C).
@@ -82,7 +82,7 @@ While the app is in Testing, Google only lets listed accounts sign in. Add **you
 
 You do **not** need **Publish app**. Google’s own exception is: a small app in **Testing**, used by people you add as test users, does **not** go through verification. [Sensitive scope verification — exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements)
 
-Do not Publish tonight. Publishing without a homepage and privacy policy is what that grey button is blocking, and a half-finished Publish is how unknown Gmails get **403 Access blocked**. The 100-user cap on Audience is Google’s Testing lock, not Record Book sharing cattle. After your phone works, unknown ranches need the production walk (website + Publish), not more test-user rows.
+Do not Publish tonight. Publishing without a homepage and privacy policy is what that grey button is blocking, and a half-finished Publish is how unknown Gmails get **403 Access blocked**. The 100-user cap on Audience is Google’s Testing lock, not HerdLedger sharing cattle. After your phone works, unknown ranches need the production walk (website + Publish), not more test-user rows.
 
 ### 1E. Tell Google you only need this app’s Drive files
 
@@ -92,7 +92,7 @@ Do not Publish tonight. Publishing without a homepage and privacy policy is what
 
    `https://www.googleapis.com/auth/drive.file`
 
-4. Check that row. It is a **non-sensitive** scope (files Record Book creates). Do **not** check the huge “See, edit, create, and delete all of your Google Drive files” row.
+4. Check that row. It is a **non-sensitive** scope (files HerdLedger creates). Do **not** check the huge “See, edit, create, and delete all of your Google Drive files” row.
 5. Click **Update**, then **Save**.
 
 ### 1F. Create the Web client (this is `VITE_GOOGLE_CLIENT_ID`)
@@ -102,7 +102,7 @@ Capgo / Google Sign-In on Android needs a **Web** client ID, even though this is
 1. Open [Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients).
 2. Click **Create client**.
 3. **Application type:** **Web application**.
-4. **Name:** `Record Book Web`
+4. **Name:** `HerdLedger Web` (an existing client named `Record Book Web` is the same client — keep it)
 5. Leave **Authorized JavaScript origins** and **Authorized redirect URIs** empty.
 6. Click **Create**.
 7. Copy **Client ID** only. It looks like:
@@ -118,7 +118,7 @@ This proves the sideload APK is allowed to talk to Google. You never paste this 
 
 1. Still on [Clients](https://console.cloud.google.com/auth/clients), click **Create client** again.
 2. **Application type:** **Android**.
-3. **Name:** `Record Book Android debug`
+3. **Name:** `HerdLedger Android debug` (an existing client named `Record Book Android debug` is the same client — keep it)
 4. **Package name:** type this exactly, all lowercase:
 
    `me.flyingjranch.recordbook`
@@ -134,7 +134,7 @@ Google can take a few minutes (sometimes a couple of hours) to notice a new Andr
 
 ### Walkthrough 1H — If Google says it needs verification
 
-You do **not** send Record Book through Google’s paid/review verification. Keep it in Testing. Official: [exceptions to verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements) (personal use, and apps left in Testing).
+You do **not** send HerdLedger through Google’s paid/review verification. Keep it in Testing. Official: [exceptions to verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions-to-verification-requirements) (personal use, and apps left in Testing).
 
 This does **not** put other ranches on your Drive. Each person still signs into **their** Gmail. You only add **your** address so Google will show **you** the Allow screen. Unknown ranches are not added here. They wait until the app is Published.
 
@@ -149,7 +149,7 @@ This does **not** put other ranches on your Drive. Each person still signs into 
 **B. Add the Gmail that is on the phone**
 
 1. Still on Audience, under **Test users**, click **Add users**.
-2. Type the **same Gmail** you tap on the phone (the account you want Record Book to use). Click **Save**.
+2. Type the **same Gmail** you tap on the phone (the account you want HerdLedger to use). Click **Save**.
 3. If the ranch uses a second Gmail on another phone, add that too (limit 100).
 4. Wait one or two minutes.
 
@@ -158,7 +158,7 @@ This does **not** put other ranches on your Drive. Each person still signs into 
 1. On the phone, Settings → **Sign in with Google**. Pick that same Gmail.
 2. If you see **Google hasn’t verified this app**:
    1. Tap **Advanced** (small text, sometimes at the bottom).
-   2. Tap **Go to Record Book (unsafe)** or **Continue**.
+   2. Tap **Go to HerdLedger (unsafe)** or **Continue**. If the OAuth listing is still named Record Book, Google’s button will still say **Go to Record Book**.
    3. Then Allow Drive access.
 3. If you still see **Access blocked**, the Gmail on the phone is not in Test users, or you are still In production. Repeat A and B. Sign out of extra Google accounts on the phone and try the listed Gmail only.
 
@@ -180,8 +180,8 @@ Official pages: [Dropbox App Console](https://www.dropbox.com/developers/apps), 
 1. On a computer, open [www.dropbox.com/developers/apps](https://www.dropbox.com/developers/apps) and sign in.
 2. Click **Create app**.
 3. **Choose an API:** **Scoped access**.
-4. **Choose the type of access:** **App folder**. Record Book then only sees a folder Dropbox makes for this app (`Apps/Record Book` in that person’s Dropbox). Other ranches still use **their** Dropbox; this does not put their cattle in yours.
-5. **Name:** `Record Book` (if that name is taken, `Record Book herd` is fine).
+4. **Choose the type of access:** **App folder**. HerdLedger then only sees a folder Dropbox makes for this app (`Apps/Record Book` if that is the existing Dropbox app name). Other ranches still use **their** Dropbox; this does not put their cattle in yours.
+5. **Name:** keep `Record Book` if that Dropbox app already exists so the `Apps/Record Book` folder stays put. For a brand-new Dropbox app, `HerdLedger` is fine.
 6. Click **Create app**.
 
 ### 2B. Settings tab
@@ -243,13 +243,13 @@ Adding secrets does not change the APK already on the phone. You have to build a
 4. Wait until that run is green (about one to two minutes).
 5. Open [the android-debug release](https://github.com/Outlaw1297/record-book/releases/tag/android-debug).
 6. Download `record-book-debug.apk` on the phone (Chrome on the phone is easiest).
-7. On the phone: Settings → Apps → Record Book → Uninstall (old debug builds can refuse to update).
+7. On the phone: Settings → Apps → HerdLedger (or Record Book) → Uninstall (old debug builds can refuse to update).
 8. Open the downloaded APK and allow that one install.
-9. Open **Record Book** → **Settings**.
+9. Open **HerdLedger** → **Settings**.
 10. Tap **Sign in with Google**. Pick **your** Google account.
-    - If the screen says **Google hasn’t verified this app** or **this app isn’t verified**, that is the Testing warning, not a failure. Tap **Advanced** (you may need to scroll), then **Go to Record Book (unsafe)**. That only means Google has not reviewed the product listing. It still writes into **your** Drive only.
+    - If the screen says **Google hasn’t verified this app** or **this app isn’t verified**, that is the Testing warning, not a failure. Tap **Advanced** (you may need to scroll), then **Go to HerdLedger (unsafe)** (Google may still say Record Book until the OAuth app name is renamed). That only means Google has not reviewed the product listing. It still writes into **your** Drive only.
     - If the screen says **Access blocked** / **has not completed the Google verification process**, skip Publish. Follow [Walkthrough 1H](#walkthrough-1h--if-google-says-it-needs-verification) above.
-11. Or tap **Sign in with Dropbox**. Sign into **your** Dropbox. You should return to Record Book, not a folder list of internal storage.
+11. Or tap **Sign in with Dropbox**. Sign into **your** Dropbox. You should return to HerdLedger, not a folder list of internal storage.
 
 ---
 
@@ -258,14 +258,14 @@ Adding secrets does not change the APK already on the phone. You have to build a
 | You tap | What should happen |
 |---------|-------------------|
 | Sign in with Google | Google account picker / consent, then Settings shows your Gmail |
-| Sign in with Dropbox | Dropbox website or app login, then back into Record Book |
+| Sign in with Dropbox | Dropbox website or app login, then back into HerdLedger |
 | Either, after sync | A `RecordBook` folder in **that** Drive or Dropbox |
 
 | You still see | What it means |
 |---------------|----------------|
 | “not baked into this APK yet” | Secrets missing, wrong names, or you did not install the **new** APK after the rebuild |
 | Phone file picker (“Open from”, Dalton’s Z Fold5) | Old APK. Uninstall and install the latest `record-book-debug.apk` |
-| Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to Record Book. Still **your** Drive. |
+| Google “isn’t verified” / Advanced | Normal in Testing. Tap Advanced → Go to HerdLedger (Google may still say Record Book). Still **your** Drive. |
 | Google “Access blocked” / verification | Publishing is Testing and this Gmail is a test user. See walk 1H. Do not Publish. |
 | Audience yellow “OAuth configuration is incomplete” | Click Go to Branding, save App name + your Gmail, leave domains blank. Then **Add users**. Grey Publish is fine. |
 | Audience “No rows to display” under Test users | Drive will fail **for you** until your Gmail is listed. Unknown ranches are not added here. |

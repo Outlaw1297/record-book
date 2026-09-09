@@ -158,7 +158,7 @@ export function InteropPage() {
           <p className="due-kicker">Import</p>
           <h2>{fileName || 'Nygaaard.csh or a Cow Sense CSV'}</h2>
           <p>
-            Drop the herd file here. Record Book reads a copy of the Cow Sense
+            Drop the herd file here. HerdLedger reads a copy of the Cow Sense
             Access database (.csh). It does not write that file. CSV/TXT from
             Manage → List still works.
           </p>
@@ -264,7 +264,7 @@ export function InteropPage() {
       <section className="sync-panel" style={{ marginTop: '1.5rem' }}>
         <h2>Send back to Cow Sense</h2>
         <p className="hint">
-          Cow Sense will not open a Record Book file, and Record Book will not
+          Cow Sense will not open a HerdLedger file, and HerdLedger will not
           overwrite your .csh. Download CSV, then in Cow Sense use Tools →
           Import. Sex must be Heifer/Cow/Bull/Steer. Status on the way back is
           Active / Disposed / Reference, with Disposal Type for sold, dead, or

@@ -2,16 +2,20 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'me.flyingjranch.recordbook',
-  appName: 'Record Book',
+  appName: 'HerdLedger',
   webDir: 'dist',
-  backgroundColor: '#f4eee6',
+  backgroundColor: '#F5F0E6',
   android: {
     allowMixedContent: true,
-    backgroundColor: '#f4eee6',
+    backgroundColor: '#F5F0E6',
   },
   plugins: {
+    // Do not patch window.fetch. Native OkHttp cannot resolve hosts on some
+    // phones while Chrome can (Dropbox/Google "Unable to resolve host").
+    // Chromium fetch matches the phone browser. Explicit CapacitorHttp.request
+    // stays available as a fallback for http:// ranch URLs only.
     CapacitorHttp: {
-      enabled: true,
+      enabled: false,
     },
     SocialLogin: {
       providers: {

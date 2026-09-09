@@ -138,7 +138,7 @@ export function saleFromDb(row: Row) {
 
 export function ranchFromDb(row: Row) {
   return {
-    ranchName: String(row.ranch_name ?? 'Record Book'),
+    ranchName: String(row.ranch_name ?? 'HerdLedger'),
     currentYear: Number(row.current_year),
     updatedAt: iso(row.updated_at) || new Date().toISOString(),
   };

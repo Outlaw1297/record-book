@@ -1,9 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  getSettings,
   newId,
   nowIso,
   upsertAnimalByHerdId,
@@ -13,8 +12,13 @@ import {
   type SaleRecord,
   type Sex,
 } from '../db/schema';
+import { CULL_NOTE_CHOICES, mergeChoices, rankedLabels } from '../lib/choices';
+import { listHerdIds } from '../lib/herd';
+import { recordYear, uniqueYears } from '../lib/year';
 import { DeleteRecordButton } from '../ui/DeleteRecordButton';
 import { EmptyState, Field, Segmented } from '../ui/Field';
+import { RecordToolbar, matchesQuery, matchesYear } from '../ui/RecordToolbar';
+import { SuggestSelect } from '../ui/SuggestSelect';
 import { useToast } from '../ui/Toast';
 
 function markLabel(mark?: ListMark): string {
@@ -24,15 +28,23 @@ function markLabel(mark?: ListMark): string {
 }
 
 export function SalesListPage() {
-  const settings = useLiveQuery(() => getSettings());
-  const year = settings?.currentYear ?? new Date().getFullYear();
+  const [query, setQuery] = useState('');
+  const [year, setYear] = useState<'all' | number>('all');
   const rows = useLiveQuery(
+    () => db.sales.filter((r) => !r.deletedAt).reverse().sortBy('updatedAt'),
+    [],
+  );
+  const years = useMemo(() => uniqueYears((rows ?? []).map((row) => row.year)), [rows]);
+  const visible = useMemo(
     () =>
-      db.sales
-        .filter((r) => !r.deletedAt && r.year === year)
-        .reverse()
-        .sortBy('updatedAt'),
-    [year],
+      (rows ?? []).filter((row) => {
+        if (!matchesYear(row.year, year)) return false;
+        return matchesQuery(
+          [row.calfId, row.sex, row.buyer, row.saleDate, row.notes, row.price, row.year],
+          query,
+        );
+      }),
+    [query, rows, year],
   );
 
   return (
@@ -43,12 +55,21 @@ export function SalesListPage() {
       >
         <div>
           <h1>Sales / culls</h1>
-          <p className="lede">{year} · sale record and cull list</p>
+          <p className="lede">Sale record and cull list for every year in this book.</p>
         </div>
         <Link className="btn primary" to="/sales/new">
           Add row
         </Link>
       </header>
+
+      <RecordToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Calf / buyer / notes"
+        year={year}
+        onYear={setYear}
+        years={years}
+      />
 
       {(rows?.length ?? 0) === 0 ? (
         <div style={{ marginTop: '1rem' }}>
@@ -59,10 +80,12 @@ export function SalesListPage() {
             actionLabel="Add row"
           />
         </div>
+      ) : visible.length === 0 ? (
+        <p className="empty-match">No sales match that search.</p>
       ) : (
         <>
           <div className="card-list card-mobile" style={{ marginTop: '1rem' }}>
-            {rows?.map((row) => (
+            {visible.map((row) => (
               <Link key={row.id} className="list-card" to={`/sales/${row.id}`}>
                 <h2>
                   {markLabel(row.listMark)} {row.calfId}
@@ -85,7 +108,7 @@ export function SalesListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows?.map((row) => (
+                {visible.map((row) => (
                   <tr
                     key={row.id}
                     className={
@@ -116,12 +139,24 @@ export function SalesFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const settings = useLiveQuery(() => getSettings());
   const existing = useLiveQuery(
     () => (id && id !== 'new' ? db.sales.get(id) : undefined),
     [id],
   );
 
+  const herdIds = useLiveQuery(() => listHerdIds(), []);
+  const usedSales = useLiveQuery(
+    () => db.sales.filter((row) => !row.deletedAt).toArray(),
+    [],
+  );
+  const buyerOptions = useMemo(
+    () => rankedLabels((usedSales ?? []).map((row) => row.buyer)),
+    [usedSales],
+  );
+  const noteOptions = useMemo(
+    () => mergeChoices(rankedLabels((usedSales ?? []).map((row) => row.notes)), CULL_NOTE_CHOICES),
+    [usedSales],
+  );
   const [calfId, setCalfId] = useState('');
   const [sex, setSex] = useState<Sex>('');
   const [buyer, setBuyer] = useState('');
@@ -153,7 +188,7 @@ export function SalesFormPage() {
 
     const record: SaleRecord = {
       id: existing?.id ?? newId(),
-      year: settings?.currentYear ?? new Date().getFullYear(),
+      year: recordYear(saleDate, existing?.year),
       calfId: calfId.trim(),
       sex,
       buyer: buyer.trim() || undefined,
@@ -201,6 +236,7 @@ export function SalesFormPage() {
               setCalfId(e.target.value);
               setError('');
             }}
+            list="herd-ids"
             placeholder="242y"
             autoCapitalize="characters"
             autoCorrect="off"
@@ -208,6 +244,11 @@ export function SalesFormPage() {
             required
           />
         </Field>
+        <datalist id="herd-ids">
+          {(herdIds ?? []).map((herdId) => (
+            <option key={herdId} value={herdId} />
+          ))}
+        </datalist>
         <Field label="Sex">
           <Segmented
             ariaLabel="Sex"
@@ -232,20 +273,18 @@ export function SalesFormPage() {
             ]}
           />
         </Field>
-        <Field label="Notes">
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="old / gimpy / udder"
-          />
-        </Field>
-        <Field label="Sold to">
-          <input
-            value={buyer}
-            onChange={(e) => setBuyer(e.target.value)}
-            placeholder="Buyer / sale barn"
-          />
-        </Field>
+        <SuggestSelect
+          label="Notes"
+          value={notes}
+          onChange={setNotes}
+          options={noteOptions}
+        />
+        <SuggestSelect
+          label="Sold to"
+          value={buyer}
+          onChange={setBuyer}
+          options={buyerOptions}
+        />
         <div className="form-row">
           <Field label="Date">
             <input

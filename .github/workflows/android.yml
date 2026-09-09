@@ -91,17 +91,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-debug
-          name: Record Book Android (debug)
+          name: HerdLedger Android (debug)
           prerelease: true
           make_latest: false
           files: app/record-book-debug.apk
           body: |
-            Sideload this APK. The record book is bundled on the phone, so field logging works with no website.
+            Sideload this APK. HerdLedger is bundled on the phone, so field logging works with no website.
 
             1. Download `record-book-debug.apk` on the phone.
             2. Open it and allow that one install from unknown sources.
             3. Log calves offline. IndexedDB stays on the device.
-            4. Uninstall the old Record Book first, then install this APK.
+            4. Uninstall the old HerdLedger (or Record Book) first, then install this APK.
             5. Each install is another ranch. Settings → Sign in with Google or Sign in with Dropbox (YOUR account). If YOU run Docker, also type YOUR ranch API. The NAS is the book; Drive/Dropbox is the spare copy if the NAS is off.
 
             If YOU run Docker, Settings → Ranch API URL `http://YOUR-NAS:8180/api`. Do not use another ranch’s account or NAS.

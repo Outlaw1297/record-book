@@ -24,7 +24,7 @@ export function BookTabs() {
   if (!isBookPath(pathname)) return null;
 
   return (
-    <nav className="book-tabs" aria-label="Record book sections">
+    <nav className="book-tabs" aria-label="Book sections">
       {TABS.map((tab) => (
         <NavLink
           key={tab.to}

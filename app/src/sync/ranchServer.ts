@@ -1,8 +1,17 @@
+import { DEFAULT_RANCH_NAME } from '../brand';
 import { RANCH_LAN_API_PLACEHOLDER } from '../platform';
 import { applyRemoteChange, applySnapshotRows } from './remoteApply';
-import { buildSnapshot, mergeSnapshot } from './snapshot';
+import { buildSnapshot, mergeSnapshot, snapshotRowCount } from './snapshot';
 import type { CloudProvider, HerdSnapshot } from './types';
 import { ensureSettings } from '../db/schema';
+import {
+  appFetch,
+  isAbortFailure,
+  isDnsFailure,
+  isNetworkFailure,
+  RANCH_EXPORT_MS,
+  RANCH_HEALTH_MS,
+} from './appFetch';
 import {
   clearSyncProgress,
   logSyncError,
@@ -82,18 +91,16 @@ function ranchHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Record
   return headers;
 }
 
+const DEFAULT_POST_MS = 120_000;
+
 function ranchFetch(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   body?: string,
   timeoutMs?: number,
 ) {
-  const ms = timeoutMs ?? (method === 'GET' ? PAGE_TIMEOUT_MS : FULL_EXPORT_TIMEOUT_MS);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(ranchUrl(path), ranchRequestInit(method, body, controller.signal)).finally(() => {
-    clearTimeout(timer);
-  });
+  const ms = timeoutMs ?? (method === 'GET' ? RANCH_EXPORT_MS : DEFAULT_POST_MS);
+  return appFetch(ranchUrl(path), ranchRequestInit(method, body), ms);
 }
 
 export function ranchRequestInit(
@@ -126,16 +133,35 @@ export function ranchUrl(path: string): string {
   return `${base}${suffix}`;
 }
 
+export function looksLikeLanUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === 'nas' ||
+      host.endsWith('.local') ||
+      host.endsWith('.lan') ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)
+    );
+  } catch {
+    return true;
+  }
+}
+
 export function ranchUnreachableDetail(error: unknown, healthUrl: string): string {
   const check = healthUrl || `${RANCH_LAN_API_PLACEHOLDER}/health`;
   const raw = error instanceof Error ? error.message.trim() : '';
-  const blocked =
-    !raw ||
-    /failed to fetch|networkerror|load failed|not fetched|err_cleartext|err_failed|err_connection/i.test(
-      raw,
-    );
-  if (blocked) {
-    return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
+  if (isAbortFailure(error)) {
+    return `The ranch read did not finish. Open ${check} in this phone’s browser (it should show {"ok":true}), then tap Sync again.`;
+  }
+  if (isDnsFailure(error)) {
+    return `Could not look up the ranch host. Open ${check} in this phone’s browser (it should show {"ok":true}), then tap Sync again.`;
+  }
+  if (!raw || isNetworkFailure(error)) {
+    if (looksLikeLanUrl(check)) {
+      return `Could not reach the ranch. Stay on ranch Wi-Fi, then open ${check} in the phone browser. It should show {"ok":true}.`;
+    }
+    return `Could not reach the ranch. Open ${check} in this phone’s browser. It should show {"ok":true}. Then tap Sync.`;
   }
   return raw;
 }
@@ -180,7 +206,7 @@ function asHerdSnapshot(body: unknown): HerdSnapshot | null {
   const settings =
     record.settings && typeof record.settings === 'object'
       ? (record.settings as HerdSnapshot['settings'])
-      : { ranchName: 'Record Book', currentYear: new Date().getFullYear() };
+      : { ranchName: DEFAULT_RANCH_NAME, currentYear: new Date().getFullYear() };
   return {
     format: 'record-book-snapshot',
     version: 1,
@@ -276,7 +302,7 @@ async function pullPagedFromRanch(meta: ExportMeta): Promise<{
       const stopClock = startProgressClock(label);
       let response: Response;
       try {
-        response = await ranchFetch(path);
+        response = await ranchFetch(path, 'GET', undefined, PAGE_TIMEOUT_MS);
       } finally {
         stopClock();
       }
@@ -343,19 +369,18 @@ async function pullFullExport(): Promise<{
     logSyncError(`HTTP ${response.status} · GET /v1/export`, detail);
     return { ok: false, applied: 0, conflicts: 0, detail };
   }
+  setSyncProgress({
+    phase: 'ranch-pull',
+    current: 0,
+    total: 1,
+    label: 'Unpacking ranch database',
+  });
   const snapshot = asHerdSnapshot(await response.json().catch(() => null));
   if (!snapshot) {
     logSyncInfo('HTTP 200 · GET /v1/export · ranch database is empty');
     return { ok: true, applied: 0, conflicts: 0, detail: 'Ranch database is empty.' };
   }
-  const total =
-    snapshot.animals.length +
-    snapshot.cowCalf.length +
-    snapshot.breeding.length +
-    snapshot.pastures.length +
-    snapshot.pastureAnimals.length +
-    snapshot.sales.length +
-    (snapshot.treatments?.length ?? 0);
+  const total = Math.max(snapshotRowCount(snapshot), 1);
   setSyncProgress({
     phase: 'ranch-pull',
     current: 0,
@@ -388,6 +413,27 @@ export async function pullFromRanchServer(): Promise<{
     return { ok: false, applied: 0, conflicts: 0, detail: 'Ranch server not configured.' };
   }
   try {
+    logSyncInfo('GET /health · reaching ranch');
+    setSyncProgress({
+      phase: 'ranch-pull',
+      current: 0,
+      total: 1,
+      label: 'Reaching ranch',
+    });
+    const stopHealth = startProgressClock('Reaching ranch');
+    let health: Response;
+    try {
+      health = await ranchFetch('/health', 'GET', undefined, RANCH_HEALTH_MS);
+    } finally {
+      stopHealth();
+    }
+    if (!health.ok) {
+      const detail = ranchHttpDetail(health.status);
+      logSyncError(`HTTP ${health.status} · GET /health`, detail);
+      return { ok: false, applied: 0, conflicts: 0, detail };
+    }
+    logSyncInfo('HTTP 200 · GET /health');
+
     logSyncInfo('GET /v1/export/meta · counting ranch database');
     setSyncProgress({
       phase: 'ranch-pull',
@@ -395,12 +441,12 @@ export async function pullFromRanchServer(): Promise<{
       total: 1,
       label: 'Reading ranch database',
     });
-    const stopClock = startProgressClock('Reading ranch database');
+    const stopMeta = startProgressClock('Reading ranch database');
     let metaResponse: Response;
     try {
-      metaResponse = await ranchFetch('/v1/export/meta');
+      metaResponse = await ranchFetch('/v1/export/meta', 'GET', undefined, RANCH_HEALTH_MS);
     } finally {
-      stopClock();
+      stopMeta();
     }
     if (metaResponse.ok) {
       const meta = asExportMeta(await metaResponse.json().catch(() => null));

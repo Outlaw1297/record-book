@@ -1,8 +1,8 @@
 # Android APK (offline field app)
 
-The Portainer site is a browser app. This APK **embeds the record book on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device.
+The Portainer site is a browser app. This APK **embeds HerdLedger on the phone**, so calf logging works with airplane mode, dead cell service, or the NAS powered off. IndexedDB stays on the device.
 
-This is the same APK for every ranch. It does not bake a NAS address or anyone else’s Drive or Dropbox. Public OAuth client IDs identify the Record Book app, not a ranch. Each install is another ranch using the tool. Cattle stay on that ranch.
+This is the same APK for every ranch. It does not bake a NAS address or anyone else’s Drive or Dropbox. Public OAuth client IDs identify the HerdLedger app, not a ranch. Each install is another ranch using the tool. Cattle stay on that ranch.
 
 ## Install on a phone
 
@@ -10,7 +10,7 @@ This is the same APK for every ranch. It does not bake a NAS address or anyone e
 2. Download `record-book-debug.apk`.
 3. Copy it to the phone (Drive, USB, or open the GitHub release in Chrome on the phone).
 4. Open the APK. Android will ask you to allow that app (Chrome, Files, etc.) to install unknown apps. Allow it for this one install.
-5. Open **Record Book**. Finish onboarding. Log calves. No website required.
+5. Open **HerdLedger**. Finish onboarding. Log calves. No website required.
 
 This is a **debug** APK for sideload, not a Play Store build.
 

@@ -424,10 +424,10 @@ function unknownBinaryWarning(format: CowSenseFormat): string {
     return 'This .csh looks like a SQLite database. Drop a Cow Sense CSV (Manage > List > Export) here too, or we will keep trying to map tables from a spreadsheet export.';
   }
   if (format === 'sqlce') {
-    return 'This herd file looks like SQL Server Compact. Export from Cow Sense Manage → List as CSV and drop that here. Record Book does not write the original .csh.';
+    return 'This herd file looks like SQL Server Compact. Export from Cow Sense Manage → List as CSV and drop that here. HerdLedger does not write the original .csh.';
   }
   if (format === 'access') {
-    return 'Could not read the Cow Sense Access tables in that .csh. Export Manage → List as CSV and drop that here. Record Book never writes the original herd file.';
+    return 'Could not read the Cow Sense Access tables in that .csh. Export Manage → List as CSV and drop that here. HerdLedger never writes the original herd file.';
   }
   return 'Could not read that .csh as a Cow Sense database or spreadsheet. Export from Manage → List as CSV or TXT and import that here. The CSV we export uses Cow Sense Sex/Type/Status words so Tools → Import can take them back.';
 }
@@ -470,7 +470,7 @@ export function parseCowSenseBytes(bytes: Uint8Array, fileName = 'herd.csh'): Pa
     } catch (error) {
       return emptyHerd('access', magic, [
         error instanceof Error ? error.message : 'Could not open this Cow Sense database.',
-        'Record Book does not change the original .csh. Export Manage → List as CSV if this copy will not open.',
+        'HerdLedger does not change the original .csh. Export Manage → List as CSV if this copy will not open.',
       ]);
     }
   }

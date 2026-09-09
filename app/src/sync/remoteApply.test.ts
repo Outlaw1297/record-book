@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  naturalKeyFor,
   naturalKeyFromRecord,
   planSnapshotMerge,
 } from './remoteApply';
+
+describe('naturalKeyFor', () => {
+  it('keys animals by herd id', () => {
+    expect(naturalKeyFor('animals', { herdId: ' 101A ' })).toBe('animal:101a');
+  });
+});
 
 describe('naturalKeyFromRecord', () => {
   it('keys animals by herd id, not the record object', () => {

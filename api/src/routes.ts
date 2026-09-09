@@ -3,7 +3,10 @@ import type { Context } from 'hono';
 import {
   applyChange,
   applySnapshot,
+  exportCollection,
+  exportMeta,
   exportSnapshot,
+  isExportCollectionKey,
   upsertAnimal,
   upsertBreeding,
   upsertCowCalf,
@@ -59,6 +62,8 @@ v1.get('/', (c) =>
     docs: {
       health: 'GET /health',
       export: 'GET /v1/export',
+      exportMeta: 'GET /v1/export/meta',
+      exportPage: 'GET /v1/export/:table?limit=&offset=',
       snapshot: 'POST /v1/sync/snapshot',
       changes: 'POST /v1/sync/changes',
       cloudBackup: 'GET/PUT/DELETE /v1/cloud-backup, POST /v1/cloud-backup/now',
@@ -77,6 +82,24 @@ v1.get('/', (c) =>
     auth: 'Authorization: Bearer <API_KEY> or X-Api-Key: <API_KEY>',
   }),
 );
+
+v1.get('/export/meta', async (c) => c.json(await exportMeta()));
+
+v1.get('/export/:table', async (c) => {
+  const table = c.req.param('table');
+  if (!isExportCollectionKey(table)) {
+    return c.json({ error: 'Unknown export table.' }, 404);
+  }
+  const limit = Number(c.req.query('limit') || 1000);
+  const offset = Number(c.req.query('offset') || 0);
+  return c.json(
+    await exportCollection(
+      table,
+      Number.isFinite(limit) ? limit : 1000,
+      Number.isFinite(offset) ? offset : 0,
+    ),
+  );
+});
 
 v1.get('/export', async (c) => c.json(await exportSnapshot()));
 

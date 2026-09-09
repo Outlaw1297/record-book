@@ -9,7 +9,6 @@ import {
   animalNaturalKey,
   breedingNaturalKey,
   cowCalfNaturalKey,
-  normId,
   pastureAnimalNaturalKey,
   pastureNaturalKey,
   pickIdentityWinner,
@@ -97,103 +96,67 @@ function newest(rows: RecordWithMeta[]): RecordWithMeta | undefined {
   return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
 
+export function naturalKeyFor(
+  entity: RecordEntity,
+  payload: Record<string, unknown> | RecordWithMeta,
+): string | undefined {
+  const row = payload as Record<string, unknown>;
+  switch (entity) {
+    case 'animals': {
+      const herdId = String(row.herdId ?? '');
+      return herdId.trim() ? animalNaturalKey(herdId) : undefined;
+    }
+    case 'cowCalf':
+      return cowCalfNaturalKey({
+        year: Number(row.year),
+        cowId: String(row.cowId ?? ''),
+        calfId: typeof row.calfId === 'string' ? row.calfId : '',
+        openWithoutCalf: Boolean(row.openWithoutCalf),
+      });
+    case 'breeding':
+      return breedingNaturalKey({
+        year: Number(row.year),
+        cowId: String(row.cowId ?? ''),
+        kind: String(row.kind ?? ''),
+      });
+    case 'pastures':
+      return pastureNaturalKey({
+        year: Number(row.year),
+        pastureName: String(row.pastureName ?? ''),
+      });
+    case 'pastureAnimals':
+      return pastureAnimalNaturalKey({
+        exposureId: String(row.exposureId ?? ''),
+        animalHerdId: String(row.animalHerdId ?? ''),
+        role: String(row.role ?? ''),
+      });
+    case 'sales':
+      return saleNaturalKey({
+        year: Number(row.year),
+        calfId: String(row.calfId ?? ''),
+      });
+    case 'treatments':
+      return treatmentNaturalKey({
+        animalHerdId: String(row.animalHerdId ?? ''),
+        date: typeof row.date === 'string' ? row.date : '',
+        product: typeof row.product === 'string' ? row.product : '',
+      });
+  }
+}
+
 async function findNaturalDuplicate(
   entity: RecordEntity,
   payload: Record<string, unknown>,
   remoteId: string,
 ): Promise<RecordWithMeta | undefined> {
-  switch (entity) {
-    case 'animals': {
-      const herdId = String(payload.herdId ?? '');
-      if (!herdId.trim()) return undefined;
-      const key = normId(herdId);
-      const matches = asMeta(
-        await db.animals
-          .filter((row) => row.id !== remoteId && normId(row.herdId) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'cowCalf': {
-      const key = cowCalfNaturalKey({
-        year: Number(payload.year),
-        cowId: String(payload.cowId ?? ''),
-        calfId: typeof payload.calfId === 'string' ? payload.calfId : '',
-        openWithoutCalf: Boolean(payload.openWithoutCalf),
-      });
-      const matches = asMeta(
-        await db.cowCalf
-          .filter((row) => row.id !== remoteId && cowCalfNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'breeding': {
-      const key = breedingNaturalKey({
-        year: Number(payload.year),
-        cowId: String(payload.cowId ?? ''),
-        kind: String(payload.kind ?? ''),
-      });
-      const matches = asMeta(
-        await db.breeding
-          .filter((row) => row.id !== remoteId && breedingNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'pastures': {
-      const key = pastureNaturalKey({
-        year: Number(payload.year),
-        pastureName: String(payload.pastureName ?? ''),
-      });
-      const matches = asMeta(
-        await db.pastures
-          .filter((row) => row.id !== remoteId && pastureNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'pastureAnimals': {
-      const key = pastureAnimalNaturalKey({
-        exposureId: String(payload.exposureId ?? ''),
-        animalHerdId: String(payload.animalHerdId ?? ''),
-        role: String(payload.role ?? ''),
-      });
-      const matches = asMeta(
-        await db.pastureAnimals
-          .filter(
-            (row) => row.id !== remoteId && pastureAnimalNaturalKey(row) === key,
-          )
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'sales': {
-      const key = saleNaturalKey({
-        year: Number(payload.year),
-        calfId: String(payload.calfId ?? ''),
-      });
-      const matches = asMeta(
-        await db.sales
-          .filter((row) => row.id !== remoteId && saleNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-    case 'treatments': {
-      const key = treatmentNaturalKey({
-        animalHerdId: String(payload.animalHerdId ?? ''),
-        date: typeof payload.date === 'string' ? payload.date : '',
-        product: typeof payload.product === 'string' ? payload.product : '',
-      });
-      const matches = asMeta(
-        await db.treatments
-          .filter((row) => row.id !== remoteId && treatmentNaturalKey(row) === key)
-          .toArray(),
-      );
-      return newest(matches);
-    }
-  }
+  const key = naturalKeyFor(entity, payload);
+  if (!key) return undefined;
+  const matches = asMeta(
+    ((await tableFor(entity).filter((row) => row.id !== remoteId).toArray()) as RecordWithMeta[]).filter(
+      (row) => naturalKeyFor(entity, row) === key,
+    ),
+  );
+  return newest(matches);
 }
 
 async function tombstone(
@@ -419,53 +382,7 @@ export function naturalKeyFromRecord(
   entity: RecordEntity,
   record: Record<string, unknown>,
 ): string | null {
-  if (entity === 'animals') {
-    const herdId = String(record.herdId ?? '');
-    if (!herdId.trim()) return null;
-    return animalNaturalKey(herdId);
-  }
-  if (entity === 'cowCalf') {
-    return cowCalfNaturalKey({
-      year: Number(record.year),
-      cowId: String(record.cowId ?? ''),
-      calfId: typeof record.calfId === 'string' ? record.calfId : '',
-      openWithoutCalf: Boolean(record.openWithoutCalf),
-    });
-  }
-  if (entity === 'breeding') {
-    return breedingNaturalKey({
-      year: Number(record.year),
-      cowId: String(record.cowId ?? ''),
-      kind: String(record.kind ?? ''),
-    });
-  }
-  if (entity === 'treatments') {
-    return treatmentNaturalKey({
-      animalHerdId: String(record.animalHerdId ?? ''),
-      date: typeof record.date === 'string' ? record.date : '',
-      product: typeof record.product === 'string' ? record.product : '',
-    });
-  }
-  if (entity === 'sales') {
-    return saleNaturalKey({
-      year: Number(record.year),
-      calfId: String(record.calfId ?? ''),
-    });
-  }
-  if (entity === 'pastureAnimals') {
-    return pastureAnimalNaturalKey({
-      exposureId: String(record.exposureId ?? ''),
-      animalHerdId: String(record.animalHerdId ?? ''),
-      role: String(record.role ?? ''),
-    });
-  }
-  if (entity === 'pastures') {
-    return pastureNaturalKey({
-      year: Number(record.year),
-      pastureName: String(record.pastureName ?? ''),
-    });
-  }
-  return null;
+  return naturalKeyFor(entity, record) ?? null;
 }
 
 function preferKeyHolder(a: RecordWithMeta, b: RecordWithMeta): RecordWithMeta {

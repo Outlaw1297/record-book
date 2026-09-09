@@ -326,6 +326,20 @@
     transition: width 180ms ease-out;
   }
 
+  .sync-banner-progress-bar.indeterminate {
+    width: 38%;
+    animation: sync-indeterminate 1.15s ease-in-out infinite;
+  }
+
+  @keyframes sync-indeterminate {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(280%);
+    }
+  }
+
   .sync-banner.error .sync-banner-progress-bar {
     background: var(--color-danger);
   }

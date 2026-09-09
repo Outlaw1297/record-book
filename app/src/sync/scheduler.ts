@@ -1,6 +1,7 @@
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { syncNow } from './engine';
+import { syncFromScheduler } from './engine';
+import { AUTO_SYNC_MS } from './ranchIdle';
 import { emitSyncEvent, OUTBOX_EVENT } from './types';
 
 let timer: number | undefined;
@@ -13,7 +14,7 @@ export function scheduleSync(delayMs = 400): void {
   if (timer) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     timer = undefined;
-    void syncNow().catch(() => emitSyncEvent());
+    void syncFromScheduler().catch(() => emitSyncEvent());
   }, delayMs);
 }
 
@@ -33,7 +34,7 @@ export function startSyncScheduler(): void {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') onForeground();
   });
-  window.setInterval(() => scheduleSync(0), 8_000);
+  window.setInterval(() => scheduleSync(0), AUTO_SYNC_MS);
   scheduleSync(800);
 
   if (Capacitor.isNativePlatform() && !nativeListeners) {

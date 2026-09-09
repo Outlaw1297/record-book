@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
@@ -17,11 +18,37 @@ import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ToastProvider } from './ui/Toast';
 import { BrandWordmark } from './ui/BrandMark';
 import { getSettings } from './db/schema';
+import { isNativeApp } from './platform';
+import {
+  deliverNativeOAuthReturn,
+  isOAuthCallbackLocation,
+} from './sync/oauthReturn';
+
+function NativeOAuthBounce() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const delivered = deliverNativeOAuthReturn(params);
+    navigate(delivered ? '/settings?sync=connected' : '/settings', { replace: true });
+  }, [navigate, params]);
+
+  return (
+    <div className="onboard">
+      <div className="onboard-card" style={{ textAlign: 'center' }}>
+        <BrandWordmark />
+        <p className="hint" style={{ marginTop: '1rem' }}>
+          Finishing sign-in…
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function AppGate() {
   const location = useLocation();
-  if (location.pathname.startsWith('/oauth/callback')) {
-    return <OAuthCallbackPage />;
+  if (isOAuthCallbackLocation(location.pathname, window.location.hostname)) {
+    return isNativeApp() ? <NativeOAuthBounce /> : <OAuthCallbackPage />;
   }
   return <MainApp />;
 }

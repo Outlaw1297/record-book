@@ -1,3 +1,5 @@
+import { isNativeApp } from '../platform';
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) {
@@ -22,12 +24,16 @@ export async function createPkce(): Promise<{
   return { verifier, challenge: bytesToBase64Url(new Uint8Array(digest)) };
 }
 
-/** Custom-scheme return used by the APK (Custom Tabs), never the ranch API. */
+/** Custom-scheme return used by the APK, never the ranch API. */
 export const NATIVE_OAUTH_REDIRECT_URI = 'me.flyingjranch.recordbook://oauth/callback';
 
-/** Browser / PWA return. The APK uses native Google Sign-In and the custom scheme above. */
+export function oauthRedirectUriFor(native: boolean, origin: string): string {
+  return native ? NATIVE_OAUTH_REDIRECT_URI : `${origin}/oauth/callback`;
+}
+
+/** APK must exchange against the custom scheme; the PWA uses this page’s origin. */
 export function oauthRedirectUri(): string {
-  return `${window.location.origin}/oauth/callback`;
+  return oauthRedirectUriFor(isNativeApp(), window.location.origin);
 }
 
 export function toFormBody(params: Record<string, string>): string {

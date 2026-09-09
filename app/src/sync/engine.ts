@@ -25,6 +25,7 @@ import {
   pushToRanchServer,
   requestNasBackup,
 } from './ranchServer';
+import { shouldPushRanchSnapshot, shouldSkipIdleRanchSync } from './ranchIdle';
 import { applyRemoteFile } from './remoteApply';
 import { formatWhen, isSyncOnline, noneProviderBanner, noSharedBookDetail } from './statusCopy';
 import {
@@ -357,7 +358,9 @@ async function connectedCloudProviders(): Promise<CloudProvider[]> {
   return connected;
 }
 
-async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
+async function runSync(
+  options: { replace?: boolean; force?: boolean } = {},
+): Promise<SyncRunResult> {
   try {
     return await runSyncBody(options);
   } finally {
@@ -365,11 +368,34 @@ async function runSync(options: { replace?: boolean } = {}): Promise<SyncRunResu
   }
 }
 
-async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRunResult> {
+async function runSyncBody(
+  options: { replace?: boolean; force?: boolean } = {},
+): Promise<SyncRunResult> {
   const settings = await ensureSettings();
   const ranchConfigured = hasRanchServer();
   const connectedClouds = await connectedCloudProviders();
   const preferred = preferredCloudProvider(settings.syncProvider, connectedClouds);
+  const pendingRows = await db.outbox.filter((change) => !change.syncedAt).toArray();
+  if (
+    ranchConfigured &&
+    !options.replace &&
+    shouldSkipIdleRanchSync({
+      force: Boolean(options.force),
+      pendingCount: pendingRows.length,
+      ranchSyncedAt: settings.ranchSyncedAt,
+      nowMs: Date.now(),
+    })
+  ) {
+    logSyncInfo('Skipped idle ranch copy — herd is up to date');
+    emitSyncEvent();
+    return {
+      ok: true,
+      detail: 'Herd is up to date on the ranch database.',
+      pulled: 0,
+      pushed: 0,
+      conflicts: 0,
+    };
+  }
   if (!ranchConfigured && connectedClouds.length === 0) {
     return {
       ok: false,
@@ -439,18 +465,64 @@ async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRun
         }
       }
 
-      const ranch = await pushToRanchServer();
-      if (ranch.ok) {
-        ranchOk = true;
-        parts.push(ranch.detail);
-        const now = nowIso();
-        await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
-        const pending = await db.outbox.filter((change) => !change.syncedAt).toArray();
-        if (pending.length > 0) {
+      const pending =
+        pendingRows.length > 0
+          ? pendingRows
+          : await db.outbox.filter((change) => !change.syncedAt).toArray();
+      if (shouldPushRanchSnapshot(pending.length)) {
+        const ranch = await pushToRanchServer();
+        if (ranch.ok) {
+          ranchOk = true;
+          parts.push(ranch.detail);
+          const now = nowIso();
+          await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
           await markOutboxSynced(pending.map((change) => change.id));
           pushed = { pushed: pending.length };
-        }
 
+          const devices = await loadRanchDevices();
+          if (devices.length > 0) {
+            await cacheRoster(
+              {
+                bookId: (await ensureSettings()).bookId || settings.deviceId,
+                updatedAt: now,
+                devices: devices.map((device) => ({
+                  deviceId: device.deviceId,
+                  deviceName: device.deviceName,
+                  operatorName: device.operatorName,
+                  kind: device.kind === 'desk' ? 'desk' : device.kind === 'phone' ? 'phone' : undefined,
+                  lastSeenAt: device.lastSeenAt,
+                })),
+              },
+              settings.deviceId,
+            );
+          }
+          setSyncProgress({
+            phase: 'backup',
+            current: 1,
+            total: 1,
+            label: 'NAS spare copy to Dropbox or Drive…',
+          });
+          const nas = await requestNasBackup();
+          if (!/no dropbox or google login stored/i.test(nas.detail)) {
+            parts.push(nas.detail);
+          }
+        } else if (connectedClouds.length === 0) {
+          lastError = ranch.detail;
+          emitSyncEvent();
+          return {
+            ok: false,
+            detail: ranch.detail,
+            pulled: pulled.pulled,
+            pushed: 0,
+            conflicts: pulled.conflicts,
+          };
+        } else {
+          parts.push(ranch.detail);
+        }
+      } else {
+        ranchOk = true;
+        const now = nowIso();
+        await db.settings.update(1, { ranchSyncedAt: now, lastSyncedAt: now });
         const devices = await loadRanchDevices();
         if (devices.length > 0) {
           await cacheRoster(
@@ -468,28 +540,6 @@ async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRun
             settings.deviceId,
           );
         }
-        setSyncProgress({
-          phase: 'backup',
-          current: 1,
-          total: 1,
-          label: 'NAS spare copy to Dropbox or Drive…',
-        });
-        const nas = await requestNasBackup();
-        if (!/no dropbox or google login stored/i.test(nas.detail)) {
-          parts.push(nas.detail);
-        }
-      } else if (connectedClouds.length === 0) {
-        lastError = ranch.detail;
-        emitSyncEvent();
-        return {
-          ok: false,
-          detail: ranch.detail,
-          pulled: pulled.pulled,
-          pushed: 0,
-          conflicts: pulled.conflicts,
-        };
-      } else {
-        parts.push(ranch.detail);
       }
     } else if (connectedClouds.length === 0) {
       lastError = incoming.detail;
@@ -582,7 +632,16 @@ async function runSyncBody(options: { replace?: boolean } = {}): Promise<SyncRun
 
 export async function syncNow(): Promise<SyncRunResult> {
   if (inflight) return inflight;
-  inflight = runSync().finally(() => {
+  inflight = runSync({ force: true }).finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+/** Background tick. Skips a ranch rewrite when nothing is pending. */
+export async function syncFromScheduler(): Promise<SyncRunResult> {
+  if (inflight) return inflight;
+  inflight = runSync({ force: false }).finally(() => {
     inflight = null;
   });
   return inflight;

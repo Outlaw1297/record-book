@@ -552,7 +552,6 @@ export function planSnapshotMerge(
       bestLocal.id === remote.id &&
       bestLocal.updatedAt === updatedAt
     ) {
-      applied += 1;
       continue;
     }
     if (bestLocal && pickIdentityWinner(bestLocal, remoteMeta) === 'local') {

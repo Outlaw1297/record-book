@@ -39,7 +39,7 @@ describe('planSnapshotMerge', () => {
     const row = { id: 'a1', herdId: '1', updatedAt: '2026-01-01T00:00:00.000Z' };
     const planned = planSnapshotMerge('animals', [row], [row]);
     expect(planned.puts).toEqual([]);
-    expect(planned.applied).toBe(1);
+    expect(planned.applied).toBe(0);
   });
 
   it('keeps a newer local row and does not overwrite it', () => {

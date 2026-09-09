@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { isNativeApp } from '../platform';
 
 type PendingReturn = {
@@ -7,8 +8,14 @@ type PendingReturn = {
   timer: number;
 };
 
+export type NativeOAuthFinish = 'delivered' | 'completed' | 'failed';
+
 let pending: PendingReturn | null = null;
 let listening = false;
+let launchUrlConsumed = false;
+let handledKey: string | null = null;
+let handledOutcome: NativeOAuthFinish | null = null;
+let exchangeInFlight: Promise<NativeOAuthFinish> | null = null;
 
 /** Path used by the PWA, and by the APK if the WebView follows the redirect. */
 export function isOAuthCallbackPath(pathname: string): boolean {
@@ -63,33 +70,106 @@ function clearPending(error?: Error): void {
   if (error) current.reject(error);
 }
 
+function returnKey(params: URLSearchParams): string {
+  return params.get('code') || params.get('error') || params.toString();
+}
+
+function closeAuthBrowser(): void {
+  void Browser.close().catch(() => undefined);
+}
+
+function rememberOutcome(params: URLSearchParams, outcome: NativeOAuthFinish): void {
+  handledKey = returnKey(params);
+  handledOutcome = outcome;
+}
+
 /** Hands the return to startOAuth if a native Dropbox wait is in flight. */
 export function deliverNativeOAuthReturn(params: URLSearchParams): boolean {
   if (!pending) return false;
   const current = pending;
   clearPending();
+  rememberOutcome(params, 'delivered');
+  closeAuthBrowser();
   current.resolve(params);
   return true;
 }
 
-export async function prepareNativeOAuthReturn(): Promise<void> {
-  if (!isNativeApp() || listening || typeof window === 'undefined') return;
-  listening = true;
-  try {
-    await App.addListener('appUrlOpen', ({ url }) => {
-      const params = parseOAuthReturnUrl(url);
-      if (params) deliverNativeOAuthReturn(params);
-    });
-  } catch {
-    listening = false;
+/**
+ * Give the code to an in-flight native login, or exchange it using the
+ * PKCE session in localStorage when the waiter died (WebView reload / process death).
+ */
+export async function finishNativeOAuthReturn(
+  params: URLSearchParams,
+): Promise<NativeOAuthFinish> {
+  if (deliverNativeOAuthReturn(params)) return 'delivered';
+  if (exchangeInFlight) return exchangeInFlight;
+  if (handledKey === returnKey(params) && handledOutcome) return handledOutcome;
+
+  exchangeInFlight = (async () => {
+    try {
+      const { completeOAuthCallback } = await import('./auth');
+      const result = await completeOAuthCallback(params);
+      const outcome: NativeOAuthFinish = result.ok ? 'completed' : 'failed';
+      rememberOutcome(params, outcome);
+      closeAuthBrowser();
+      return outcome;
+    } catch {
+      rememberOutcome(params, 'failed');
+      closeAuthBrowser();
+      return 'failed';
+    } finally {
+      exchangeInFlight = null;
+    }
+  })();
+  return exchangeInFlight;
+}
+
+async function handleNativeReturnUrl(url: string): Promise<void> {
+  const params = parseOAuthReturnUrl(url);
+  if (!params) return;
+  const outcome = await finishNativeOAuthReturn(params);
+  if (
+    outcome !== 'completed' ||
+    typeof window === 'undefined' ||
+    isOAuthCallbackLocation(window.location.pathname, window.location.hostname)
+  ) {
+    return;
+  }
+  // Cold ACTION_VIEW start keeps the WebView on /; bounce never runs.
+  if (!window.location.pathname.startsWith('/settings')) {
+    window.location.replace('/settings?sync=connected');
   }
 }
 
-export function openExternalAuthUrl(url: string): void {
-  const opened = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!opened) {
-    window.location.assign(url);
+export function abortNativeOAuthReturn(error: Error): void {
+  clearPending(error);
+}
+
+export async function prepareNativeOAuthReturn(): Promise<void> {
+  if (!isNativeApp() || typeof window === 'undefined') return;
+  if (!listening) {
+    listening = true;
+    try {
+      await App.addListener('appUrlOpen', ({ url }) => {
+        void handleNativeReturnUrl(url);
+      });
+    } catch {
+      listening = false;
+    }
   }
+  if (launchUrlConsumed) return;
+  launchUrlConsumed = true;
+  try {
+    const launch = await App.getLaunchUrl();
+    if (launch?.url) await handleNativeReturnUrl(launch.url);
+  } catch {
+    /* Launch URL is only set for a cold ACTION_VIEW start. */
+  }
+}
+
+/** Opens Dropbox in a Custom Tab so the Capacitor WebView stays on HerdLedger. */
+export async function openExternalAuthUrl(url: string): Promise<void> {
+  await Browser.open({ url });
 }
 
 export async function waitForNativeOAuthReturn(

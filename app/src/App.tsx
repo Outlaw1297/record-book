@@ -20,7 +20,7 @@ import { BrandWordmark } from './ui/BrandMark';
 import { getSettings } from './db/schema';
 import { isNativeApp } from './platform';
 import {
-  deliverNativeOAuthReturn,
+  finishNativeOAuthReturn,
   isOAuthCallbackLocation,
 } from './sync/oauthReturn';
 
@@ -29,8 +29,17 @@ function NativeOAuthBounce() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const delivered = deliverNativeOAuthReturn(params);
-    navigate(delivered ? '/settings?sync=connected' : '/settings', { replace: true });
+    let cancelled = false;
+    void (async () => {
+      const outcome = await finishNativeOAuthReturn(params);
+      if (cancelled) return;
+      navigate(outcome === 'failed' ? '/settings' : '/settings?sync=connected', {
+        replace: true,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate, params]);
 
   return (

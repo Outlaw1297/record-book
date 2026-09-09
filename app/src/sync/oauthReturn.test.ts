@@ -1,12 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   deliverNativeOAuthReturn,
+  finishNativeOAuthReturn,
   isOAuthCallbackLocation,
   isOAuthCallbackPath,
   parseOAuthReturnUrl,
   waitForNativeOAuthReturn,
 } from './oauthReturn';
 import { NATIVE_OAUTH_REDIRECT_URI, oauthRedirectUriFor } from './pkce';
+import { completeOAuthCallback } from './auth';
+
+vi.mock('./auth', () => ({
+  completeOAuthCallback: vi.fn(async () => ({
+    ok: true,
+    detail: 'Dropbox connected.',
+  })),
+}));
 
 describe('native OAuth return', () => {
   it('uses the custom scheme on the phone and the page origin in the browser', () => {
@@ -50,5 +59,19 @@ describe('native OAuth return', () => {
     const params = await waiting;
     expect(params.get('code')).toBe('from-app');
     expect(deliverNativeOAuthReturn(new URLSearchParams('code=late'))).toBe(false);
+  });
+
+  it('does not drop a second finish of the same code after the waiter received it', async () => {
+    const waiting = waitForNativeOAuthReturn(5_000);
+    const params = new URLSearchParams('code=again&state=ok');
+    await expect(finishNativeOAuthReturn(params)).resolves.toBe('delivered');
+    expect((await waiting).get('code')).toBe('again');
+    await expect(finishNativeOAuthReturn(params)).resolves.toBe('delivered');
+  });
+
+  it('exchanges an unclaimed return using the persisted PKCE session', async () => {
+    const params = new URLSearchParams('code=orphan&state=s');
+    await expect(finishNativeOAuthReturn(params)).resolves.toBe('completed');
+    expect(completeOAuthCallback).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,6 +12,7 @@ import {
   refreshNativeSession,
 } from './nativeAuth';
 import {
+  abortNativeOAuthReturn,
   openExternalAuthUrl,
   prepareNativeOAuthReturn,
   waitForNativeOAuthReturn,
@@ -192,9 +193,16 @@ async function finishNativeDropboxLogin(): Promise<{ navigated: boolean; detail:
   const { challenge, redirectUri, state } = await savePkceSession('dropbox');
   await prepareNativeOAuthReturn();
   const waiting = waitForNativeOAuthReturn();
-  openExternalAuthUrl(
-    authorizationUrl('dropbox', clientId, redirectUri, challenge, state),
-  );
+  try {
+    await openExternalAuthUrl(
+      authorizationUrl('dropbox', clientId, redirectUri, challenge, state),
+    );
+  } catch (error) {
+    const opened =
+      error instanceof Error ? error : new Error('Could not open Dropbox.');
+    abortNativeOAuthReturn(opened);
+    throw opened;
+  }
   const params = await waiting;
   const result = await completeOAuthCallback(params);
   if (!result.ok) {

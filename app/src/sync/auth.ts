@@ -389,10 +389,7 @@ export async function completeOAuthCallback(
   syncAfterLogin();
   return {
     ok: true,
-    detail:
-      session.provider === 'google-drive'
-        ? 'Google Drive connected.'
-        : 'Dropbox connected.',
+    detail: signedInDetail(session.provider),
   };
 }
 

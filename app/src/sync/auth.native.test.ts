@@ -13,4 +13,11 @@ describe('native cloud login', () => {
     expect(missingClientIdMessage('google-drive')).toMatch(/oauth-setup/);
     expect(missingClientIdMessage('dropbox')).toMatch(/their own Dropbox/);
   });
+
+  it('keeps the phone return URI on the custom scheme so token exchange matches Dropbox', async () => {
+    const { NATIVE_OAUTH_REDIRECT_URI, oauthRedirectUriFor } = await import('./pkce');
+    expect(oauthRedirectUriFor(true, 'https://localhost')).toBe(
+      NATIVE_OAUTH_REDIRECT_URI,
+    );
+  });
 });
